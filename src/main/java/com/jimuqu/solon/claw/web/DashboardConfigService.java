@@ -695,10 +695,7 @@ public class DashboardConfigService {
                         "boolean",
                         "security",
                         "子 Agent 自动批准危险命令"));
-        addField(new FieldDefinition("approvals.timeoutSeconds", "number", "security", "本地审批超时秒数"));
-        addField(
-                new FieldDefinition(
-                        "approvals.gatewayTimeoutSeconds", "number", "security", "渠道审批超时秒数"));
+        addField(new FieldDefinition("approvals.timeoutSeconds", "number", "security", "审批超时秒数"));
         addField(
                 new FieldDefinition(
                         "approvals.mcpReloadConfirm", "boolean", "security", "MCP reload 需要确认"));

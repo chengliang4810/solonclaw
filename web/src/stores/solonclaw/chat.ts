@@ -1027,6 +1027,16 @@ export const useChatStore = defineStore('chat', () => {
               break
             }
 
+            case 'message.reset': {
+              const msgs = getSessionMsgs(sid)
+              const last = msgs[msgs.length - 1]
+              if (last?.role === 'assistant' && last.isStreaming) {
+                msgs.pop()
+              }
+              schedulePersist()
+              break
+            }
+
             case 'reasoning.delta': {
               const msgs = getSessionMsgs(sid)
               const last = msgs[msgs.length - 1]

@@ -14,8 +14,8 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
-import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
@@ -45,6 +45,7 @@ import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.ChatOptions;
 import org.noear.solon.ai.chat.ChatRequestDesc;
 import org.noear.solon.ai.chat.ChatResponse;
+import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.ChatSession;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -567,8 +568,7 @@ public class SolonAiOwnedReActLoopTest {
                 new DangerousCommandApprovalService(
                         null, config, new SecurityPolicyService(config), null);
         File boundary =
-                new File("target/owned-loop-file-approval-" + System.nanoTime())
-                        .getCanonicalFile();
+                new File("target/owned-loop-file-approval-" + System.nanoTime()).getCanonicalFile();
         File workspace = new File(boundary, "workspace").getCanonicalFile();
         File outside = new File(boundary, "outside.txt").getCanonicalFile();
         assertThat(workspace.mkdirs() || workspace.isDirectory()).isTrue();
@@ -870,6 +870,227 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(result.getRawUsageJson()).contains("prompt_tokens");
     }
 
+    /** 同步响应因长度截断时应自动续写并折叠内部消息，最终正文不得重复重叠片段。 */
+    @Test
+    void shouldContinueLengthLimitedResponseWithoutDuplicateText() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.LENGTH_THEN_STOP);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-length-continuation-session");
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请生成长答复",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(model.calls).isEqualTo(2);
+        assertThat(result.getFinishReason()).isEqualTo("stop");
+        assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("第一段结尾第二段");
+        List<ChatMessage> messages = MessageSupport.loadMessages(result.getNdjson());
+        assertThat(messages).extracting(ChatMessage::getRole).containsExactly(ChatRole.USER, ChatRole.ASSISTANT);
+        assertThat(messages).extracting(ChatMessage::getContent)
+                .containsExactly("请生成长答复", "第一段结尾第二段");
+        assertThat(MessageSupport.getLastUserMessage(result.getNdjson())).isEqualTo("请生成长答复");
+        assertThat(MessageSupport.loadMessages(MessageSupport.removeLastTurn(result.getNdjson())))
+                .isEmpty();
+    }
+
+    /** 多次长度续写的模型请求必须保持 assistant/user 严格交替，不能插入合并全文。 */
+    @Test
+    void shouldKeepInternalContinuationRequestsAlternatingWithoutCombinedAssistant()
+            throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.LENGTH_LENGTH_STOP);
+        TestGateway gateway = new TestGateway(config, repository, model);
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session("owned-loop-multiple-length-continuation-session"),
+                        "system",
+                        "请生成两次截断答复",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(model.requestContents).hasSize(3);
+        assertThat(model.requestContents.get(1))
+                .containsExactly(
+                        "请生成两次截断答复", "第一段结尾", "请从刚才被截断的位置继续，不要重复已经输出的内容，只输出续写部分。");
+        assertThat(model.requestContents.get(2))
+                .containsExactly(
+                        "请生成两次截断答复",
+                        "第一段结尾",
+                        "请从刚才被截断的位置继续，不要重复已经输出的内容，只输出续写部分。",
+                        "结尾第二段",
+                        "请从刚才被截断的位置继续，不要重复已经输出的内容，只输出续写部分。");
+        assertThat(model.requestContents.get(2)).doesNotContain("第一段结尾第二段");
+        assertThat(MessageSupport.loadMessages(result.getNdjson()))
+                .extracting(ChatMessage::getContent)
+                .containsExactly("请生成两次截断答复", "第一段结尾第二段第三段");
+    }
+
+    /** 连续四次续写仍被截断时必须停止重试，并保留 length 供上层回滚和切换候选。 */
+    @Test
+    void shouldStopAfterFourLengthContinuations() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model = new FakeChatModel(config.getLlm().getModel(), FakeMode.LENGTH_ALWAYS);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-length-limit-session");
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请生成超长答复",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(model.calls).isEqualTo(5);
+        assertThat(result.getFinishReason()).isEqualTo("length");
+        assertThat(result.getAssistantMessage().getResultContent())
+                .isEqualTo("截断片段1截断片段2截断片段3截断片段4截断片段5");
+        assertThat(MessageSupport.loadMessages(result.getNdjson()))
+                .extracting(ChatMessage::getContent)
+                .containsExactly(
+                        "请生成超长答复", "截断片段1截断片段2截断片段3截断片段4截断片段5");
+    }
+
+    /** 流式长度续写只发送去重后的新增片段，普通流式能力保持启用。 */
+    @Test
+    void shouldStreamDeduplicatedLengthContinuation() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(true);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.STREAM_LENGTH_THEN_STOP);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-stream-length-continuation-session");
+        RecordingEventSink eventSink = new RecordingEventSink();
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请流式生成长答复",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        eventSink,
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(model.calls).isEqualTo(2);
+        assertThat(result.isStreamed()).isTrue();
+        assertThat(result.getFinishReason()).isEqualTo("stop");
+        assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("流式第一段结尾第二段");
+        assertThat(String.join("", eventSink.assistantDeltas)).isEqualTo("流式第一段结尾第二段");
+    }
+
+    /** 长度截断或内容过滤响应携带工具调用时，必须在任何 handler 执行前终止。 */
+    @Test
+    void shouldNotExecuteToolsFromIncompleteResponses() throws Exception {
+        for (FakeMode mode :
+                Arrays.asList(FakeMode.LENGTH_WITH_TOOL, FakeMode.CONTENT_FILTER_WITH_TOOL)) {
+            AppConfig config = config();
+            RecordingSessionRepository repository = new RecordingSessionRepository();
+            FakeChatModel model = new FakeChatModel(config.getLlm().getModel(), mode);
+            TestGateway gateway = new TestGateway(config, repository, model);
+            AtomicInteger handlerCalls = new AtomicInteger();
+            FunctionToolDesc echo = new FunctionToolDesc("echo_tool");
+            echo.doHandle(
+                    args -> {
+                        handlerCalls.incrementAndGet();
+                        return "must-not-run";
+                    });
+
+            LlmResult result =
+                    invokeExecuteSingle(
+                            gateway,
+                            session("owned-loop-incomplete-tool-" + mode.name()),
+                            "system",
+                            "请调用工具",
+                            Collections.singletonList(echo),
+                            ConversationFeedbackSink.noop(),
+                            ConversationEventSink.noop(),
+                            false,
+                            config.getLlm(),
+                            null);
+
+            assertThat(handlerCalls).as(mode.name()).hasValue(0);
+            assertThat(result.getFinishReason())
+                    .as(mode.name())
+                    .isEqualTo(mode == FakeMode.LENGTH_WITH_TOOL ? "length" : "content_filter");
+            assertThat(MessageSupport.loadMessages(result.getNdjson()))
+                    .as(mode.name())
+                    .noneMatch(message -> message.getRole() == ChatRole.TOOL);
+        }
+    }
+
+    /** 续写响应意外返回工具调用时必须终止续写，且不得把调用或内部提示写入会话。 */
+    @Test
+    void shouldNotExecuteToolReturnedByLengthContinuation() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.LENGTH_THEN_TOOL);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        AtomicInteger handlerCalls = new AtomicInteger();
+        FunctionToolDesc echo = new FunctionToolDesc("echo_tool");
+        echo.doHandle(
+                args -> {
+                    handlerCalls.incrementAndGet();
+                    return "must-not-run";
+                });
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session("owned-loop-length-continuation-tool"),
+                        "system",
+                        "请生成长答复",
+                        Collections.singletonList(echo),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(model.calls).isEqualTo(2);
+        assertThat(handlerCalls).hasValue(0);
+        assertThat(result.getFinishReason()).isEqualTo("length");
+        assertThat(MessageSupport.loadMessages(result.getNdjson()))
+                .extracting(ChatMessage::getContent)
+                .containsExactly("请生成长答复", "第一段结尾");
+        assertThat(MessageSupport.loadMessages(result.getNdjson()))
+                .noneMatch(
+                        message ->
+                                message.getRole() == ChatRole.TOOL
+                                        || message.getContent().contains("不要重复已经输出的内容"));
+    }
+
     /** 流式正文中断后应保留已接收内容并结束本轮，不能重放同一请求。 */
     @Test
     void shouldKeepVisiblePartialResponseWhenStreamFails() throws Exception {
@@ -897,8 +1118,7 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(model.calls).isEqualTo(1);
         assertThat(result.getAssistantMessage().getResultContent())
                 .isEqualTo("已经完成一半\n\n（响应流意外中断，以上为已接收的部分内容）");
-        assertThat(eventSink.assistantDeltas)
-                .containsExactly("已经完成一半\n\n（响应流意外中断，以上为已接收的部分内容）");
+        assertThat(eventSink.assistantDeltas).containsExactly("已经完成一半\n\n（响应流意外中断，以上为已接收的部分内容）");
         assertThat(MessageSupport.loadMessages(result.getNdjson()))
                 .anyMatch(
                         message ->
@@ -1217,6 +1437,80 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(messageContents(MessageSupport.loadMessages(result.getNdjson())))
                 .contains("重试问题", "重试答复")
                 .noneMatch(content -> content.contains("失败后仍要称呼亮哥"));
+    }
+
+    /** fallback 快照只持久化真实来源会话，synthetic 辅助会话必须保持纯内存。 */
+    @Test
+    void shouldFailOverSyntheticSessionWithoutPersistingIt() throws Exception {
+        AppConfig config = config();
+        config.getReact().setRetryMax(0);
+        String runtimeHome =
+                "target/test-runtime/synthetic-fallback-" + System.nanoTime();
+        config.getRuntime().setHome(runtimeHome);
+        config.getRuntime().setConfigFile(runtimeHome + "/config.yml");
+
+        AppConfig.ProviderConfig primary = new AppConfig.ProviderConfig();
+        primary.setBaseUrl("https://primary.example.com");
+        primary.setApiKey("primary-key");
+        primary.setDefaultModel("primary-model");
+        primary.setDialect("openai");
+        config.getProviders().put("primary", primary);
+        AppConfig.ProviderConfig backup = new AppConfig.ProviderConfig();
+        backup.setBaseUrl("https://backup.example.com");
+        backup.setApiKey("backup-key");
+        backup.setDefaultModel("backup-model");
+        backup.setDialect("openai");
+        config.getProviders().put("backup", backup);
+        config.getModel().setProviderKey("primary");
+        AppConfig.FallbackProviderConfig fallback = new AppConfig.FallbackProviderConfig();
+        fallback.setProvider("backup");
+        config.getFallbackProviders().add(fallback);
+
+        AtomicInteger persistedSessions = new AtomicInteger();
+        SessionRepository repository =
+                new RecordingSessionRepository() {
+                    @Override
+                    public void save(SessionRecord record) {
+                        if (record.getSourceKey() == null || record.getSourceKey().trim().isEmpty()) {
+                            throw new IllegalStateException("source_key is required");
+                        }
+                        persistedSessions.incrementAndGet();
+                    }
+                };
+        FakeChatModel model =
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord synthetic = new SessionRecord();
+        synthetic.setSessionId("proactive-decision-test");
+        synthetic.setNdjson("");
+
+        LlmResult result =
+                gateway.chat(
+                        synthetic,
+                        "system",
+                        "判断候选",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop());
+
+        assertThat(model.calls).isEqualTo(2);
+        assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("重试答复");
+        assertThat(persistedSessions).hasValue(0);
+
+        FakeChatModel persistentModel =
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL);
+        SessionRecord persistent = session("persistent-fallback-test");
+        new TestGateway(config, repository, persistentModel)
+                .chat(
+                        persistent,
+                        "system",
+                        "判断候选",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop());
+
+        assertThat(persistentModel.calls).isEqualTo(2);
+        assertThat(persistedSessions).hasValue(1);
     }
 
     /** 校验内部恢复提示词不会误用用户原问题对应的预取记忆。 */
@@ -1555,7 +1849,14 @@ public class SolonAiOwnedReActLoopTest {
         OUTSIDE_WORKSPACE_MULTI_WRITE_APPROVAL,
         HISTORY_FINAL,
         FAIL_FIRST_THEN_HISTORY_FINAL,
+        LENGTH_THEN_STOP,
+        LENGTH_LENGTH_STOP,
+        LENGTH_THEN_TOOL,
+        LENGTH_ALWAYS,
+        LENGTH_WITH_TOOL,
+        CONTENT_FILTER_WITH_TOOL,
         STREAM_FINAL,
+        STREAM_LENGTH_THEN_STOP,
         STREAM_PARTIAL_THEN_ERROR,
         STREAM_TOOL_THEN_ERROR,
         STREAM_THINKING_TAGS_ONLY,
@@ -1656,6 +1957,43 @@ public class SolonAiOwnedReActLoopTest {
             if (model.mode == FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL && model.calls == 1) {
                 throw new IOException("first attempt failed");
             }
+            if (model.mode == FakeMode.LENGTH_THEN_STOP) {
+                AssistantMessage assistant =
+                        ChatMessage.ofAssistant(model.calls == 1 ? "第一段结尾" : "结尾第二段");
+                session.addMessage(assistant);
+                return new FakeResponse(model, options, assistant, false);
+            }
+            if (model.mode == FakeMode.LENGTH_LENGTH_STOP) {
+                AssistantMessage assistant =
+                        ChatMessage.ofAssistant(
+                                model.calls == 1
+                                        ? "第一段结尾"
+                                        : model.calls == 2 ? "结尾第二段" : "第二段第三段");
+                session.addMessage(assistant);
+                return new FakeResponse(model, options, assistant, false);
+            }
+            if (model.mode == FakeMode.LENGTH_THEN_TOOL) {
+                AssistantMessage assistant =
+                        model.calls == 1
+                                ? ChatMessage.ofAssistant("第一段结尾")
+                                : assistantWithToolCall(
+                                        "call_continuation", "echo_tool", "{\"value\":\"unsafe\"}");
+                session.addMessage(assistant);
+                return new FakeResponse(model, options, assistant, false);
+            }
+            if (model.mode == FakeMode.LENGTH_ALWAYS) {
+                AssistantMessage assistant = ChatMessage.ofAssistant("截断片段" + model.calls);
+                session.addMessage(assistant);
+                return new FakeResponse(model, options, assistant, false);
+            }
+            if (model.mode == FakeMode.LENGTH_WITH_TOOL
+                    || model.mode == FakeMode.CONTENT_FILTER_WITH_TOOL) {
+                AssistantMessage assistant =
+                        assistantWithToolCall(
+                                "call_incomplete", "echo_tool", "{\"value\":\"unsafe\"}");
+                session.addMessage(assistant);
+                return new FakeResponse(model, options, assistant, false);
+            }
             ToolMessage toolMessage = lastToolMessage(session.getMessages());
             AssistantMessage assistant;
             if (model.mode == FakeMode.HISTORY_FINAL
@@ -1734,8 +2072,7 @@ public class SolonAiOwnedReActLoopTest {
                                                     Arrays.asList(
                                                             model.approvalWritePath,
                                                             model.secondApprovalWritePath))
-                                    : "\"fileName\":"
-                                            + ONode.serialize(model.approvalWritePath);
+                                    : "\"fileName\":" + ONode.serialize(model.approvalWritePath);
                     assistant =
                             ChatMessage.ofAssistant(
                                     "Thought: 需要写入工作区外文件\n"
@@ -1787,6 +2124,7 @@ public class SolonAiOwnedReActLoopTest {
             try {
                 if (model.mode != FakeMode.STREAM_FINAL
                         && model.mode != FakeMode.STREAM_PARTIAL_THEN_ERROR
+                        && model.mode != FakeMode.STREAM_LENGTH_THEN_STOP
                         && model.mode != FakeMode.STREAM_TOOL_THEN_ERROR
                         && model.mode != FakeMode.STREAM_THINKING_TAGS_ONLY
                         && model.mode != FakeMode.STREAM_AGGREGATION_DIFFERS
@@ -1798,6 +2136,12 @@ public class SolonAiOwnedReActLoopTest {
                 }
                 model.calls++;
                 model.requestContents.add(messageContents(session.getMessages()));
+                if (model.mode == FakeMode.STREAM_LENGTH_THEN_STOP) {
+                    AssistantMessage assistant =
+                            ChatMessage.ofAssistant(model.calls == 1 ? "流式第一段结尾" : "结尾第二段");
+                    session.addMessage(assistant);
+                    return Flux.just(new FakeResponse(model, options, assistant, true));
+                }
                 if (model.mode == FakeMode.STREAM_PARTIAL_THEN_ERROR) {
                     AssistantMessage partial = ChatMessage.ofAssistant("已经完成一半");
                     return Flux.concat(
@@ -2011,7 +2355,19 @@ public class SolonAiOwnedReActLoopTest {
 
         @Override
         public ChatChoice lastChoice() {
-            return new ChatChoice(0, new Date(), "stop", message);
+            String finishReason = "stop";
+            if (model.mode == FakeMode.CONTENT_FILTER_WITH_TOOL) {
+                finishReason = "content_filter";
+            } else if (model.mode == FakeMode.LENGTH_ALWAYS
+                    || model.mode == FakeMode.LENGTH_WITH_TOOL
+                    || (model.mode == FakeMode.LENGTH_THEN_TOOL && model.calls == 1)
+                    || (model.mode == FakeMode.LENGTH_LENGTH_STOP && model.calls <= 2)
+                    || ((model.mode == FakeMode.LENGTH_THEN_STOP
+                                    || model.mode == FakeMode.STREAM_LENGTH_THEN_STOP)
+                            && model.calls == 1)) {
+                finishReason = "length";
+            }
+            return new ChatChoice(0, new Date(), finishReason, message);
         }
 
         @Override

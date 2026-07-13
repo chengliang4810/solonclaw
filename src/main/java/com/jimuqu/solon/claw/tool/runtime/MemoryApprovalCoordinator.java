@@ -90,7 +90,8 @@ public class MemoryApprovalCoordinator {
     }
 
     /** 响应仍在等待的记忆审批；非记忆标识返回 false 让其他审批流程继续处理。 */
-    public boolean respondIfPending(String sessionId, String approvalId, String choice, Object owner) {
+    public boolean respondIfPending(
+            String sessionId, String approvalId, String choice, Object owner) {
         if (!StrUtil.startWith(approvalId, "memory:")) {
             return false;
         }
@@ -108,11 +109,10 @@ public class MemoryApprovalCoordinator {
         Decision decision;
         if ("deny".equals(normalized)) {
             decision = Decision.DENY;
-        } else if ("once".equals(normalized) || "session".equals(normalized)) {
+        } else if ("once".equals(normalized)) {
             decision = Decision.APPROVE;
         } else {
-            throw new IllegalArgumentException(
-                    "memory approval only supports once, session, or deny");
+            throw new IllegalArgumentException("memory approval only supports once or deny");
         }
         if (!pendingRequests.remove(approvalId, pending)) {
             throw new IllegalArgumentException("no pending memory approval");
@@ -183,11 +183,12 @@ public class MemoryApprovalCoordinator {
         private final String detail;
 
         /** 创建完整审批载荷。 */
-        private ApprovalRequest(String approvalId, String sessionId, String summary, String detail) {
+        private ApprovalRequest(
+                String approvalId, String sessionId, String summary, String detail) {
             this.approvalId = approvalId;
             this.sessionId = sessionId;
-            this.summary = summary;
-            this.detail = detail;
+            this.summary = TerminalAnsiSanitizer.stripAnsi(summary);
+            this.detail = TerminalAnsiSanitizer.stripAnsi(detail);
         }
 
         /** 返回审批标识。 */
@@ -210,6 +211,7 @@ public class MemoryApprovalCoordinator {
             return detail;
         }
     }
+
     /** 会话绑定。 */
     private static final class SessionBinding {
         /** 绑定连接的身份对象。 */
@@ -224,6 +226,7 @@ public class MemoryApprovalCoordinator {
             this.emitter = emitter;
         }
     }
+
     /** 等待中的一次性审批。 */
     private static final class PendingRequest {
         /** 等待审批所属会话。 */
@@ -233,8 +236,7 @@ public class MemoryApprovalCoordinator {
         private final Object owner;
 
         /** 等待终端选择的一次性结果。 */
-        private final CompletableFuture<Decision> decision =
-                new CompletableFuture<Decision>();
+        private final CompletableFuture<Decision> decision = new CompletableFuture<Decision>();
 
         /** 保存审批归属。 */
         private PendingRequest(String sessionId, Object owner) {

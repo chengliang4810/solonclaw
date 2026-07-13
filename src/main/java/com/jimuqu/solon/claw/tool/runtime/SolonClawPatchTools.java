@@ -127,7 +127,7 @@ public class SolonClawPatchTools {
      * @param newString new字符串参数。
      * @param replaceAll replaceAll 参数。
      * @param patchText 补丁文本参数。
-     * @param crossProfile 是否显式允许修改其他 Profile 的用户目录。
+     * @param crossProfile 是否声明修改其他 Profile 的目标意图。
      * @return 返回patch结果。
      */
     @ToolMapping(
@@ -579,11 +579,14 @@ public class SolonClawPatchTools {
             return PatchResult.error(ToolCrossProfilePathSupport.warning(crossTarget));
         }
         if (securityPolicyService != null) {
+            Map<String, Object> args = new LinkedHashMap<String, Object>();
+            args.put("path", filePath);
+            args.put("cross_profile", Boolean.valueOf(crossProfile));
             SecurityPolicyService.FileVerdict verdict =
                     SecurityPolicyService.previewPolicyApprovals(
                             () ->
-                                    securityPolicyService.checkWorkspaceWritePath(
-                                            filePath, rootPath.toString()));
+                                    securityPolicyService.checkFileToolArgs(
+                                            "patch", args, rootPath.toString()));
             if (!verdict.isAllowed()) {
                 if (verdict.isApprovalRequired()) {
                     return PatchResult.error(
@@ -603,8 +606,7 @@ public class SolonClawPatchTools {
         try {
             Path target = previewResolvePath(filePath, crossProfile);
             if (isMemoryControlWriteTarget(target)) {
-                return PatchResult.error(
-                        "BLOCKED: patch 工具不能直接修改长期记忆或记忆审批状态，请使用 memory 工具。");
+                return PatchResult.error("BLOCKED: patch 工具不能直接修改长期记忆或记忆审批状态，请使用 memory 工具。");
             }
             return null;
         } catch (SecurityException e) {

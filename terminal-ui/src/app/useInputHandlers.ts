@@ -141,20 +141,27 @@ export function useInputHandlers(ctx: InputHandlerContext): InputHandlerResult {
 
     if (overlay.approval) {
       return gateway
-        .rpc<ApprovalRespondResponse>('approval.respond', buildApprovalRespondParams(overlay.approval, 'deny', getUiState().sid))
+        .rpc<ApprovalRespondResponse>(
+          'approval.respond',
+          buildApprovalRespondParams(overlay.approval, 'deny', getUiState().sid)
+        )
         .then(settleDeniedApprovalOverlay)
     }
 
     if (overlay.sudo) {
-      return gateway
-        .rpc<SudoRespondResponse>('sudo.respond', { password: '', request_id: overlay.sudo.requestId })
-        .then(r => r && (patchOverlayState({ sudo: null }), actions.sys('sudo cancelled')))
+      const requestId = overlay.sudo.requestId
+      patchOverlayState({ sudo: null })
+      actions.sys('sudo cancelled')
+
+      return gateway.rpc<SudoRespondResponse>('sudo.respond', { password: '', request_id: requestId })
     }
 
     if (overlay.secret) {
-      return gateway
-        .rpc<SecretRespondResponse>('secret.respond', { request_id: overlay.secret.requestId, value: '' })
-        .then(r => r && (patchOverlayState({ secret: null }), actions.sys('secret entry cancelled')))
+      const requestId = overlay.secret.requestId
+      patchOverlayState({ secret: null })
+      actions.sys('secret entry cancelled')
+
+      return gateway.rpc<SecretRespondResponse>('secret.respond', { request_id: requestId, value: '' })
     }
 
     if (overlay.modelPicker) {
@@ -359,7 +366,7 @@ export function useInputHandlers(ctx: InputHandlerContext): InputHandlerResult {
         return
       }
 
-      if (isCtrl(key, ch, 'c')) {
+      if (isCtrl(key, ch, 'c') || (key.escape && (overlay.secret || overlay.sudo))) {
         cancelOverlayFromCtrlC()
       } else if (key.escape && overlay.sessions) {
         patchOverlayState({ sessions: false })

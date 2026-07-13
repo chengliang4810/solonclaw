@@ -7,18 +7,24 @@ import com.jimuqu.solon.claw.core.service.SkillGuardService;
 import com.jimuqu.solon.claw.skillhub.model.Finding;
 import com.jimuqu.solon.claw.skillhub.model.InstallDecision;
 import com.jimuqu.solon.claw.skillhub.model.ScanResult;
+import com.jimuqu.solon.claw.skillhub.support.SkillHubContentSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillIgnoreSupport;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
 /** Java 版技能静态扫描器。 */
 public class DefaultSkillGuardService implements SkillGuardService {
+    /** 扫描规则快照版本，规则调整时必须递增以区分历史审计结果。 */
+    private static final String SCANNER_VERSION = "1";
+
     /** 最大文件次数的统一常量值。 */
     private static final int MAX_FILE_COUNT = 50;
 
@@ -856,7 +862,38 @@ public class DefaultSkillGuardService implements SkillGuardService {
         result.setFindings(findings);
         result.setVerdict(determineVerdict(findings));
         result.setSummary(buildSummary(result));
+        result.setScanProvenance(buildScanProvenance(skillPath, result));
         return result;
+    }
+
+    /** 构建可持久化的扫描证明，使判定、规则和精确内容摘要可被后续审计。 */
+    private Map<String, Object> buildScanProvenance(File skillPath, ScanResult result)
+            throws Exception {
+        Map<String, Object> provenance = new LinkedHashMap<String, Object>();
+        List<Map<String, Object>> findings = new ArrayList<Map<String, Object>>();
+        Set<String> rules = new LinkedHashSet<String>();
+        for (Finding finding : result.getFindings()) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("patternId", finding.getPatternId());
+            item.put("severity", finding.getSeverity());
+            item.put("category", finding.getCategory());
+            item.put("file", finding.getFile());
+            item.put("line", Integer.valueOf(finding.getLine()));
+            item.put("match", finding.getMatch());
+            item.put("description", finding.getDescription());
+            findings.add(item);
+            rules.add(finding.getPatternId());
+        }
+        provenance.put("source", result.getSource());
+        provenance.put("bundleHash", SkillHubContentSupport.fullContentHash(skillPath));
+        provenance.put("scannerVersion", SCANNER_VERSION);
+        provenance.put("verdict", result.getVerdict());
+        provenance.put("trustLevel", result.getTrustLevel());
+        provenance.put("findings", findings);
+        provenance.put("rules", new ArrayList<String>(rules));
+        provenance.put("scannedAt", result.getScannedAt());
+        provenance.put("fresh", Boolean.TRUE);
+        return provenance;
     }
 
     /**

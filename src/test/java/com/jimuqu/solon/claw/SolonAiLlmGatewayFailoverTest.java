@@ -9,11 +9,14 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.AssistantMessage;
+import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 public class SolonAiLlmGatewayFailoverTest {
     @Test
@@ -134,6 +137,38 @@ public class SolonAiLlmGatewayFailoverTest {
         assertThat(gateway.attempts)
                 .containsExactly("primary:gpt-5-mini", "backup:claude-sonnet-4");
         assertThat(gateway.resumeFlags).containsExactly(false, true);
+        List<ChatMessage> backupMessages = MessageSupport.loadMessages(gateway.backupNdjson);
+        assertThat(gateway.toolEffects).isEqualTo(1);
+        assertThat(backupMessages.get(backupMessages.size() - 1).getRole())
+                .isEqualTo(org.noear.solon.ai.chat.ChatRole.TOOL);
+        assertThat(backupMessages)
+                .filteredOn(message -> message.getRole() == org.noear.solon.ai.chat.ChatRole.TOOL)
+                .hasSize(1);
+        assertThat(gateway.backupNdjson).doesNotContain("截断尾巴", "内部续写提示");
+    }
+
+    /** 主候选仅追加用户消息后失败时应整轮回滚，备用候选不得误走会话恢复。 */
+    @Test
+    void shouldRetryOriginalPromptInsteadOfResumingUserOnlyFailure() throws Exception {
+        AppConfig config = config();
+        config.getReact().setRetryMax(0);
+        UserOnlyFailureGateway gateway = new UserOnlyFailureGateway(config);
+        SessionRecord synthetic = new SessionRecord();
+        synthetic.setSessionId("synthetic-user-only-failover");
+        synthetic.setNdjson("");
+
+        LlmResult result =
+                gateway.chat(
+                        synthetic,
+                        "system",
+                        "原始问题",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop());
+
+        assertThat(result.getProvider()).isEqualTo("backup");
+        assertThat(gateway.resumeFlags).containsExactly(false, false);
+        assertThat(gateway.backupNdjson).isBlank();
+        assertThat(gateway.userMessages).containsExactly("原始问题", "原始问题");
     }
 
     private AppConfig config() {
@@ -269,6 +304,12 @@ public class SolonAiLlmGatewayFailoverTest {
         /** 记录故障切换后是否从已有会话快照继续。 */
         private final List<Boolean> resumeFlags = new ArrayList<Boolean>();
 
+        /** 记录工具副作用次数。 */
+        private int toolEffects;
+
+        /** 记录备用模型收到的安全历史。 */
+        private String backupNdjson;
+
         /** 创建限流故障切换测试网关。 */
         private RateLimitedGateway(AppConfig config) {
             super(config);
@@ -290,9 +331,18 @@ public class SolonAiLlmGatewayFailoverTest {
             attempts.add(resolved.getProvider() + ":" + resolved.getModel());
             resumeFlags.add(Boolean.valueOf(resume));
             if ("primary".equals(resolved.getProvider())) {
-                session.setNdjson("snapshot-after-tool");
+                toolEffects++;
+                session.setNdjson(
+                        ChatMessage.toNdjson(
+                                java.util.Arrays.asList(
+                                        assistantWithToolCall("call_rate_limit", "write_file"),
+                                        ChatMessage.ofTool(
+                                                "created", "write_file", "call_rate_limit"),
+                                        ChatMessage.ofAssistant("截断尾巴"),
+                                        ChatMessage.ofUser("内部续写提示"))));
                 throw new IllegalStateException("HTTP 429 rate limit");
             }
+            backupNdjson = session.getNdjson();
             LlmResult result = new LlmResult();
             result.setProvider(resolved.getProvider());
             result.setModel(resolved.getModel());
@@ -300,5 +350,70 @@ public class SolonAiLlmGatewayFailoverTest {
             result.setAssistantMessage(new AssistantMessage("done"));
             return result;
         }
+    }
+
+    /** 模拟主候选写入用户消息后立即失败的普通故障切换。 */
+    private static class UserOnlyFailureGateway extends RetryingGateway {
+        /** 记录每个候选是否误走恢复路径。 */
+        private final List<Boolean> resumeFlags = new ArrayList<Boolean>();
+
+        /** 记录每个候选收到的原始用户输入。 */
+        private final List<String> userMessages = new ArrayList<String>();
+
+        /** 记录备用候选开始前的安全会话快照。 */
+        private String backupNdjson;
+
+        /** 创建普通失败回滚测试网关。 */
+        private UserOnlyFailureGateway(AppConfig config) {
+            super(config);
+        }
+
+        /** 主候选模拟追加用户消息后失败，备用候选返回成功。 */
+        @Override
+        protected LlmResult executeSingle(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                AgentRunContext runContext)
+                throws Exception {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            resumeFlags.add(Boolean.valueOf(resume));
+            userMessages.add(userMessage);
+            if ("primary".equals(resolved.getProvider())) {
+                session.setNdjson(
+                        ChatMessage.toNdjson(
+                                Collections.singletonList(ChatMessage.ofUser(userMessage))));
+                throw new IllegalStateException("HTTP 429 rate limit");
+            }
+            backupNdjson = session.getNdjson();
+            LlmResult result = new LlmResult();
+            result.setProvider(resolved.getProvider());
+            result.setModel(resolved.getModel());
+            result.setRawResponse("ok");
+            result.setAssistantMessage(new AssistantMessage("done"));
+            return result;
+        }
+    }
+
+    /** 构造带完整工具调用的 assistant 消息。 */
+    private static AssistantMessage assistantWithToolCall(String callId, String toolName) {
+        return new AssistantMessage(
+                "",
+                false,
+                null,
+                null,
+                Collections.singletonList(
+                        new ToolCall(
+                                "0",
+                                callId,
+                                toolName,
+                                "{}",
+                                Collections.<String, Object>emptyMap())),
+                null);
     }
 }

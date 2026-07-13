@@ -1492,7 +1492,9 @@ public class SecurityPolicyServiceTest {
             Map<String, Object> args = new LinkedHashMap<String, Object>();
 
             args.put("fileName", "workspace/inside.txt");
-            assertThat(policy.checkFileToolArgs("file_write", args, workspace.getPath()).isAllowed())
+            assertThat(
+                            policy.checkFileToolArgs("file_write", args, workspace.getPath())
+                                    .isAllowed())
                     .isTrue();
 
             args.put("fileName", "../outside.txt");
@@ -1549,8 +1551,7 @@ public class SecurityPolicyServiceTest {
     @Test
     void shouldNotConsumeOnceWorkspaceApprovalDuringPreview() throws Exception {
         File boundary =
-                new File("target/security-policy-preview-" + System.nanoTime())
-                        .getCanonicalFile();
+                new File("target/security-policy-preview-" + System.nanoTime()).getCanonicalFile();
         File workspace = new File(boundary, "workspace").getCanonicalFile();
         File outside = new File(boundary, "outside.txt").getCanonicalFile();
         assertThat(workspace.mkdirs() || workspace.isDirectory()).isTrue();
@@ -1570,9 +1571,13 @@ public class SecurityPolicyServiceTest {
                                                             workspace.getPath()))
                                     .isAllowed())
                     .isTrue();
-            assertThat(policy.checkFileToolArgs("file_write", args, workspace.getPath()).isAllowed())
+            assertThat(
+                            policy.checkFileToolArgs("file_write", args, workspace.getPath())
+                                    .isAllowed())
                     .isTrue();
-            assertThat(policy.checkFileToolArgs("file_write", args, workspace.getPath()).isAllowed())
+            assertThat(
+                            policy.checkFileToolArgs("file_write", args, workspace.getPath())
+                                    .isAllowed())
                     .isTrue();
             SecurityPolicyService.clearCurrentThreadPolicyApprovals();
             assertFileApprovalRequired(

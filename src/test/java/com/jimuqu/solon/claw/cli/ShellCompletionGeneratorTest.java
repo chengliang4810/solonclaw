@@ -64,7 +64,8 @@ class ShellCompletionGeneratorTest {
         assertThat(bash)
                 .contains("local cur prev terminal_mode word")
                 .contains("for word in \"${COMP_WORDS[@]:1:$((COMP_CWORD - 1))}\"")
-                .contains("if [[ \"$prev\" == \"--profile\" || ( \"$prev\" == \"-p\" && -z \"$terminal_mode\" ) ]]; then")
+                .contains(
+                        "if [[ \"$prev\" == \"--profile\" || ( \"$prev\" == \"-p\" && -z \"$terminal_mode\" ) ]]; then")
                 .contains("if [[ -n \"$terminal_mode\" ]]; then")
                 .doesNotContain("${COMP_WORDS[1]}\" != \"cli");
 

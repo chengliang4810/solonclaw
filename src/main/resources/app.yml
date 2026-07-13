@@ -156,10 +156,8 @@ security.hardlineAllowlist:
 # 审批/确认策略
 # 子 Agent 默认拒绝可审批危险命令；只有显式开启时才自动批准一次。
 approvals.subagentAutoApprove: false
-# 本地/直接审批超时秒数；超时后旧审批令牌不再放行。
+# 所有审批（包括消息渠道）的统一超时秒数；超时后旧审批令牌不再放行。
 approvals.timeoutSeconds: 60
-# 消息渠道审批超时秒数。
-approvals.gatewayTimeoutSeconds: 300
 # /reload-mcp 默认需要确认，避免工具 schema 变更影响下一轮模型调用。
 approvals.mcpReloadConfirm: true
 

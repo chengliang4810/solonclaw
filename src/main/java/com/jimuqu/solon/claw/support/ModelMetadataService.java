@@ -377,11 +377,7 @@ public class ModelMetadataService {
             String model,
             boolean allowConfiguredOverride) {
         return resolveContextWindow(
-                providerKey,
-                dialect,
-                baseUrl,
-                normalizedModelName(model),
-                allowConfiguredOverride);
+                providerKey, dialect, baseUrl, normalizedModelName(model), allowConfiguredOverride);
     }
 
     /**

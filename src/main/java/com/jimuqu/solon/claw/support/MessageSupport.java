@@ -57,6 +57,43 @@ public final class MessageSupport {
     }
 
     /**
+     * 构造失败切换前的安全会话快照：没有新增工具结果时整轮回滚，有新增工具结果时仅保留到最后一条完整 TOOL。
+     *
+     * @param previousNdjson 当前候选执行前的会话快照。
+     * @param currentNdjson 当前候选执行后的会话快照。
+     * @return 可交给备用模型继续的 NDJSON；解析失败时返回原快照。
+     */
+    public static String safeFallbackNdjson(String previousNdjson, String currentNdjson) {
+        try {
+            List<ChatMessage> previous = loadMessages(previousNdjson);
+            List<ChatMessage> current = loadMessages(currentNdjson);
+            int previousToolCount = countRole(previous, ChatRole.TOOL);
+            if (countRole(current, ChatRole.TOOL) <= previousToolCount) {
+                return previousNdjson;
+            }
+            for (int i = current.size() - 1; i >= 0; i--) {
+                if (current.get(i).getRole() == ChatRole.TOOL) {
+                    return toNdjson(new ArrayList<ChatMessage>(current.subList(0, i + 1)));
+                }
+            }
+        } catch (Exception ignored) {
+            // 无法证明工具结果完整时必须整轮回滚，避免备用模型基于损坏历史重放副作用。
+        }
+        return previousNdjson;
+    }
+
+    /** 统计指定角色消息数量。 */
+    private static int countRole(List<ChatMessage> messages, ChatRole role) {
+        int count = 0;
+        for (ChatMessage message : messages) {
+            if (message != null && message.getRole() == role) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
      * 逐行恢复当前 NDJSON 消息。
      *
      * @param ndjson 原始会话快照。

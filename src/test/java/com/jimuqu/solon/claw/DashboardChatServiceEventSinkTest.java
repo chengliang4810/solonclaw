@@ -138,6 +138,26 @@ public class DashboardChatServiceEventSinkTest {
                 .containsExactly("message.delta", "run.completed");
     }
 
+    /** 候选切换时必须先撤销已推送正文，再发送备用模型的完整答复。 */
+    @Test
+    void shouldEmitAssistantResetBeforeFallbackReply() throws Exception {
+        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        Object state = newState("web-run-reset", "session-reset");
+        ConversationEventSink sink = newEventSink(service, state);
+
+        sink.onAssistantDelta("主模型部分答复");
+        sink.onAssistantReset("content_filter");
+        sink.onAssistantDelta("备用模型完整答复");
+        sink.onRunCompleted("session-reset", "备用模型完整答复", null);
+
+        List<Object> emitted = drainEventList(state);
+        assertThat(eventNames(emitted))
+                .containsExactly(
+                        "message.delta", "message.reset", "message.delta", "run.completed");
+        assertThat(eventData(emitted.get(1))).containsEntry("reason", "content_filter");
+        assertThat(eventData(emitted.get(2))).containsEntry("delta", "备用模型完整答复");
+    }
+
     @Test
     void shouldClassifySseClientDisconnects() throws Exception {
         DashboardChatService service = new DashboardChatService(null, null, null, null);

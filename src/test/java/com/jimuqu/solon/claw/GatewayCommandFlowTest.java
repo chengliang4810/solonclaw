@@ -54,10 +54,7 @@ public class GatewayCommandFlowTest {
     void shouldHandleBasicCommandsAndConversationFlow() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        GatewayReply claimPrompt = env.send("room-1", "user-1", "hello");
-        assertThat(claimPrompt.getContent()).contains("/pairing claim-admin");
-        GatewayReply claimReply = env.send("room-1", "user-1", "/pairing claim-admin");
-        assertThat(claimReply.getContent()).contains("唯一管理员");
+        setPlatformAdmin(env, "room-1", "user-1");
 
         GatewayReply firstReply =
                 env.gatewayService.handle(env.message("room-1", "user-1", "hello"));
@@ -95,11 +92,7 @@ public class GatewayCommandFlowTest {
     void undoEmptySessionReportsNoPreviousTurn() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        GatewayReply claimPrompt = env.send("room-empty-undo", "user-empty-undo", "hello");
-        assertThat(claimPrompt.getContent()).contains("/pairing claim-admin");
-        GatewayReply claimReply =
-                env.send("room-empty-undo", "user-empty-undo", "/pairing claim-admin");
-        assertThat(claimReply.getContent()).contains("唯一管理员");
+        setPlatformAdmin(env, "room-empty-undo", "user-empty-undo");
         GatewayReply newReply = env.send("room-empty-undo", "user-empty-undo", "/new");
 
         GatewayReply undoReply = env.send("room-empty-undo", "user-empty-undo", "/undo");
@@ -112,8 +105,7 @@ public class GatewayCommandFlowTest {
     @Test
     void shouldCreateNamedSessionFromNewCommandArgument() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.send("room-new-title", "user-new-title", "hello");
-        env.send("room-new-title", "user-new-title", "/pairing claim-admin");
+        setPlatformAdmin(env, "room-new-title", "user-new-title");
 
         GatewayReply newReply = env.send("room-new-title", "user-new-title", "/new  客户项目\r\n复盘  ");
         SessionRecord rebound =
@@ -128,10 +120,7 @@ public class GatewayCommandFlowTest {
     void shouldRenderHelpWithChineseDescriptionsPerLine() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        GatewayReply claimPrompt = env.send("room-help", "user-help", "hello");
-        assertThat(claimPrompt.getContent()).contains("/pairing claim-admin");
-        GatewayReply claimReply = env.send("room-help", "user-help", "/pairing claim-admin");
-        assertThat(claimReply.getContent()).contains("唯一管理员");
+        setPlatformAdmin(env, "room-help", "user-help");
 
         GatewayReply helpReply = env.send("room-help", "user-help", "/help");
         assertThat(helpReply.getContent()).contains("/new - 创建并切换到新会话");
@@ -148,8 +137,7 @@ public class GatewayCommandFlowTest {
     void shouldRenderRegistryCommandsInHelpAndResolveAliases() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        env.send("room-registry", "user-registry", "hello");
-        env.send("room-registry", "user-registry", "/pairing claim-admin");
+        setPlatformAdmin(env, "room-registry", "user-registry");
 
         GatewayReply helpReply = env.send("room-registry", "user-registry", "/help");
         assertThat(helpReply.getContent())
@@ -208,8 +196,7 @@ public class GatewayCommandFlowTest {
     void shouldRenderSecurityStatusFromGatewaySlashCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        env.send("room-security", "user-security", "hello");
-        env.send("room-security", "user-security", "/pairing claim-admin");
+        setPlatformAdmin(env, "room-security", "user-security");
 
         GatewayReply reply = env.send("room-security", "user-security", "/security status");
 
@@ -224,8 +211,7 @@ public class GatewayCommandFlowTest {
     void shouldRenderVoiceStatusFromGatewaySlashCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        env.send("room-voice-status", "user-voice-status", "hello");
-        env.send("room-voice-status", "user-voice-status", "/pairing claim-admin");
+        setPlatformAdmin(env, "room-voice-status", "user-voice-status");
 
         GatewayReply reply = env.send("room-voice-status", "user-voice-status", "/voice status");
 
@@ -244,8 +230,7 @@ public class GatewayCommandFlowTest {
     void shouldListAndSearchSessionsFromSlashCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        env.send("room-sessions", "user-sessions", "hello");
-        env.send("room-sessions", "user-sessions", "/pairing claim-admin");
+        setPlatformAdmin(env, "room-sessions", "user-sessions");
 
         GatewayReply firstNew = env.send("room-sessions", "user-sessions", "/new 客户周报");
         GatewayReply secondNew = env.send("room-sessions", "user-sessions", "/new 研发计划");
@@ -310,8 +295,7 @@ public class GatewayCommandFlowTest {
     void shouldReportSlashCommandAccessIdentity() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        env.send("room-whoami", "user-whoami", "hello");
-        env.send("room-whoami", "user-whoami", "/pairing claim-admin");
+        setPlatformAdmin(env, "room-whoami", "user-whoami");
 
         GatewayReply reply = env.send("room-whoami", "user-whoami", "/whoami");
 
@@ -331,8 +315,7 @@ public class GatewayCommandFlowTest {
     void shouldBrowseRegisteredCommandsFromSlashCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        env.send("room-commands", "user-commands", "hello");
-        env.send("room-commands", "user-commands", "/pairing claim-admin");
+        setPlatformAdmin(env, "room-commands", "user-commands");
 
         GatewayReply reply = env.send("room-commands", "user-commands", "/commands");
 
@@ -353,8 +336,7 @@ public class GatewayCommandFlowTest {
     void shouldReloadLocalSkillsFromTopLevelSlashCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        env.send("room-reload-skills", "user-reload-skills", "hello");
-        env.send("room-reload-skills", "user-reload-skills", "/pairing claim-admin");
+        setPlatformAdmin(env, "room-reload-skills", "user-reload-skills");
         File skillDir = new File(env.appConfig.getRuntime().getSkillsDir(), "ops/reload-demo");
         Files.createDirectories(skillDir.toPath());
         Files.write(
@@ -383,8 +365,7 @@ public class GatewayCommandFlowTest {
     void shouldRenderUsageInsightsFromSlashCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        env.send("room-insights", "user-insights", "hello");
-        env.send("room-insights", "user-insights", "/pairing claim-admin");
+        setPlatformAdmin(env, "room-insights", "user-insights");
         File skillDir = new File(env.appConfig.getRuntime().getSkillsDir(), "ops/insight-demo");
         Files.createDirectories(skillDir.toPath());
         Files.write(
@@ -415,10 +396,8 @@ public class GatewayCommandFlowTest {
     @Test
     void shouldClearSessionScopedSecurityStateWhenResuming() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.gatewayService.handle(env.message("room-resume-a", "user-resume", "hello"));
+        setPlatformAdmin(env, "room-resume-a", "user-resume");
         env.gatewayService.handle(env.message("room-resume-b", "user-resume", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-resume-a", "user-resume", "/pairing claim-admin"));
 
         SessionRecord sessionA =
                 env.sessionRepository.bindNewSession("MEMORY:room-resume-a:user-resume");
@@ -467,6 +446,13 @@ public class GatewayCommandFlowTest {
                 .isTrue();
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(untouchedSession))
                 .isNotNull();
+    }
+
+    /** 通过可信控制面设置测试平台管理员。 */
+    private static void setPlatformAdmin(TestEnvironment env, String chatId, String userId)
+            throws Exception {
+        env.gatewayAuthorizationService.setPlatformAdmin(
+                PlatformType.MEMORY, userId, userId, chatId);
     }
 
     /** 仅记录命令生命周期触发的父会话取消请求。 */

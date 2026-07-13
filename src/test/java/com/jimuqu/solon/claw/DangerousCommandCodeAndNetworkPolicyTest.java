@@ -1333,13 +1333,10 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         env.appConfig.getSecurity().setGuardrailMode("bypass");
         env.appConfig.getSecurity().setGuardrailCronMode("approve");
         env.appConfig.getApprovals().setTimeoutSeconds(45);
-        env.appConfig.getApprovals().setGatewayTimeoutSeconds(120);
 
         assertThat(env.dangerousCommandApprovalService.guardrailMode()).isEqualTo("bypass");
         assertThat(env.dangerousCommandApprovalService.guardrailCronMode()).isEqualTo("approve");
         assertThat(env.dangerousCommandApprovalService.approvalTimeoutSeconds()).isEqualTo(45);
-        assertThat(env.dangerousCommandApprovalService.approvalGatewayTimeoutSeconds())
-                .isEqualTo(120);
         assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "rm -rf /"))
                 .isNotNull();
         assertThat(

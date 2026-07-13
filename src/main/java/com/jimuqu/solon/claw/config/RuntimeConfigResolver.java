@@ -1073,7 +1073,6 @@ public class RuntimeConfigResolver {
                 "solonclaw.web.braveSearchApiKey",
                 "approvals.subagentAutoApprove",
                 "approvals.timeoutSeconds",
-                "approvals.gatewayTimeoutSeconds",
                 "approvals.mcpReloadConfirm",
                 "approvals.deny",
                 "solonclaw.terminal.credentialFiles",

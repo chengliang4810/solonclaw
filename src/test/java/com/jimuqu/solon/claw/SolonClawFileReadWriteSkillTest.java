@@ -72,6 +72,77 @@ public class SolonClawFileReadWriteSkillTest {
                 .noneMatch(message -> message.contains("清理文件读取去重状态失败"));
     }
 
+    /** 验证工作区 URI 的审批 token 始终绑定工具收到的原始目标，而不是归一化后的磁盘路径。 */
+    @Test
+    void shouldWriteApprovedWorkspaceUriOutsideWorkspace() throws Exception {
+        Path boundary = tempDir("file-approved-workspace-uri");
+        Path workspace = boundary.resolve("workspace");
+        Path outsideFile = boundary.resolve("approved.txt").toAbsolutePath();
+        Files.createDirectories(workspace);
+        String uri = "workspace://" + outsideFile;
+        SolonClawFileReadWriteSkill skill = guardedFileSkill(workspace);
+        SecurityPolicyService.approveFilePolicyForCurrentThread("workspace_outside_write", uri);
+
+        ONode result;
+        try {
+            result = ONode.ofJson(skill.write(uri, "approved workspace uri\n"));
+        } finally {
+            SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+        }
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(readUtf8(outsideFile)).isEqualTo("approved workspace uri\n");
+    }
+
+    /** 验证两个文件写入入口均解析当前 workspace URI，并在审批前拒绝兄弟 Profile URI。 */
+    @Test
+    void shouldGuardWorkspaceUrisConsistentlyAcrossFileWriteTools() throws Exception {
+        Path profileRoot = tempDir("file-workspace-uri-profile-root");
+        Path activeHome = Files.createDirectories(profileRoot.resolve("profiles/active"));
+        Path workspace = Files.createDirectories(activeHome.resolve("workspace"));
+        Path siblingHome = Files.createDirectories(profileRoot.resolve("profiles/sibling"));
+        Path siblingSkills = Files.createDirectories(siblingHome.resolve("skills"));
+        String siblingUri = "workspace://" + siblingSkills.resolve("blocked.md").toAbsolutePath();
+        String allowedUri = "workspace://" + siblingSkills.resolve("allowed.md").toAbsolutePath();
+        String previous = System.getProperty("solonclaw.profile.root");
+        System.setProperty("solonclaw.profile.root", profileRoot.toString());
+        SolonClawFileReadWriteSkill skill = guardedFileSkill(workspace);
+        SecurityPolicyService.approveFilePolicyForCurrentThread(
+                "workspace_outside_write", siblingUri);
+        try {
+            ONode legacy = ONode.ofJson(skill.write("workspace://notes/legacy.txt", "legacy\n"));
+            ONode current =
+                    ONode.ofJson(
+                            skill.writeFile("workspace://notes/current.txt", "current\n", false));
+            ONode blockedLegacy = ONode.ofJson(skill.write(siblingUri, "blocked\n"));
+            ONode blockedCurrent = ONode.ofJson(skill.writeFile(siblingUri, "blocked\n", false));
+
+            assertThat(legacy.get("status").getString()).isEqualTo("success");
+            assertThat(current.get("status").getString()).isEqualTo("success");
+            assertThat(readUtf8(workspace.resolve("notes/legacy.txt"))).isEqualTo("legacy\n");
+            assertThat(readUtf8(workspace.resolve("notes/current.txt"))).isEqualTo("current\n");
+            assertThat(blockedLegacy.get("error").getString())
+                    .contains("Profile 'sibling'")
+                    .doesNotContain("APPROVAL_REQUIRED");
+            assertThat(blockedCurrent.get("error").getString())
+                    .contains("Profile 'sibling'")
+                    .doesNotContain("APPROVAL_REQUIRED");
+            assertThat(siblingSkills.resolve("blocked.md")).doesNotExist();
+            SecurityPolicyService.approveFilePolicyForCurrentThread(
+                    "workspace_outside_write", allowedUri);
+            ONode allowed = ONode.ofJson(skill.writeFile(allowedUri, "allowed\n", true));
+            assertThat(allowed.get("status").getString()).isEqualTo("success");
+            assertThat(readUtf8(siblingSkills.resolve("allowed.md"))).isEqualTo("allowed\n");
+        } finally {
+            SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+            if (previous == null) {
+                System.clearProperty("solonclaw.profile.root");
+            } else {
+                System.setProperty("solonclaw.profile.root", previous);
+            }
+        }
+    }
+
     /** 验证 read_file 当前入口只使用 path 参数读取文件。 */
     @Test
     void shouldReadFileWithCurrentPathParameter() throws Exception {
@@ -169,7 +240,8 @@ public class SolonClawFileReadWriteSkillTest {
     void shouldBlockMemoryControlWritesAcrossPathForms() throws Exception {
         Path workspace = tempDir("file-memory-write-guard");
         Files.createDirectories(workspace.resolve("memory"));
-        SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(workspace.toString(), null);
+        SolonClawFileReadWriteSkill skill =
+                new SolonClawFileReadWriteSkill(workspace.toString(), null);
 
         assertMemoryWriteBlocked(skill, "MEMORY.md");
         assertMemoryWriteBlocked(skill, workspace.resolve("USER.md").toString());
@@ -189,7 +261,8 @@ public class SolonClawFileReadWriteSkillTest {
     void shouldBlockApprovedOutsideMemoryControlWrite() throws Exception {
         Path profileRoot = tempDir("file-memory-write-profile-root");
         Path workspace = Files.createDirectories(profileRoot.resolve("profiles/active"));
-        Path target = Files.createDirectories(profileRoot.resolve("profiles/other")).resolve("MEMORY.md");
+        Path target =
+                Files.createDirectories(profileRoot.resolve("profiles/other")).resolve("MEMORY.md");
         SolonClawFileReadWriteSkill skill = guardedFileSkill(workspace);
         SecurityPolicyService.approveFilePolicyForCurrentThread(
                 "workspace_outside_write", target.toString());

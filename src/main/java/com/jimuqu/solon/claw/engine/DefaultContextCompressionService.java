@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.engine;
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -10,8 +11,10 @@ import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
@@ -22,6 +25,16 @@ import org.slf4j.LoggerFactory;
 
 /** 默认上下文压缩服务。 */
 public class DefaultContextCompressionService implements ContextCompressionService {
+    /** 会话元数据中保存压缩反抖动状态的键。 */
+    private static final String THRASH_METADATA_KEY = "compressionThrash";
+
+    /** 连续无效压缩达到该次数后，后续轮次直接跳过。 */
+    private static final int THRASH_ATTEMPT_LIMIT = 2;
+
+    /** 连续无效压缩被抑制时返回的可诊断提示。 */
+    private static final String THRASH_SKIP_WARNING =
+            "compression-thrash-skip：连续两次上下文压缩未产生有效收益，已跳过本轮压缩；出现新的可压缩消息或实际输入 token 下降后将自动恢复。";
+
     /** 上下文压缩服务的低敏诊断日志。 */
     private static final Logger log =
             LoggerFactory.getLogger(DefaultContextCompressionService.class);
@@ -144,74 +157,61 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             throws Exception {
         String beforeNdjson = session == null ? "" : session.getNdjson();
         try {
-            List<ChatMessage> history = MessageSupport.loadMessages(session.getNdjson());
-            ToolCallArgumentSanitizer.sanitize(history);
-            if (history.size() <= appConfig.getCompression().getProtectHeadMessages() + 1) {
-                return CompressionOutcome.skipped(session);
+            CompressionWindow window = resolveCompressionWindow(session, contextWindowTokens);
+            CompressionThrashState thrashState = readCompressionThrashState(session);
+            reconcileProviderUsage(session, thrashState);
+            if (!Objects.equals(thrashState.windowFingerprint, window.fingerprint)) {
+                thrashState.resetForWindow(window.fingerprint);
             }
-
-            List<ChatMessage> normalized = new ArrayList<ChatMessage>();
-            String previousSummary = StrUtil.nullToEmpty(session.getCompressedSummary()).trim();
-            int latestHistoryUserIndex = findLastUserIndex(history);
-            for (int i = 0; i < history.size(); i++) {
-                ChatMessage message = history.get(i);
-                if (CompressionConstants.isSummaryContent(message.getContent())
-                        && (message.getRole() != ChatRole.USER || i < latestHistoryUserIndex)) {
-                    if (StrUtil.isBlank(previousSummary)) {
-                        previousSummary = message.getContent().trim();
-                    }
-                    continue;
-                }
-                normalized.add(message);
+            if (thrashState.ineffectiveAttempts >= THRASH_ATTEMPT_LIMIT) {
+                writeCompressionThrashState(session, thrashState);
+                CompressionOutcome skipped = CompressionOutcome.skipped(session);
+                skipped.setWarning(THRASH_SKIP_WARNING);
+                return skipped;
             }
-
-            if (normalized.size() <= appConfig.getCompression().getProtectHeadMessages() + 1) {
-                return CompressionOutcome.skipped(session);
-            }
-
-            List<ChatMessage> pruned = pruneOldToolResults(normalized, contextWindowTokens);
-            int protectHead = resolveProtectHeadCount(pruned, StrUtil.isNotBlank(previousSummary));
-            int protectTailStart = findTailStart(pruned, contextWindowTokens);
-            int lastUserIndex = findLastUserIndex(pruned);
-            if (lastUserIndex >= protectHead && lastUserIndex < protectTailStart) {
-                protectTailStart = lastUserIndex;
-            }
-            if (protectTailStart <= protectHead) {
-                protectTailStart = Math.max(protectHead + 1, pruned.size() - 1);
-                if (lastUserIndex >= protectHead && lastUserIndex < protectTailStart) {
-                    protectTailStart = lastUserIndex;
-                }
-                if (protectTailStart <= protectHead) {
-                    return CompressionOutcome.skipped(session);
-                }
-            }
-
-            List<ChatMessage> head = new ArrayList<ChatMessage>(pruned.subList(0, protectHead));
-            List<ChatMessage> middle =
-                    new ArrayList<ChatMessage>(pruned.subList(protectHead, protectTailStart));
-            List<ChatMessage> tail =
-                    new ArrayList<ChatMessage>(pruned.subList(protectTailStart, pruned.size()));
-
-            if (middle.isEmpty() || shouldSkipMiddleCompression(middle, pruned, normalized)) {
+            if (!window.compressible) {
+                thrashState.ineffectiveAttempts++;
+                writeCompressionThrashState(session, thrashState);
                 return CompressionOutcome.skipped(session);
             }
 
             String summaryBody =
                     buildStructuredSummary(
-                            session, systemPrompt, middle, tail, previousSummary, focus);
+                            session,
+                            systemPrompt,
+                            window.middle,
+                            window.tail,
+                            window.previousSummary,
+                            focus);
             String summaryText = CompressionConstants.SUMMARY_PREFIX + "\n" + summaryBody;
 
             List<ChatMessage> compacted = new ArrayList<ChatMessage>();
-            compacted.addAll(head);
+            compacted.addAll(window.head);
             compacted.add(ChatMessage.ofAssistant(summaryText));
-            compacted.addAll(tail);
+            compacted.addAll(window.tail);
+
+            String compactedNdjson = MessageSupport.toNdjson(compacted);
+            SessionRecord compactedState = new SessionRecord();
+            compactedState.setNdjson(compactedNdjson);
+            compactedState.setCompressedSummary(summaryText);
+            String remainingFingerprint =
+                    resolveCompressionWindow(compactedState, contextWindowTokens).fingerprint;
 
             session.setCompressedSummary(summaryText);
-            session.setNdjson(MessageSupport.toNdjson(compacted));
+            session.setNdjson(compactedNdjson);
             session.setLastCompressionAt(System.currentTimeMillis());
             session.setCompressionFailureCount(0);
             session.setLastCompressionFailedAt(0L);
             session.setUpdatedAt(System.currentTimeMillis());
+            thrashState.windowFingerprint = remainingFingerprint;
+            if (session.getLastInputTokens() > 0L) {
+                thrashState.baselineInputTokens = session.getLastInputTokens();
+                thrashState.pendingCompressionAt = session.getLastCompressionAt();
+            } else {
+                thrashState.baselineInputTokens = 0L;
+                thrashState.pendingCompressionAt = 0L;
+            }
+            writeCompressionThrashState(session, thrashState);
             return CompressionOutcome.success(
                     session, !StrUtil.equals(beforeNdjson, session.getNdjson()));
         } catch (Exception e) {
@@ -236,6 +236,168 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             outcome.setThresholdTokens(thresholdTokens);
         }
         return outcome;
+    }
+
+    /**
+     * 解析当前会话真正可压缩的中间窗口，供执行和反抖动指纹共用。
+     *
+     * @param session 当前会话。
+     * @param contextWindowTokens 当前模型上下文窗口。
+     * @return 已划分的压缩窗口。
+     */
+    private CompressionWindow resolveCompressionWindow(
+            SessionRecord session, int contextWindowTokens) throws Exception {
+        List<ChatMessage> history = MessageSupport.loadMessages(session.getNdjson());
+        ToolCallArgumentSanitizer.sanitize(history);
+        String previousSummary = StrUtil.nullToEmpty(session.getCompressedSummary()).trim();
+        if (history.size() <= appConfig.getCompression().getProtectHeadMessages() + 1) {
+            return CompressionWindow.empty(previousSummary, fingerprint(new ArrayList<>()));
+        }
+
+        List<ChatMessage> normalized = new ArrayList<ChatMessage>();
+        int latestHistoryUserIndex = findLastUserIndex(history);
+        for (int i = 0; i < history.size(); i++) {
+            ChatMessage message = history.get(i);
+            if (CompressionConstants.isSummaryContent(message.getContent())
+                    && (message.getRole() != ChatRole.USER || i < latestHistoryUserIndex)) {
+                if (StrUtil.isBlank(previousSummary)) {
+                    previousSummary = message.getContent().trim();
+                }
+                continue;
+            }
+            normalized.add(message);
+        }
+        if (normalized.size() <= appConfig.getCompression().getProtectHeadMessages() + 1) {
+            return CompressionWindow.empty(previousSummary, fingerprint(new ArrayList<>()));
+        }
+
+        List<ChatMessage> pruned = pruneOldToolResults(normalized, contextWindowTokens);
+        int protectHead = resolveProtectHeadCount(pruned, StrUtil.isNotBlank(previousSummary));
+        int protectTailStart = findTailStart(pruned, contextWindowTokens);
+        int lastUserIndex = findLastUserIndex(pruned);
+        if (lastUserIndex >= protectHead && lastUserIndex < protectTailStart) {
+            protectTailStart = lastUserIndex;
+        }
+        if (protectTailStart <= protectHead) {
+            protectTailStart = Math.max(protectHead + 1, pruned.size() - 1);
+            if (lastUserIndex >= protectHead && lastUserIndex < protectTailStart) {
+                protectTailStart = lastUserIndex;
+            }
+            if (protectTailStart <= protectHead) {
+                return CompressionWindow.empty(previousSummary, fingerprint(new ArrayList<>()));
+            }
+        }
+
+        List<ChatMessage> head = new ArrayList<ChatMessage>(pruned.subList(0, protectHead));
+        List<ChatMessage> middle =
+                new ArrayList<ChatMessage>(pruned.subList(protectHead, protectTailStart));
+        List<ChatMessage> tail =
+                new ArrayList<ChatMessage>(pruned.subList(protectTailStart, pruned.size()));
+        boolean compressible =
+                !middle.isEmpty() && !shouldSkipMiddleCompression(middle, pruned, normalized);
+        return new CompressionWindow(
+                previousSummary, head, middle, tail, fingerprint(middle), compressible);
+    }
+
+    /**
+     * 为可压缩消息生成不暴露正文的稳定指纹。
+     *
+     * @param messages 可压缩消息。
+     * @return SHA-256 指纹。
+     */
+    private String fingerprint(List<ChatMessage> messages) throws Exception {
+        return DigestUtil.sha256Hex(MessageSupport.toNdjson(messages));
+    }
+
+    /**
+     * 读取会话元数据中的压缩反抖动状态；损坏的元数据保持原样且不参与持久化更新。
+     *
+     * @param session 当前会话。
+     * @return 反抖动状态。
+     */
+    @SuppressWarnings("unchecked")
+    private CompressionThrashState readCompressionThrashState(SessionRecord session) {
+        Map<String, Object> metadata = new LinkedHashMap<String, Object>();
+        if (StrUtil.isNotBlank(session.getMetadataJson())) {
+            try {
+                Object parsed = ONode.deserialize(session.getMetadataJson(), LinkedHashMap.class);
+                if (!(parsed instanceof Map)) {
+                    return CompressionThrashState.readOnly();
+                }
+                metadata.putAll((Map<String, Object>) parsed);
+            } catch (Exception e) {
+                log.debug("会话压缩反抖动元数据解析失败，保留原始元数据 sessionId={}", session.getSessionId());
+                return CompressionThrashState.readOnly();
+            }
+        }
+
+        CompressionThrashState result = new CompressionThrashState(metadata, true);
+        Object rawState = metadata.get(THRASH_METADATA_KEY);
+        if (!(rawState instanceof Map)) {
+            return result;
+        }
+        Map<?, ?> state = (Map<?, ?>) rawState;
+        result.ineffectiveAttempts = Math.max(0, number(state.get("count")).intValue());
+        Object fingerprint = state.get("fingerprint");
+        result.windowFingerprint = fingerprint instanceof String ? (String) fingerprint : "";
+        result.baselineInputTokens = number(state.get("baselineInputTokens")).longValue();
+        result.pendingCompressionAt = number(state.get("compressionAt")).longValue();
+        return result;
+    }
+
+    /**
+     * 将压缩反抖动状态写回会话元数据，同时保留其他业务元数据。
+     *
+     * @param session 当前会话。
+     * @param state 反抖动状态。
+     */
+    private void writeCompressionThrashState(SessionRecord session, CompressionThrashState state) {
+        if (!state.writable) {
+            return;
+        }
+        Map<String, Object> value = new LinkedHashMap<String, Object>();
+        value.put("count", Integer.valueOf(state.ineffectiveAttempts));
+        value.put("fingerprint", state.windowFingerprint);
+        value.put("baselineInputTokens", Long.valueOf(state.baselineInputTokens));
+        value.put("compressionAt", Long.valueOf(state.pendingCompressionAt));
+        state.metadata.put(THRASH_METADATA_KEY, value);
+        String updatedMetadata = ONode.serialize(state.metadata);
+        if (!StrUtil.equals(session.getMetadataJson(), updatedMetadata)) {
+            session.setMetadataJson(updatedMetadata);
+            session.setUpdatedAt(System.currentTimeMillis());
+        }
+    }
+
+    /**
+     * 使用压缩后的提供方真实输入 token 判定上一轮压缩是否有效。
+     *
+     * @param session 当前会话。
+     * @param state 反抖动状态。
+     */
+    private void reconcileProviderUsage(SessionRecord session, CompressionThrashState state) {
+        if (state.pendingCompressionAt <= 0L
+                || session.getLastUsageAt() <= state.pendingCompressionAt) {
+            return;
+        }
+        if (state.baselineInputTokens > 0L && session.getLastInputTokens() > 0L) {
+            if (session.getLastInputTokens() < state.baselineInputTokens) {
+                state.ineffectiveAttempts = 0;
+            } else {
+                state.ineffectiveAttempts++;
+            }
+        }
+        state.baselineInputTokens = 0L;
+        state.pendingCompressionAt = 0L;
+    }
+
+    /**
+     * 将宽松 JSON 数值转换为 Number，缺失或非法值按 0 处理。
+     *
+     * @param value 元数据字段值。
+     * @return 可安全读取的数值。
+     */
+    private Number number(Object value) {
+        return value instanceof Number ? (Number) value : Integer.valueOf(0);
     }
 
     /** 对较早的工具结果做预裁剪。 */
@@ -371,8 +533,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         int effectiveWindow =
                 maxTokens > 0 ? Math.max(1, contextWindow - maxTokens) : contextWindow;
         return Math.max(
-                1,
-                (int) (effectiveWindow * appConfig.getCompression().getThresholdPercent()));
+                1, (int) (effectiveWindow * appConfig.getCompression().getThresholdPercent()));
     }
 
     /**
@@ -749,5 +910,121 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             break;
         }
         return Math.min(configured, systemCount);
+    }
+
+    /** 已解析的压缩窗口，避免执行逻辑与反抖动指纹使用不同的消息边界。 */
+    private static final class CompressionWindow {
+        /** 历史压缩摘要。 */
+        private final String previousSummary;
+
+        /** 必须保留的头部消息。 */
+        private final List<ChatMessage> head;
+
+        /** 本轮候选压缩消息。 */
+        private final List<ChatMessage> middle;
+
+        /** 必须保留的尾部消息。 */
+        private final List<ChatMessage> tail;
+
+        /** 候选压缩消息指纹。 */
+        private final String fingerprint;
+
+        /** 当前窗口是否包含有效可压缩消息。 */
+        private final boolean compressible;
+
+        /**
+         * 创建压缩窗口。
+         *
+         * @param previousSummary 历史摘要。
+         * @param head 头部消息。
+         * @param middle 中间消息。
+         * @param tail 尾部消息。
+         * @param fingerprint 中间窗口指纹。
+         * @param compressible 是否可压缩。
+         */
+        private CompressionWindow(
+                String previousSummary,
+                List<ChatMessage> head,
+                List<ChatMessage> middle,
+                List<ChatMessage> tail,
+                String fingerprint,
+                boolean compressible) {
+            this.previousSummary = previousSummary;
+            this.head = head;
+            this.middle = middle;
+            this.tail = tail;
+            this.fingerprint = fingerprint;
+            this.compressible = compressible;
+        }
+
+        /**
+         * 创建不含可压缩消息的窗口。
+         *
+         * @param previousSummary 历史摘要。
+         * @param fingerprint 空窗口指纹。
+         * @return 空压缩窗口。
+         */
+        private static CompressionWindow empty(String previousSummary, String fingerprint) {
+            return new CompressionWindow(
+                    previousSummary,
+                    new ArrayList<ChatMessage>(),
+                    new ArrayList<ChatMessage>(),
+                    new ArrayList<ChatMessage>(),
+                    fingerprint,
+                    false);
+        }
+    }
+
+    /** 持久化在会话 metadataJson 中的压缩反抖动状态。 */
+    private static final class CompressionThrashState {
+        /** 会话完整元数据，写回时保留其他键。 */
+        private final Map<String, Object> metadata;
+
+        /** 元数据是否有效且允许写回。 */
+        private final boolean writable;
+
+        /** 当前窗口连续无效压缩次数。 */
+        private int ineffectiveAttempts;
+
+        /** 当前可压缩窗口指纹。 */
+        private String windowFingerprint = "";
+
+        /** 上次压缩前的提供方真实输入 token。 */
+        private long baselineInputTokens;
+
+        /** 等待提供方 usage 验证的压缩时间。 */
+        private long pendingCompressionAt;
+
+        /**
+         * 创建压缩反抖动状态。
+         *
+         * @param metadata 会话完整元数据。
+         * @param writable 是否允许写回。
+         */
+        private CompressionThrashState(Map<String, Object> metadata, boolean writable) {
+            this.metadata = metadata;
+            this.writable = writable;
+        }
+
+        /**
+         * 创建只读空状态，避免损坏的元数据被覆盖。
+         *
+         * @return 只读状态。
+         */
+        private static CompressionThrashState readOnly() {
+            return new CompressionThrashState(new LinkedHashMap<String, Object>(), false);
+        }
+
+        /**
+         * 新的可压缩窗口出现时清空连续无效计数与待验证状态。
+         *
+         * @param fingerprint 新窗口指纹。
+         */
+        private void resetForWindow(String fingerprint) {
+            this.ineffectiveAttempts = 0;
+            this.windowFingerprint = fingerprint;
+            this.baselineInputTokens = 0L;
+            this.pendingCompressionAt = 0L;
+        }
     }
 }

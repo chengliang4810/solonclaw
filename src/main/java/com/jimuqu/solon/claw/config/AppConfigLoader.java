@@ -1743,16 +1743,6 @@ final class AppConfigLoader {
                                         readInt(props, overrides, "approvals.timeoutSeconds", 60)),
                                 60));
         config.getApprovals()
-                .setGatewayTimeoutSeconds(
-                        positiveInt(
-                                resolveInt(
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "approvals.gatewayTimeoutSeconds",
-                                                300)),
-                                300));
-        config.getApprovals()
                 .setMcpReloadConfirm(
                         resolveBoolean(
                                 readBoolean(props, overrides, "approvals.mcpReloadConfirm", true)));

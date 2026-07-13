@@ -22,6 +22,7 @@ import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.Test;
@@ -155,6 +156,41 @@ public class SkillImportServiceTest {
         HubInstallRecord record = service.installBundle(bundle, null, false, null);
 
         assertThat(record.getTrustLevel()).isEqualTo("trusted");
+    }
+
+    /** 安装证明必须写入 lock，并在审计重新扫描时继续返回内容绑定信息。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldPersistAndReturnScanProvenance() throws Exception {
+        File repoRoot = Files.createTempDirectory("skill-provenance-repo").toFile();
+        File skillsDir = Files.createTempDirectory("skill-provenance-skills").toFile();
+        SkillHubStateStore stateStore = new SkillHubStateStore(skillsDir);
+        SkillImportService importService =
+                new DefaultSkillImportService(
+                        skillsDir, new DefaultSkillGuardService(), stateStore);
+        SkillBundle bundle = new SkillBundle();
+        bundle.setName("provenance-demo");
+        bundle.setSource("test-source");
+        bundle.setIdentifier("test-source/provenance-demo");
+        bundle.getFiles().put("SKILL.md", skill("provenance-demo", "provenance helper"));
+
+        importService.installBundle(bundle, null, false, null);
+
+        HubInstallRecord persisted =
+                new SkillHubStateStore(skillsDir).getInstalled("provenance-demo");
+        Map<String, Object> provenance =
+                (Map<String, Object>) persisted.getMetadata().get("scanProvenance");
+        assertThat(provenance.get("sourceIdentifier")).isEqualTo("test-source/provenance-demo");
+        assertThat((String) provenance.get("bundleHash"))
+                .startsWith("sha256:")
+                .hasSize("sha256:".length() + 64);
+
+        DefaultSkillHubService hub =
+                hubForSingleSource(repoRoot, skillsDir, importService, stateStore, bundle);
+        assertThat(hub.audit("provenance-demo").get(0).getScanProvenance())
+                .containsEntry("source", "test-source")
+                .containsEntry("fresh", Boolean.TRUE)
+                .containsKey("bundleHash");
     }
 
     @Test

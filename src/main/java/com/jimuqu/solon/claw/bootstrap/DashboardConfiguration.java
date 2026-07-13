@@ -655,14 +655,17 @@ public class DashboardConfiguration {
      * @param appConfig 应用运行配置。
      * @param skillUsageTracker 技能用量Tracker参数。
      * @param sessionRepository 会话仓储依赖。
+     * @param localSkillService 本地技能服务依赖。
      * @return 返回控制台洞察服务结果。
      */
     @Bean
     public DashboardInsightsService dashboardInsightsService(
             AppConfig appConfig,
             SkillUsageTracker skillUsageTracker,
-            SessionRepository sessionRepository) {
-        return new DashboardInsightsService(appConfig, skillUsageTracker, sessionRepository);
+            SessionRepository sessionRepository,
+            LocalSkillService localSkillService) {
+        return new DashboardInsightsService(
+                appConfig, skillUsageTracker, sessionRepository, localSkillService);
     }
 
     /**

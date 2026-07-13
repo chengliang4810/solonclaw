@@ -19,6 +19,7 @@ import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunCancelledException;
@@ -44,10 +45,12 @@ import com.jimuqu.solon.claw.usage.UsageEventRecord;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -57,6 +60,7 @@ import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.ToolMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,6 +74,10 @@ public class AgentRunSupervisor implements AgentRunControlService {
 
     /** 队列标识键的统一常量值。 */
     private static final String QUEUE_ID_KEY = "__queueId";
+
+    /** 重启恢复时副作用工具执行事实无法确认的模型可见结果。 */
+    private static final String UNKNOWN_TOOL_EFFECT_RESULT =
+            "[恢复提示] effect_disposition=unknown：该副作用工具可能已在服务中断前执行；重试前请先检查当前状态。";
 
     /** 注入应用配置，用于Agent运行Supervisor。 */
     private final AppConfig appConfig;
@@ -419,8 +427,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
         if ("steer".equals(policy)) {
             if (StrUtil.isBlank(handle.runId)) {
-                RunBusyDecision queued = queueIncoming(key, sessionId, message);
+                RunBusyDecision queued =
+                        queueMessageWhileRunActive(key, sessionId, message, "queue", handle);
                 queued.setPolicy(policy);
+                if (queued.isQueued()) {
+                    queued.setMessage("已加入下一轮队列。");
+                }
                 return queued;
             }
             String text = message == null ? "" : message.getText();
@@ -454,7 +466,40 @@ public class AgentRunSupervisor implements AgentRunControlService {
             decision.setMessage("当前会话已有任务在运行，请稍后再试，或先停止当前任务。");
             return decision;
         }
-        QueuedRunMessage queued = queueMessage(key, sessionId, message, policy);
+        return queueMessageWhileRunActive(key, sessionId, message, policy, handle);
+    }
+
+    /**
+     * 在当前运行句柄仍有效时原子落库排队消息，避免运行结束与入队交错后消息失去唤醒。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param message 平台消息或错误消息。
+     * @param policy busy 策略。
+     * @param expectedHandle 本次 busy 判断所依据的运行句柄。
+     * @return 返回排队结果；句柄已交接时重新执行入站协调。
+     */
+    private RunBusyDecision queueMessageWhileRunActive(
+            String sourceKey,
+            String sessionId,
+            GatewayMessage message,
+            String policy,
+            RunHandle expectedHandle)
+            throws Exception {
+        AtomicBoolean draining =
+                drainingQueues.computeIfAbsent(sourceKey, ignored -> new AtomicBoolean(false));
+        QueuedRunMessage queued;
+        synchronized (draining) {
+            RunHandle current = runningRuns.get(sourceKey);
+            if (current != expectedHandle || expectedHandle.cancelled.get()) {
+                queued = null;
+            } else {
+                queued = queueMessage(sourceKey, sessionId, message, policy);
+            }
+        }
+        if (queued == null) {
+            return coordinateIncoming(sourceKey, sessionId, message);
+        }
         RunBusyDecision decision = new RunBusyDecision();
         decision.setPolicy(policy);
         decision.setStatus("queued");
@@ -641,13 +686,15 @@ public class AgentRunSupervisor implements AgentRunControlService {
     public void onRunFinished(
             String sourceKey, String sessionId, Function<GatewayMessage, GatewayReply> runner) {
         String key = normalizeSourceKey(sourceKey);
-        if (isRunning(key)) {
-            return;
-        }
         AtomicBoolean draining =
                 drainingQueues.computeIfAbsent(key, ignored -> new AtomicBoolean(false));
-        if (!draining.compareAndSet(false, true)) {
-            return;
+        synchronized (draining) {
+            // 初次查询异常时仍尝试一次 drain，避免瞬态数据库故障永久丢失队列唤醒。
+            if (isRunning(key)
+                    || !hasQueuedMessage(key, sessionId, true)
+                    || !draining.compareAndSet(false, true)) {
+                return;
+            }
         }
         Thread thread =
                 new Thread(
@@ -656,8 +703,15 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                     try {
                                         drainQueue(key, sessionId, runner);
                                     } finally {
-                                        draining.set(false);
-                                        if (!isRunning(key) && hasQueuedMessage(key, sessionId)) {
+                                        boolean shouldContinue;
+                                        synchronized (draining) {
+                                            draining.set(false);
+                                            shouldContinue =
+                                                    !isRunning(key)
+                                                            && hasQueuedMessage(
+                                                                    key, sessionId, false);
+                                        }
+                                        if (shouldContinue) {
                                             onRunFinished(key, sessionId, runner);
                                         }
                                     }
@@ -869,7 +923,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             boolean continueFromSnapshot = resume;
 
             for (int candidateIndex = 0; candidateIndex < candidates.size(); candidateIndex++) {
-                checkCancellation(session.getSourceKey());
+                checkCancellation(session.getSourceKey(), runHandle);
                 AppConfig.LlmConfig resolved = candidates.get(candidateIndex);
                 int maxAttempts = Math.max(1, appConfig.getTrace().getMaxAttempts());
                 boolean allowFallback = true;
@@ -877,7 +931,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 boolean skipNextPreflightCompression = false;
                 List<MessageAttachment> candidateAttachments = runContext.getUserAttachments();
                 for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-                    checkCancellation(session.getSourceKey());
+                    checkCancellation(session.getSourceKey(), runHandle);
                     attemptNo++;
                     runContext.setAttempt(attemptNo, resolved.getProvider(), resolved.getModel());
                     updateRunPhase(runRecord, "model");
@@ -942,7 +996,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         runRecord.setContextWindowTokens(contextWindowTokens);
                         heartbeat(runRecord);
                         agentRunRepository.saveRun(runRecord);
-                        checkCancellation(session.getSourceKey());
+                        checkCancellation(session.getSourceKey(), runHandle);
                         previousNdjson = session.getNdjson();
                         LlmResult result =
                                 llmGateway.executeOnce(
@@ -955,12 +1009,36 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                         resume || continueFromSnapshot,
                                         resolved,
                                         runContext);
-                        checkCancellation(session.getSourceKey());
+                        checkCancellation(session.getSourceKey(), runHandle);
+                        if (isIncompleteFinishReason(result)) {
+                            String finishReason = result.getFinishReason();
+                            String safeNdjson =
+                                    MessageSupport.safeFallbackNdjson(
+                                            previousNdjson, session.getNdjson());
+                            continueFromSnapshot =
+                                    continueFromSnapshot
+                                            || !StrUtil.equals(previousNdjson, safeNdjson);
+                            session.setNdjson(safeNdjson);
+                            sessionRepository.save(session);
+                            eventSink.onAssistantReset(finishReason);
+                            lastError = incompleteFinishReasonError(finishReason);
+                            allowFallback = true;
+                            eventSink.onAttemptCompleted(
+                                    runRecord.getRunId(),
+                                    attemptNo,
+                                    "incomplete",
+                                    safeError(lastError));
+                            runContext.event(
+                                    "attempt.incomplete",
+                                    "模型响应未完整结束：" + finishReason,
+                                    errorMetadata(lastError, resolved, attemptNo, candidateIndex));
+                            break;
+                        }
                         String currentReply = extractText(result.getAssistantMessage());
                         if (StrUtil.isBlank(currentReply)
                                 && hasRecentToolActivity(previousNdjson, result.getNdjson())) {
                             session.setNdjson(result.getNdjson());
-                            checkCancellation(session.getSourceKey());
+                            checkCancellation(session.getSourceKey(), runHandle);
                             updateRunPhase(runRecord, "recovery");
                             runContext.event("recovery.start", "工具调用后空回复，发起无工具恢复");
                             eventSink.onRecoveryStarted(runRecord.getRunId(), "empty_reply");
@@ -974,7 +1052,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                             feedbackSink,
                                             eventSink,
                                             runContext);
-                            checkCancellation(session.getSourceKey());
+                            checkCancellation(session.getSourceKey(), runHandle);
                             if (hasUsableRecoveryReply(recovered)) {
                                 correctContradictingRecoveryReply(result, recovered);
                                 mergeUsage(result, recovered);
@@ -986,7 +1064,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
 
                         if (isMaxStepsReply(currentReply)) {
                             session.setNdjson(result.getNdjson());
-                            checkCancellation(session.getSourceKey());
+                            checkCancellation(session.getSourceKey(), runHandle);
                             updateRunPhase(runRecord, "recovery");
                             runContext.event("recovery.start", "达到最大步骤上限，发起收敛总结");
                             eventSink.onRecoveryStarted(runRecord.getRunId(), "max_steps");
@@ -1000,7 +1078,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                             feedbackSink,
                                             eventSink,
                                             runContext);
-                            checkCancellation(session.getSourceKey());
+                            checkCancellation(session.getSourceKey(), runHandle);
                             if (hasUsableRecoveryReply(recovered)) {
                                 correctContradictingRecoveryReply(result, recovered);
                                 mergeUsage(result, recovered);
@@ -1040,7 +1118,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
                     } catch (AgentRunCancelledException e) {
                         throw e;
                     } catch (Exception e) {
-                        if (isCancellationRequested(session.getSourceKey())) {
+                        if (runHandle.cancelled.get()
+                                || isCancellationRequested(session.getSourceKey())) {
                             throw new AgentRunCancelledException();
                         }
                         updateRunPhase(runRecord, "retry");
@@ -1057,10 +1136,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
                             break;
                         }
                         if (!StrUtil.equals(previousNdjson, session.getNdjson())) {
-                            continueFromSnapshot = true;
-                            if (hasRecentToolActivity(previousNdjson, session.getNdjson())) {
-                                sessionRepository.save(session);
-                            }
+                            String safeNdjson =
+                                    MessageSupport.safeFallbackNdjson(
+                                            previousNdjson, session.getNdjson());
+                            continueFromSnapshot =
+                                    continueFromSnapshot
+                                            || !StrUtil.equals(previousNdjson, safeNdjson);
+                            session.setNdjson(safeNdjson);
+                            sessionRepository.save(session);
                         }
                         LlmErrorClassifier.ClassifiedError classified =
                                 LlmErrorClassifier.classify(e);
@@ -1173,7 +1256,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 throw new IllegalStateException(runRecord.getError(), lastError);
             }
 
-            checkCancellation(session.getSourceKey());
+            checkCancellation(session.getSourceKey(), runHandle);
             session.setNdjson(finalResult.getNdjson());
             applyUsage(session, finalResult);
             session.setUpdatedAt(System.currentTimeMillis());
@@ -1305,6 +1388,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         session, systemPrompt, userMessage, resolved.getContextWindowTokens());
         SessionRecord compressed = outcome.getSession();
         boolean changed = !StrUtil.equals(before.getNdjson(), compressed.getNdjson());
+        boolean metadataChanged =
+                !StrUtil.equals(before.getMetadataJson(), compressed.getMetadataJson());
         eventSink.onCompressionDecision(
                 runId,
                 changed,
@@ -1319,7 +1404,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 eventType,
                 outcome.isFailed() ? outcome.getErrorMessage() : decision.getReason(),
                 runContext.metadata("estimatedTokens", decision.getEstimatedTokens()));
-        if (changed) {
+        if (changed || metadataChanged) {
             sessionRepository.save(compressed);
         }
         if (runRecord != null) {
@@ -1363,6 +1448,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         session, systemPrompt, null, resolved.getContextWindowTokens());
         SessionRecord compressed = outcome.getSession();
         boolean changed = !StrUtil.equals(before.getNdjson(), compressed.getNdjson());
+        boolean metadataChanged =
+                !StrUtil.equals(before.getMetadataJson(), compressed.getMetadataJson());
         String reason = "provider_" + classified.getReason().name().toLowerCase(Locale.ROOT);
         eventSink.onCompressionDecision(runId, changed, reason, 0, 0);
         runContext.event(
@@ -1371,7 +1458,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         : (changed ? "compression.retry.done" : "compression.retry.unchanged"),
                 outcome.isFailed() ? outcome.getErrorMessage() : reason,
                 runContext.metadata("provider", resolved.getProvider()));
-        if (changed) {
+        if (changed || metadataChanged) {
             sessionRepository.save(compressed);
         }
         if (runRecord != null) {
@@ -1391,6 +1478,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
     private SessionRecord cloneSessionState(SessionRecord source) {
         SessionRecord clone = new SessionRecord();
         clone.setNdjson(source.getNdjson());
+        clone.setMetadataJson(source.getMetadataJson());
         return clone;
     }
 
@@ -1591,6 +1679,20 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 + StrUtil.nullToEmpty(config.getModel())
                 + "|"
                 + (StrUtil.isBlank(config.getApiKey()) ? "no-key" : "has-key");
+    }
+
+    /** 判断模型结果是否仍处于不可直接展示的异常结束状态。 */
+    private boolean isIncompleteFinishReason(LlmResult result) {
+        String finishReason = result == null ? "" : StrUtil.nullToEmpty(result.getFinishReason());
+        return "length".equals(finishReason) || "content_filter".equals(finishReason);
+    }
+
+    /** 构造异常结束状态对应的明确失败原因。 */
+    private IllegalStateException incompleteFinishReasonError(String finishReason) {
+        if ("content_filter".equals(finishReason)) {
+            return new IllegalStateException("模型响应被内容安全策略过滤");
+        }
+        return new IllegalStateException("模型响应续写 4 次后仍被长度限制截断");
     }
 
     /**
@@ -2153,7 +2255,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param resumeReason resume原因参数。
      */
     private void markSessionResumePending(String sourceKey, String resumeReason) {
-        markSessionResumePending(sourceKey, null, resumeReason);
+        markSessionResumePending(sourceKey, null, null, resumeReason);
     }
 
     /**
@@ -2161,9 +2263,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
      *
      * @param sourceKey 渠道来源键。
      * @param sessionId 精确会话标识；为空时使用当前绑定会话。
+     * @param staleRunId stale run 标识；为空时不恢复中断工具事实。
      * @param resumeReason 恢复原因。
      */
-    private void markSessionResumePending(String sourceKey, String sessionId, String resumeReason) {
+    private void markSessionResumePending(
+            String sourceKey, String sessionId, String staleRunId, String resumeReason) {
         if (StrUtil.isBlank(sourceKey) || StrUtil.isBlank(resumeReason)) {
             return;
         }
@@ -2175,12 +2279,132 @@ public class AgentRunSupervisor implements AgentRunControlService {
             if (session == null || !StrUtil.equals(sourceKey, session.getSourceKey())) {
                 return;
             }
+            recoverUnknownStaleToolEffects(session, staleRunId);
             SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
             agentSession.pending(true, resumeReason);
             agentSession.updateSnapshot();
         } catch (Exception e) {
             log.warn("mark resume pending failed: sourceKey={}, error={}", sourceKey, safeError(e));
         }
+    }
+
+    /**
+     * 将 stale run 中副作用未知的工具调用闭合为匹配的 TOOL 结果，避免恢复时删除或重放真实执行事实。
+     *
+     * <p>审计记录使用独立标识，必须按工具名和审计顺序匹配原始 assistant call ID；只读悬空调用仍交给消息修复清理。
+     *
+     * @param session 待恢复的持久化会话。
+     * @param staleRunId stale run 标识。
+     */
+    private void recoverUnknownStaleToolEffects(SessionRecord session, String staleRunId)
+            throws Exception {
+        if (session == null
+                || StrUtil.isBlank(staleRunId)
+                || StrUtil.isBlank(session.getNdjson())) {
+            return;
+        }
+        List<ToolCallRecord> audits;
+        try {
+            audits = agentRunRepository.listToolCalls(staleRunId);
+        } catch (Exception e) {
+            log.warn(
+                    "stale run 工具审计读取失败，继续按原语义标记 pending: runId={}, error={}",
+                    staleRunId,
+                    safeError(e));
+            return;
+        }
+        if (audits == null || audits.isEmpty()) {
+            return;
+        }
+        List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+        Set<String> answeredCallIds = new HashSet<String>();
+        List<ToolCall> unansweredCalls = new ArrayList<ToolCall>();
+        for (ChatMessage message : messages) {
+            if (message instanceof ToolMessage) {
+                String callId = ((ToolMessage) message).getToolCallId();
+                if (StrUtil.isNotBlank(callId)) {
+                    answeredCallIds.add(callId);
+                }
+            }
+        }
+        for (ChatMessage message : messages) {
+            if (!(message instanceof AssistantMessage)) {
+                continue;
+            }
+            List<ToolCall> calls = ((AssistantMessage) message).getToolCalls();
+            if (calls == null) {
+                continue;
+            }
+            for (ToolCall call : calls) {
+                if (call != null
+                        && StrUtil.isNotBlank(call.getId())
+                        && !answeredCallIds.contains(call.getId())) {
+                    unansweredCalls.add(call);
+                }
+            }
+        }
+
+        Set<String> recoveredCallIds = new LinkedHashSet<String>();
+        for (ToolCallRecord audit : audits) {
+            if (!isUnknownSideEffectAudit(audit)) {
+                continue;
+            }
+            for (ToolCall call : unansweredCalls) {
+                if (!recoveredCallIds.contains(call.getId())
+                        && StrUtil.equals(audit.getToolName(), call.getName())) {
+                    recoveredCallIds.add(call.getId());
+                    break;
+                }
+            }
+        }
+        if (recoveredCallIds.isEmpty()) {
+            return;
+        }
+
+        List<ChatMessage> recovered = new ArrayList<ChatMessage>(messages.size() + 1);
+        for (int index = 0; index < messages.size(); index++) {
+            ChatMessage message = messages.get(index);
+            recovered.add(message);
+            if (!(message instanceof AssistantMessage)) {
+                continue;
+            }
+            while (index + 1 < messages.size()) {
+                ChatMessage following = messages.get(index + 1);
+                if (following == null
+                        || (following.getRole() != ChatRole.TOOL
+                                && following.getRole() != ChatRole.SYSTEM)) {
+                    break;
+                }
+                recovered.add(following);
+                index++;
+            }
+            List<ToolCall> calls = ((AssistantMessage) message).getToolCalls();
+            if (calls == null) {
+                continue;
+            }
+            for (ToolCall call : calls) {
+                if (call == null || !recoveredCallIds.contains(call.getId())) {
+                    continue;
+                }
+                ToolMessage result =
+                        ChatMessage.ofTool(
+                                UNKNOWN_TOOL_EFFECT_RESULT, call.getName(), call.getId());
+                result.addMetadata("effect_disposition", "unknown");
+                recovered.add(result);
+            }
+        }
+        session.setNdjson(MessageSupport.toNdjson(recovered));
+        log.warn(
+                "stale run 恢复了副作用未知的工具事实: runId={}, count={}", staleRunId, recoveredCallIds.size());
+    }
+
+    /** 判断审计记录是否代表执行结果未知的副作用工具。 */
+    private boolean isUnknownSideEffectAudit(ToolCallRecord audit) {
+        if (audit == null || !audit.isSideEffecting()) {
+            return false;
+        }
+        String status = StrUtil.blankToDefault(audit.getStatus(), "").toLowerCase(Locale.ROOT);
+        return "running".equals(status) || "interrupted".equals(status);
     }
 
     /**
@@ -2211,6 +2435,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         markSessionResumePending(
                                 staleRun.getSourceKey(),
                                 staleRun.getSessionId(),
+                                staleRun.getRunId(),
                                 "restart_interrupted");
                     }
                 }
@@ -2251,8 +2476,10 @@ public class AgentRunSupervisor implements AgentRunControlService {
      *
      * @param sourceKey 渠道来源键。
      */
-    private void checkCancellation(String sourceKey) {
-        if (isCancellationRequested(sourceKey)) {
+    private void checkCancellation(String sourceKey, RunHandle runHandle) {
+        // 新消息可替换来源键对应的句柄，仍须保留并检查当前 run 自己的取消标记。
+        if ((runHandle != null && runHandle.cancelled.get())
+                || isCancellationRequested(sourceKey)) {
             throw new AgentRunCancelledException();
         }
         if (Thread.currentThread().isInterrupted()) {
@@ -2526,13 +2753,20 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
-    /** 判断当前来源会话是否仍有 queued 消息，用于补偿 drain 结束窗口内丢失的唤醒。 */
-    private boolean hasQueuedMessage(String sourceKey, String sessionId) {
+    /**
+     * 判断当前来源会话是否仍有 queued 消息。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @param failOpen 查询异常时是否按存在消息处理。
+     * @return 查询成功时返回真实队列状态；异常时按 failOpen 返回。
+     */
+    private boolean hasQueuedMessage(String sourceKey, String sessionId, boolean failOpen) {
         try {
             return agentRunRepository.findNextQueuedMessage(sourceKey, sessionId) != null;
         } catch (Exception e) {
             log.warn("check queued run failed: sourceKey={}, error={}", sourceKey, safeError(e));
-            return false;
+            return failOpen;
         }
     }
 

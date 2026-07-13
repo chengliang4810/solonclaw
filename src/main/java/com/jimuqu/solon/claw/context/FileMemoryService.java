@@ -169,7 +169,8 @@ public class FileMemoryService implements MemoryService {
     }
 
     /** 绕过审批边界直接替换已校验的记忆内容。 */
-    private String replaceDirect(String target, String oldText, String newContent) throws Exception {
+    private String replaceDirect(String target, String oldText, String newContent)
+            throws Exception {
         String normalizedNew = normalizeEntry(newContent);
         List<String> entries = readEntries(target);
         boolean replaced = false;
@@ -231,9 +232,7 @@ public class FileMemoryService implements MemoryService {
         return "已删除 " + normalizeTarget(target) + " 中的匹配条目。";
     }
 
-    /**
-     * 在共享服务边界暂存或直接应用写入，确保工具、学习服务等所有调用方行为一致。
-     */
+    /** 在共享服务边界暂存或直接应用写入，确保工具、学习服务等所有调用方行为一致。 */
     private String stageOrApply(
             String action, String target, String content, String oldText, String origin)
             throws Exception {

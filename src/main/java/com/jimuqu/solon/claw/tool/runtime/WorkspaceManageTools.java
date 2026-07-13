@@ -104,7 +104,8 @@ public class WorkspaceManageTools {
         if (ContextFileConstants.KEY_MEMORY.equals(normalized)
                 || ContextFileConstants.KEY_USER.equals(normalized)
                 || ContextFileConstants.KEY_MEMORY_TODAY.equals(normalized)) {
-            throw new IllegalArgumentException("Memory workspace files require the memory tool approval flow.");
+            throw new IllegalArgumentException(
+                    "Memory workspace files require the memory tool approval flow.");
         }
     }
 }

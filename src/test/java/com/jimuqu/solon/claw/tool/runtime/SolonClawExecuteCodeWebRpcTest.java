@@ -193,7 +193,9 @@ public class SolonClawExecuteCodeWebRpcTest {
                                         + "print(extract['content'])\n",
                                 Integer.valueOf(10)));
 
-        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(result.get("status").getString())
+                .as("execute_code result: %s", result.toJson())
+                .isEqualTo("success");
         assertThat(result.get("tool_calls_made").getInt()).isEqualTo(1);
         assertThat(result.get("output").getString())
                 .contains("URL 安全策略")
@@ -227,10 +229,11 @@ public class SolonClawExecuteCodeWebRpcTest {
                                 Integer.valueOf(10)));
 
         assertThat(result.get("status").getString()).isEqualTo("success");
-        assertThat(result.get("tool_calls_made").getInt()).isEqualTo(3);
+        assertThat(result.get("tool_calls_made").getInt()).isEqualTo(2);
         assertThat(result.get("output").getString())
                 .contains("missing-token-ghp_***")
                 .contains("Tool 'secret_tool_ghp_***'")
+                .contains("not enabled for this execute_code run")
                 .contains("blocked by test")
                 .doesNotContain("ghp_1234567890abcdef")
                 .doesNotContain("token=ghp_1234567890abcdef");

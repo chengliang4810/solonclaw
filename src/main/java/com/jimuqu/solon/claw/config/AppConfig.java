@@ -629,7 +629,6 @@ public class AppConfig {
     private void copyApprovals(ApprovalsConfig other) {
         this.approvals.setSubagentAutoApprove(other.isSubagentAutoApprove());
         this.approvals.setTimeoutSeconds(other.getTimeoutSeconds());
-        this.approvals.setGatewayTimeoutSeconds(other.getGatewayTimeoutSeconds());
         this.approvals.setMcpReloadConfirm(other.isMcpReloadConfirm());
         this.approvals.setDeny(other.getDeny());
     }
@@ -1658,11 +1657,8 @@ public class AppConfig {
         /** 子 Agent 遇到可审批危险命令时是否自动批准一次；默认拒绝。 */
         private boolean subagentAutoApprove = false;
 
-        /** CLI/直接审批超时秒数。 */
+        /** 所有审批（包括消息渠道待审批）的统一超时秒数。 */
         private int timeoutSeconds = 60;
-
-        /** 网关/渠道审批超时秒数。 */
-        private int gatewayTimeoutSeconds = 300;
 
         /** /reload-mcp 是否需要确认，默认开启。 */
         private boolean mcpReloadConfirm = true;

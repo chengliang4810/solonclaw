@@ -717,6 +717,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      * @return 返回解析后的Agent范围。
      */
     private AgentRuntimeScope resolveAgentScope(SessionRecord session) throws Exception {
+        if (agentRuntimeService != null) {
+            return agentRuntimeService.resolve(session);
+        }
         AgentRuntimeScope scope = new AgentRuntimeScope();
         scope.setAgentName("default");
         ProfileRuntimeScope.Context profileScope = ProfileRuntimeScope.current();

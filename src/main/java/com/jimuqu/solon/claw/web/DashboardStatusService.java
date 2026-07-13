@@ -1176,9 +1176,6 @@ public class DashboardStatusService {
                 "approval_timeout_seconds",
                 Integer.valueOf(appConfig.getApprovals().getTimeoutSeconds()));
         status.put(
-                "gateway_approval_timeout_seconds",
-                Integer.valueOf(appConfig.getApprovals().getGatewayTimeoutSeconds()));
-        status.put(
                 "allow_private_urls",
                 Boolean.valueOf(appConfig.getSecurity().isAllowPrivateUrls()));
         status.put(

@@ -217,7 +217,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      * @param toolName 当前模型工具名。
      * @param fileName 文件路径。
      * @param content 完整文件内容。
-     * @param crossProfile 是否已获用户明确授权修改其他 Profile。
+     * @param crossProfile 是否声明修改其他 Profile 的目标意图。
      * @return 返回结构化写入结果。
      */
     private String writeInternal(
@@ -229,7 +229,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
                     .data("path", safeDisplayPath(fileName))
                     .toJson();
         }
-        assertSafe(toolName, fileName);
+        assertSafe(toolName, fileName, crossProfile);
         assertNotInternalFileStatusContent(content);
         Path target;
         try {
@@ -519,12 +519,24 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      * @param path 文件或目录路径。
      */
     private void assertSafe(String toolName, String path) {
+        assertSafe(toolName, path, false);
+    }
+
+    /**
+     * 校验文件工具路径，并把跨 Profile 目标意图传给统一策略入口；真实授权仍由一次性审批决定。
+     *
+     * @param toolName 工具名称。
+     * @param path 文件或目录路径。
+     * @param crossProfile 是否声明修改其他 Profile 的目标意图。
+     */
+    private void assertSafe(String toolName, String path, boolean crossProfile) {
         if (securityPolicyService == null || StrUtil.isBlank(path)) {
             return;
         }
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("fileName", path);
         args.put("dirName", path);
+        args.put("cross_profile", Boolean.valueOf(crossProfile));
         SecurityPolicyService.FileVerdict verdict =
                 securityPolicyService.checkFileToolArgs(toolName, args, rootPath.toString());
         if (!verdict.isAllowed()) {
@@ -1135,10 +1147,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      * @return 返回解析后的路径。
      */
     private Path resolvePath(String name) {
-        String value = normalizeRuntimeReference(name);
-        if (value.indexOf('\0') >= 0 || value.contains("!/")) {
-            throw new IllegalArgumentException("jar-internal paths are not disk files");
-        }
+        String value = normalizeDiskPath(name);
         Path path = SecurityPolicyService.resolveWorkspacePath(rootPath, value);
         if (!path.startsWith(rootPath)) {
             throw new SecurityException("禁止越权访问沙箱外部");
@@ -1155,14 +1164,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      * @return 通过当前工作区或跨 Profile 边界校验的目标路径。
      */
     private Path resolveWritePath(String name, boolean crossProfile) {
-        String value = normalizeRuntimeReference(name);
-        if (value.indexOf('\0') >= 0 || value.contains("!/")) {
-            throw new IllegalArgumentException("jar-internal paths are not disk files");
-        }
+        String value = normalizeDiskPath(name);
         ToolCrossProfilePathSupport.CrossProfileTarget crossTarget =
-                ToolCrossProfilePathSupport.classify(rootPath, name);
+                ToolCrossProfilePathSupport.classify(rootPath, value);
         if (crossTarget == null) {
-            Path target = SecurityPolicyService.resolveWorkspacePath(rootPath, name);
+            Path target = SecurityPolicyService.resolveWorkspacePath(rootPath, value);
             if (!target.startsWith(rootPath)) {
                 return resolveApprovedOutsideWritePath(name, target);
             }
@@ -1210,6 +1216,20 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      */
     private String normalizeRuntimeReference(String name) {
         return SecurityPolicyService.normalizeWorkspaceReference(name);
+    }
+
+    /**
+     * 将运行态路径归一化并拒绝不能映射为磁盘文件的输入，供读写路径共用。
+     *
+     * @param name 工具传入的原始路径。
+     * @return 可继续解析的规范化磁盘路径。
+     */
+    private String normalizeDiskPath(String name) {
+        String value = normalizeRuntimeReference(name);
+        if (value.indexOf('\0') >= 0 || value.contains("!/")) {
+            throw new IllegalArgumentException("jar-internal paths are not disk files");
+        }
+        return value;
     }
 
     /**
@@ -1485,8 +1505,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      */
     private void assertNotMemoryControlWriteTarget(Path target) {
         if (MemoryControlPathPolicy.isProtectedWriteTarget(rootPath, target)) {
-            throw new IllegalArgumentException(
-                    "BLOCKED: 模型文件工具不能直接修改长期记忆或记忆审批状态，请使用 memory 工具。");
+            throw new IllegalArgumentException("BLOCKED: 模型文件工具不能直接修改长期记忆或记忆审批状态，请使用 memory 工具。");
         }
     }
 

@@ -141,8 +141,6 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("backgroundProcessGuard", Boolean.TRUE);
         summary.put("terminalGuardrailPolicy", terminalGuardrailPolicySummary());
         summary.put("approvalTimeoutSeconds", Integer.valueOf(service.approvalTimeoutSeconds()));
-        summary.put(
-                "gatewayTimeoutSeconds", Integer.valueOf(service.approvalGatewayTimeoutSeconds()));
         summary.put("alwaysApprovalCount", Integer.valueOf(service.listAlwaysApprovals().size()));
         summary.put("slashConfirmPolicy", slashConfirmPolicySummary());
         summary.put("approvalCardPolicy", approvalCardPolicySummary());
@@ -390,8 +388,6 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("approvalMetadataRedacted", Boolean.TRUE);
         summary.put("observerEventsRedacted", Boolean.TRUE);
         summary.put("approvalTimeoutSeconds", Integer.valueOf(service.approvalTimeoutSeconds()));
-        summary.put(
-                "gatewayTimeoutSeconds", Integer.valueOf(service.approvalGatewayTimeoutSeconds()));
         summary.put(
                 "description",
                 "Slash approval commands can approve or deny one pending item, all pending items, or an id selector, with once/session/always scopes, hidden approval keys in list output, and redacted approval metadata.");

@@ -484,9 +484,7 @@ public class ModelContextCatalogService implements AutoCloseable {
         }
     }
 
-    /**
-     * 供容器和手动资源管理使用的关闭入口。
-     */
+    /** 供容器和手动资源管理使用的关闭入口。 */
     @Override
     public void close() {
         shutdown();

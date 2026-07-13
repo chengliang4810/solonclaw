@@ -47,7 +47,7 @@ public class DingTalkInboundDispatchTest {
         assertThat(dispatched.getUserId()).isEqualTo("staff-001");
         assertThat(dispatched.getUserName()).isEqualTo("值班同事");
         assertThat(dispatched.getText()).isEqualTo("请检查 solonclaw 状态");
-        assertThat(dispatched.getThreadId()).isEqualTo("msg-001");
+        assertThat(dispatched.getReplyToMessageId()).isEqualTo("msg-001");
         assertThat(dispatched.getAttachments()).isEmpty();
         assertThat(fixture.state.get(PlatformType.DINGTALK, "open-cid-1", "last_user_id"))
                 .isEqualTo("staff-001");

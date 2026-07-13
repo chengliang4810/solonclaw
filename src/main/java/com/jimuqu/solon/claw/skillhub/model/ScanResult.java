@@ -1,7 +1,9 @@
 package com.jimuqu.solon.claw.skillhub.model;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -31,4 +33,7 @@ public class ScanResult {
 
     /** 记录Scan中的摘要。 */
     private String summary;
+
+    /** 保存与本次扫描内容绑定的来源、规则和摘要证明，供安装记录审计。 */
+    private Map<String, Object> scanProvenance = new LinkedHashMap<String, Object>();
 }

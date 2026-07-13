@@ -68,7 +68,8 @@ final class MemoryControlPathPolicy {
                         && (MemoryConstants.MEMORY_FILE_NAME.equalsIgnoreCase(first)
                                 || MemoryConstants.USER_FILE_NAME.equalsIgnoreCase(first)
                                 || MemoryConstants.APPROVAL_STATE_FILE_NAME.equalsIgnoreCase(first)
-                                || MemoryConstants.APPROVAL_LOCK_FILE_NAME.equalsIgnoreCase(first)));
+                                || MemoryConstants.APPROVAL_LOCK_FILE_NAME.equalsIgnoreCase(
+                                        first)));
     }
 
     /** 解析最近存在节点的符号链接，覆盖经工作区内链接进入记忆目录的写入。 */

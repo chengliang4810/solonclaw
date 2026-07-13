@@ -171,11 +171,7 @@ public class ConsoleEventSink implements ConversationEventSink {
      */
     @Override
     public void onFallback(
-            String runId,
-            String fromProvider,
-            String toProvider,
-            String toModel,
-            String reason) {
+            String runId, String fromProvider, String toProvider, String toModel, String reason) {
         sidecar(
                 "fallback",
                 StrUtil.blankToDefault(fromProvider, "-")
@@ -239,6 +235,17 @@ public class ConsoleEventSink implements ConversationEventSink {
         assistant.append(text);
         writer.print(markdownRenderer.render(text));
         writer.flush();
+    }
+
+    /** 清除当前候选回复的内部累计状态，并在终端中明确分隔后续备用模型输出。 */
+    @Override
+    public void onAssistantReset(String reason) {
+        assistant.setLength(0);
+        if (assistantStarted) {
+            writer.println();
+        }
+        assistantStarted = false;
+        line(DIM + "当前候选回复已撤销：" + safeDisplay(reason, 120) + RESET);
     }
 
     /**

@@ -106,7 +106,8 @@ class ToolRegistryWebAndCodeToolsTest {
                 new SolonClawWebTools.SafeWebfetchTool(
                         new SecurityPolicyService(env.appConfig) {
                             @Override
-                            public UrlVerdict checkToolArgs(String toolName, Map<String, Object> args) {
+                            public UrlVerdict checkToolArgs(
+                                    String toolName, Map<String, Object> args) {
                                 policyChecks.incrementAndGet();
                                 return UrlVerdict.allow();
                             }
@@ -807,6 +808,48 @@ class ToolRegistryWebAndCodeToolsTest {
                 .contains("after");
     }
 
+    /** execute_code 内部桥接必须服从当前来源的工具禁用状态，不能绕过注册表策略。 */
+    @Test
+    void shouldKeepDisabledTerminalAndWebfetchUnavailableInsideExecuteCode() throws Exception {
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:execute-code-toolset:disabled";
+        env.toolRegistry.disableTools(sourceKey, Arrays.asList("terminal", "webfetch"));
+        Path marker =
+                new java.io.File(env.appConfig.getRuntime().getHome())
+                        .toPath()
+                        .resolve("disabled-terminal-ran.txt");
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
+                env.toolRegistry.resolveEnabledTools(sourceKey).stream()
+                        .filter(SolonClawCodeExecutionSkills.SafeExecuteCodeTool.class::isInstance)
+                        .map(SolonClawCodeExecutionSkills.SafeExecuteCodeTool.class::cast)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("execute_code tool missing"));
+        String terminalCommand =
+                System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win")
+                        ? "echo executed>disabled-terminal-ran.txt"
+                        : "touch disabled-terminal-ran.txt";
+
+        ONode result =
+                ONode.ofJson(
+                        executeCode.executeCode(
+                                "import solonclaw_tools as tools\n"
+                                        + "for name, call in [('terminal', lambda: tools.terminal("
+                                        + ONode.serialize(terminalCommand)
+                                        + ")), ('webfetch', lambda: tools.webfetch('5'))]:\n"
+                                        + "    print(name + ': ' + call()['error'])\n",
+                                Integer.valueOf(10)));
+
+        assertThat(result.get("status").getString()).as(result.toJson()).isEqualTo("success");
+        assertThat(result.get("tool_calls_made").getInt()).isZero();
+        assertThat(result.get("output").getString())
+                .contains("terminal: Tool 'terminal' is not enabled for this execute_code run")
+                .contains("webfetch: Tool 'webfetch' is not enabled for this execute_code run")
+                .doesNotContain("URL 格式错误");
+        assertThat(marker).doesNotExist();
+    }
+
     @Test
     void shouldResetExecuteCodeRpcReadDedupAfterOtherToolCall() throws Exception {
         assumeTrue(commandExists("python"));
@@ -1131,6 +1174,9 @@ class ToolRegistryWebAndCodeToolsTest {
         assertThatThrownBy(() -> fileSkill.write(jarPath, "content"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("jar-internal paths are not disk files");
+        assertThatThrownBy(() -> fileSkill.write("notes/\0output.txt", "content"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("路径包含非法字符");
         assertThatThrownBy(() -> fileSkill.delete(jarPath))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("jar-internal paths are not disk files");

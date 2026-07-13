@@ -327,6 +327,18 @@ public class WeixinInboundDispatchTest {
         adapter.disconnect();
     }
 
+    /** 审批命令必须绕过被长任务占用的微信入站队列，且不得终止原任务的 typing 生命周期。 */
+    @Test
+    void shouldDispatchApproveAlwaysBeforeBlockedWeixinInboundTaskCompletes() throws Exception {
+        assertControlCommandBypassesBlockedWeixinInboundTask("/approve always");
+    }
+
+    /** 拒绝命令必须绕过被长任务占用的微信入站队列。 */
+    @Test
+    void shouldDispatchDenyBeforeBlockedWeixinInboundTaskCompletes() throws Exception {
+        assertControlCommandBypassesBlockedWeixinInboundTask("/deny approval-123");
+    }
+
     @Test
     void shouldDebounceRapidInboundTextMessagesByConversation() throws Exception {
         AppConfig config = newConfig();
@@ -685,6 +697,54 @@ public class WeixinInboundDispatchTest {
 
     private WeiXinChannelAdapter newAdapter() throws Exception {
         return newAdapter(newConfig());
+    }
+
+    /** 验证审批控制命令在普通任务尚未释放时已由独立执行器处理。 */
+    private void assertControlCommandBypassesBlockedWeixinInboundTask(String command)
+            throws Exception {
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels().getWeixin().setGroupPolicy("open");
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.01D);
+        config.getChannels().getWeixin().setBaseUrl("http://127.0.0.1:1");
+        WeiXinChannelAdapter adapter = newAdapter(config);
+        CountDownLatch normalStarted = new CountDownLatch(1);
+        CountDownLatch releaseNormal = new CountDownLatch(1);
+        CountDownLatch controlHandled = new CountDownLatch(1);
+        AtomicReference<String> handledControl = new AtomicReference<String>();
+        adapter.setInboundMessageHandler(
+                message -> {
+                    if ("long-running".equals(message.getText())) {
+                        normalStarted.countDown();
+                        releaseNormal.await(5L, TimeUnit.SECONDS);
+                        return;
+                    }
+                    handledControl.set(message.getText());
+                    controlHandled.countDown();
+                });
+        Method processInbound =
+                WeiXinChannelAdapter.class.getDeclaredMethod("processInboundMessage", ONode.class);
+        processInbound.setAccessible(true);
+
+        try {
+            processInbound.invoke(
+                    adapter, inboundText("msg-normal", "", "wx-user", "long-running"));
+            assertThat(normalStarted.await(3L, TimeUnit.SECONDS)).isTrue();
+
+            processInbound.invoke(adapter, inboundText("msg-control", "", "wx-user", command));
+
+            assertThat(controlHandled.await(1L, TimeUnit.SECONDS)).isTrue();
+            assertThat(handledControl.get()).isEqualTo(command);
+            assertThat(releaseNormal.getCount()).isEqualTo(1L);
+            @SuppressWarnings("unchecked")
+            Map<Object, Object> activeLifecycles =
+                    (Map<Object, Object>) fieldValue(adapter, "activeTypingLifecycles");
+            assertThat(activeLifecycles).containsKey("wx-user");
+        } finally {
+            releaseNormal.countDown();
+            adapter.disconnect();
+        }
     }
 
     private WeiXinChannelAdapter newAdapter(AppConfig config) {

@@ -744,6 +744,18 @@ public class DashboardChatService {
             enqueue(state, "message.delta", payload);
         }
 
+        /** 撤销当前候选已发送的正文，确保备用模型答复不会与部分响应拼接。 */
+        @Override
+        public void onAssistantReset(String reason) {
+            if (state.completed || state.canceled) {
+                return;
+            }
+            assistantDeltaEmitted = false;
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("reason", StrUtil.nullToEmpty(reason));
+            enqueue(state, "message.reset", payload);
+        }
+
         /**
          * 响应推理Delta事件。
          *
@@ -1181,6 +1193,13 @@ public class DashboardChatService {
                 assistantBuffer.append(delta);
             }
             delegate.onAssistantDelta(delta);
+        }
+
+        /** 清除命令包装器累计的候选正文并转发撤销事件。 */
+        @Override
+        public void onAssistantReset(String reason) {
+            assistantBuffer.setLength(0);
+            delegate.onAssistantReset(reason);
         }
 
         /** assistant reasoning 文本增量。 */

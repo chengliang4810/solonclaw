@@ -39,8 +39,7 @@ public class MemoryCommandTest {
                 .doesNotContain("payload");
 
         GatewayReply applied =
-                env.send(
-                        "memory-room", "memory-user", "/memory apply " + pending.get(0).getId());
+                env.send("memory-room", "memory-user", "/memory apply " + pending.get(0).getId());
         assertThat(applied.getContent()).contains("已批准并应用 1 条");
         assertThat(env.memoryService.read("memory")).contains("ghp_memorycommand123456");
 
@@ -73,9 +72,7 @@ public class MemoryCommandTest {
                 .containsEntry("command_status", "handled")
                 .containsEntry("command", "memory")
                 .containsEntry("action", "approve");
-        assertThat(missingId.getContent())
-                .contains("用法：/memory")
-                .contains("approval [on|off]");
+        assertThat(missingId.getContent()).contains("用法：/memory").contains("approval [on|off]");
         assertThat(legacyAlias.getContent()).doesNotContain("mode [on|off]");
     }
 

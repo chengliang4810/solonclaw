@@ -98,8 +98,7 @@ public class DefaultContextBudgetService implements ContextBudgetService {
         int effectiveWindow =
                 maxTokens > 0 ? Math.max(1, contextWindow - maxTokens) : contextWindow;
         return Math.max(
-                1,
-                (int) (effectiveWindow * appConfig.getCompression().getThresholdPercent()));
+                1, (int) (effectiveWindow * appConfig.getCompression().getThresholdPercent()));
     }
 
     /**

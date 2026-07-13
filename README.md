@@ -156,7 +156,6 @@ security:
 approvals:
   subagentAutoApprove: false
   timeoutSeconds: 60
-  gatewayTimeoutSeconds: 300
   mcpReloadConfirm: true
 solonclaw:
   dashboard:
@@ -194,8 +193,7 @@ solonclaw:
 | `security.guardrailCronScope` | `job` | 定时任务审批记忆范围：`job`、`session`、`global` |
 | `security.hardlineAllowlist` | 空 | 显式允许跳过的 hardline 类别；默认不放行 |
 | `approvals.subagentAutoApprove` | `false` | 子 Agent 是否自动批准一次可审批危险命令 |
-| `approvals.timeoutSeconds` | `60` | 本地/直接审批超时秒数 |
-| `approvals.gatewayTimeoutSeconds` | `300` | 消息渠道审批超时秒数 |
+| `approvals.timeoutSeconds` | `60` | 所有审批（包括消息渠道）的统一超时秒数 |
 | `approvals.mcpReloadConfirm` | `true` | `/reload-mcp` 是否需要确认 |
 | `solonclaw.terminal.credentialFiles` | 空 | 可挂载到隔离执行环境的 workspace 相对凭据文件列表 |
 | `solonclaw.terminal.envPassthrough` | 空 | 允许传给本地子进程的第三方环境变量名 |

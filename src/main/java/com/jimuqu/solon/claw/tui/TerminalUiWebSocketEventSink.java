@@ -130,11 +130,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
     /** 通知终端 UI 模型提供方 fallback，并同步实际激活模型且保留活动区警告。 */
     @Override
     public void onFallback(
-            String runId,
-            String fromProvider,
-            String toProvider,
-            String toModel,
-            String reason) {
+            String runId, String fromProvider, String toProvider, String toModel, String reason) {
         if (rpcEnvelope) {
             Map<String, Object> payload =
                     pair(
@@ -173,6 +169,16 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
             return;
         }
         send("assistant.delta", pair("delta", delta));
+    }
+
+    /** 丢弃当前候选尚未刷出的增量，并通知终端 UI 清除已展示的流式正文。 */
+    @Override
+    public void onAssistantReset(String reason) {
+        assistantDeltaBuffer.setLength(0);
+        reasoningDeltaBuffer.setLength(0);
+        thinkTagSplitter.reset();
+        assistantDeltaSent = false;
+        send("message.reset", pair("reason", safe(reason)), activeSessionId);
     }
 
     /** 推送推理过程增量。 */
@@ -532,6 +538,12 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
             String text = pendingTag.toString();
             pendingTag.setLength(0);
             return text;
+        }
+
+        /** 清空候选切换前遗留的标签判断状态。 */
+        private void reset() {
+            pendingTag.setLength(0);
+            thinking = false;
         }
 
         /** 按当前状态追加文本。 */

@@ -180,9 +180,6 @@ public class SecurityAuditTools {
         approvals.put(
                 "timeoutSeconds", Integer.valueOf(appConfig.getApprovals().getTimeoutSeconds()));
         approvals.put(
-                "gatewayTimeoutSeconds",
-                Integer.valueOf(appConfig.getApprovals().getGatewayTimeoutSeconds()));
-        approvals.put(
                 "mcpReloadConfirm", Boolean.valueOf(appConfig.getApprovals().isMcpReloadConfirm()));
         approvals.put(
                 "mcpReloadConfirmationDefault",

@@ -24,16 +24,24 @@ class MemoryApprovalCoordinatorTest {
 
         CompletableFuture<MemoryApprovalCoordinator.Decision> decision =
                 CompletableFuture.supplyAsync(
-                        () -> coordinator.request("s1", "12345678", "add", "value"));
+                        () ->
+                                coordinator.request(
+                                        "s1",
+                                        "12345678",
+                                        "add\u001B[2J to memory\u0001",
+                                        "value\u001B]52;c;c2VjcmV0\u0007safe"));
         waitFor(emitted);
+        assertEquals("add to memory", emitted.get().getSummary());
+        assertEquals("valuesafe", emitted.get().getDetail());
         assertThrows(
                 IllegalArgumentException.class,
                 () -> coordinator.respondIfPending("s1", "memory:12345678", "always", owner));
         assertThrows(
                 IllegalArgumentException.class,
-                () ->
-                        coordinator.respondIfPending(
-                                "s1", "memory:12345678", "once", new Object()));
+                () -> coordinator.respondIfPending("s1", "memory:12345678", "session", owner));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> coordinator.respondIfPending("s1", "memory:12345678", "once", new Object()));
         assertTrue(coordinator.respondIfPending("s1", "memory:12345678", "once", owner));
         assertEquals(MemoryApprovalCoordinator.Decision.APPROVE, decision.get(2, TimeUnit.SECONDS));
         assertFalse(coordinator.respondIfPending("s1", "shell:1", "once", owner));
@@ -43,21 +51,28 @@ class MemoryApprovalCoordinatorTest {
     @Test
     void shouldKeepPendingDecisionUnavailableOnTransportFailure() throws Exception {
         MemoryApprovalCoordinator broken = new MemoryApprovalCoordinator(50L);
-        broken.bindSession("s1", new Object(), request -> { throw new IllegalStateException("closed"); });
+        broken.bindSession(
+                "s1",
+                new Object(),
+                request -> {
+                    throw new IllegalStateException("closed");
+                });
         assertEquals(
                 MemoryApprovalCoordinator.Decision.UNAVAILABLE,
                 broken.request("s1", "12345678", "add", "value"));
 
         MemoryApprovalCoordinator disconnected = new MemoryApprovalCoordinator(2_000L);
         Object owner = new Object();
-        AtomicReference<MemoryApprovalCoordinator.ApprovalRequest> emitted = new AtomicReference<>();
+        AtomicReference<MemoryApprovalCoordinator.ApprovalRequest> emitted =
+                new AtomicReference<>();
         disconnected.bindSession("s2", owner, emitted::set);
         CompletableFuture<MemoryApprovalCoordinator.Decision> decision =
                 CompletableFuture.supplyAsync(
                         () -> disconnected.request("s2", "87654321", "remove", "value"));
         waitFor(emitted);
         disconnected.clearOwner(owner);
-        assertEquals(MemoryApprovalCoordinator.Decision.UNAVAILABLE, decision.get(2, TimeUnit.SECONDS));
+        assertEquals(
+                MemoryApprovalCoordinator.Decision.UNAVAILABLE, decision.get(2, TimeUnit.SECONDS));
         assertFalse(disconnected.canRequest("s2"));
     }
 

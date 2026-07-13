@@ -172,13 +172,13 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     }
 
     /**
-     * 判断文本是否为需要并发投递的控制命令（{@code /stop}、{@code /cancel}）。
+     * 判断文本是否为需要并发投递的控制命令。
      *
      * <p>取首个空白分隔的 token 做精确匹配（大小写不敏感），避免误匹配 {@code /stopwatch}、 {@code /canceled} 等同样以 {@code
-     * /stop} 或 {@code /cancel} 开头的普通文本。
+     * /stop}、{@code /cancel}、{@code /approve} 或 {@code /deny} 开头的普通文本。
      *
      * @param text 入站消息文本，可能为 null。
-     * @return 若首个 token 为 {@code /stop} 或 {@code /cancel} 则返回 true。
+     * @return 若首个 token 为取消或审批控制命令则返回 true。
      */
     protected boolean isControlCommand(String text) {
         if (StrUtil.isBlank(text)) {
@@ -187,7 +187,9 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         String trimmed = text.trim();
         String firstToken = trimmed.split("\\s+", 2)[0];
         return GatewayCommandConstants.SLASH_STOP.equalsIgnoreCase(firstToken)
-                || GatewayCommandConstants.SLASH_CANCEL.equalsIgnoreCase(firstToken);
+                || GatewayCommandConstants.SLASH_CANCEL.equalsIgnoreCase(firstToken)
+                || GatewayCommandConstants.SLASH_APPROVE.equalsIgnoreCase(firstToken)
+                || GatewayCommandConstants.SLASH_DENY.equalsIgnoreCase(firstToken);
     }
 
     /**
@@ -209,7 +211,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     }
 
     /**
-     * 将控制命令投递到专用并发执行器，绕过各渠道串行入站执行器，确保 {@code /stop} 等控制命令 不会被运行中的任务阻塞而错过取消时机。
+     * 将控制命令投递到专用并发执行器，绕过各渠道串行入站执行器，确保取消与审批命令不会被运行中的任务阻塞而错过处理时机。
      *
      * @param message 已构造好的网关消息（其文本应为控制命令）。
      */
