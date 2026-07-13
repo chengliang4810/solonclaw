@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.react.task.ToolExchanger;
@@ -93,6 +94,42 @@ class ToolRegistryWebAndCodeToolsTest {
                 .doesNotContain("ghp_webfetchid12345")
                 .doesNotContain("ghp_webfetchtitle12345")
                 .doesNotContain("sk-webfetch-meta");
+    }
+
+    /** webfetch 的非 HTTP(S) 入参必须在 URL 安全策略和网页后端前直接拒绝。 */
+    @Test
+    void shouldRejectNonHttpWebfetchUrlBeforeSecurityPolicyAndDelegate() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AtomicInteger policyChecks = new AtomicInteger();
+        AtomicInteger delegateCalls = new AtomicInteger();
+        SolonClawWebTools.SafeWebfetchTool webfetch =
+                new SolonClawWebTools.SafeWebfetchTool(
+                        new SecurityPolicyService(env.appConfig) {
+                            @Override
+                            public UrlVerdict checkToolArgs(String toolName, Map<String, Object> args) {
+                                policyChecks.incrementAndGet();
+                                return UrlVerdict.allow();
+                            }
+                        },
+                        new WebfetchTalent() {
+                            @Override
+                            public String webfetch(
+                                    String url, String format, Integer timeoutSeconds) {
+                                delegateCalls.incrementAndGet();
+                                return "unexpected";
+                            }
+                        });
+
+        for (String invalidUrl :
+                Arrays.asList("5", "http://", "ftp://example.com/file", "file:///tmp/a")) {
+            assertThatThrownBy(() -> webfetch.webfetch(invalidUrl, "markdown", null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("URL 格式错误")
+                    .hasMessageNotContaining("SSRF");
+        }
+
+        assertThat(policyChecks.get()).isZero();
+        assertThat(delegateCalls.get()).isZero();
     }
 
     /** 返回内容中的展示型 URI 模板不得阻断已完成的公开网页请求。 */
