@@ -28,6 +28,7 @@ import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.ClarifyRequestCoordinator;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.MemoryApprovalCoordinator;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
@@ -84,6 +85,9 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
 
     /** clarify 工具与终端 UI 的请求/响应协调器。 */
     private final ClarifyRequestCoordinator clarifyCoordinator;
+
+    /** 前台记忆写入与终端 UI 的一次性审批协调器。 */
+    private final MemoryApprovalCoordinator memoryApprovalCoordinator;
 
     /** 当前 WebSocket 连接对应的审批观察器，断开连接时需要注销避免泄露。 */
     private final Map<WebSocket, TerminalUiApprovalObserver> approvalObservers =
@@ -224,6 +228,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         this.securityPolicyService = securityPolicyService;
         this.dashboardAuthService = appConfig == null ? null : new DashboardAuthService(appConfig);
         this.clarifyCoordinator = ClarifyRequestCoordinator.shared();
+        this.memoryApprovalCoordinator = MemoryApprovalCoordinator.shared();
         this.rpcService =
                 new TerminalUiRpcService(
                         appConfig,
@@ -316,6 +321,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             approvalService.removeApprovalObserver(observer);
         }
         clarifyCoordinator.clearOwner(socket);
+        memoryApprovalCoordinator.clearOwner(socket);
     }
 
     /** 底层连接异常由 WebSocket 容器记录，这里不向业务运行时传播。 */
@@ -327,6 +333,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         String sessionId = payload.get("session_id").getString();
         bindApprovalObserver(socket, sessionId);
         bindClarifySession(socket, sessionId);
+        bindMemoryApprovalSession(socket, sessionId);
         bindRuntimeSource(sessionId);
         String input = payload.get("input").getString();
         List<MessageAttachment> attachments = rpcService.drainPendingAttachments(sessionId);
@@ -401,6 +408,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         String sessionId = params.get("session_id").getString();
         bindApprovalObserver(socket, sessionId);
         bindClarifySession(socket, sessionId);
+        bindMemoryApprovalSession(socket, sessionId);
         bindRuntimeSource(sessionId);
         String input = params.get("text").getString();
         List<MessageAttachment> attachments = rpcService.drainPendingAttachments(sessionId);
@@ -720,6 +728,11 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
         bindRuntimeSource(sessionId);
         String selector = StrUtil.nullToEmpty(params.get("approval_id").getString()).trim();
+        if (memoryApprovalCoordinator.respondIfPending(sessionId, selector, choice, socket)) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("ok", Boolean.TRUE);
+            return result;
+        }
         if (hasDirectShellApproval(sessionId, selector)) {
             return respondDirectShellApproval(socket, sessionId, choice, params);
         }
@@ -875,6 +888,26 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         String effectiveSessionId = sessionId == null ? "" : String.valueOf(sessionId);
         bindApprovalObserver(socket, effectiveSessionId);
         bindClarifySession(socket, effectiveSessionId);
+        bindMemoryApprovalSession(socket, effectiveSessionId);
+    }
+
+    /** 绑定当前会话到 WebSocket，并将前台记忆审批复用 approval.request 协议发送。 */
+    private void bindMemoryApprovalSession(WebSocket socket, String sessionId) {
+        if (StrUtil.isBlank(sessionId)) {
+            return;
+        }
+        memoryApprovalCoordinator.bindSession(
+                sessionId,
+                socket,
+                request -> {
+                    Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                    payload.put("approval_id", request.getApprovalId());
+                    payload.put("command", request.getDetail());
+                    payload.put("description", "Save to memory: " + request.getSummary());
+                    payload.put("allow_permanent", Boolean.FALSE);
+                    payload.put("approval_kind", "memory");
+                    sendRpcEvent(socket, "approval.request", payload, request.getSessionId());
+                });
     }
 
     /** 处理终端 UI 命令分发兜底，优先复用 Java 后端统一命令服务。 */

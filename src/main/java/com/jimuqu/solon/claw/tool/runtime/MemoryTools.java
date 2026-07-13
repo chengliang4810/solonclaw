@@ -1,19 +1,24 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.service.MemoryService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.MemoryConstants;
 import java.util.Locale;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import lombok.RequiredArgsConstructor;
+import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
 /** 长期记忆工具。 */
-@RequiredArgsConstructor
 public class MemoryTools {
+    /** 从服务层稳定暂存结果中提取低敏待审批标识。 */
+    private static final Pattern PENDING_ID_PATTERN =
+            Pattern.compile("ID: ([0-9a-f]{8})");
+
     /** 记忆THREATS的统一常量值。 */
     private static final MemoryThreat[] MEMORY_THREATS =
             new MemoryThreat[] {
@@ -46,6 +51,20 @@ public class MemoryTools {
     /** 长期记忆服务。 */
     private final MemoryService memoryService;
 
+    /** 前台终端记忆写入的一次性审批协调器。 */
+    private final MemoryApprovalCoordinator approvalCoordinator;
+
+    /** 创建使用共享前台审批协调器的记忆工具。 */
+    public MemoryTools(MemoryService memoryService) {
+        this(memoryService, MemoryApprovalCoordinator.shared());
+    }
+
+    /** 创建使用指定审批协调器的记忆工具，供聚焦测试隔离连接状态。 */
+    public MemoryTools(MemoryService memoryService, MemoryApprovalCoordinator approvalCoordinator) {
+        this.memoryService = memoryService;
+        this.approvalCoordinator = approvalCoordinator;
+    }
+
     /** 管理 MEMORY.md 与 USER.md。 */
     @ToolMapping(
             name = "memory",
@@ -69,31 +88,109 @@ public class MemoryTools {
                     .toJson();
         }
         String result;
+        boolean foreground = isForegroundTerminalRun(AgentRunContext.current());
+        String origin = foreground ? "foreground" : "background_review";
         if (MemoryConstants.ACTION_ADD.equalsIgnoreCase(action)) {
             String blocked = scanMemoryContent(content);
             if (blocked != null) {
                 return blockedResponse(action, normalizedTarget, blocked);
             }
-            result = memoryService.add(normalizedTarget, content);
+            result = memoryService.add(normalizedTarget, content, origin);
         } else if (MemoryConstants.ACTION_REPLACE.equalsIgnoreCase(action)) {
             String blocked = scanMemoryContent(content);
             if (blocked != null) {
                 return blockedResponse(action, normalizedTarget, blocked);
             }
-            result = memoryService.replace(normalizedTarget, oldText, content);
+            result = memoryService.replace(normalizedTarget, oldText, content, origin);
         } else if (MemoryConstants.ACTION_REMOVE.equalsIgnoreCase(action)) {
             result =
                     memoryService.remove(
-                            normalizedTarget, StrUtil.blankToDefault(oldText, content));
+                            normalizedTarget, StrUtil.blankToDefault(oldText, content), origin);
         } else {
             result = "Unsupported memory action";
         }
-        return new ONode()
+        return response(
+                action,
+                normalizedTarget,
+                inlineApproval(action, normalizedTarget, content, oldText, result));
+    }
+
+    /** 对前台 TUI 会话的已暂存写入执行一次性内联审批，其他来源保持待审批状态。 */
+    private String inlineApproval(
+            String action, String target, String content, String oldText, String result)
+            throws Exception {
+        Matcher matcher = PENDING_ID_PATTERN.matcher(StrUtil.nullToEmpty(result));
+        AgentRunContext context = AgentRunContext.current();
+        if (!matcher.find() || !isForegroundTerminalRun(context)) {
+            return result;
+        }
+        String pendingId = matcher.group(1);
+        MemoryApprovalCoordinator.Decision decision =
+                approvalCoordinator.request(
+                        context.getSessionId(),
+                        pendingId,
+                        summary(action, target),
+                        detail(action, content, oldText));
+        if (decision == MemoryApprovalCoordinator.Decision.APPROVE) {
+            return memoryService.approve(pendingId);
+        }
+        if (decision == MemoryApprovalCoordinator.Decision.DENY) {
+            memoryService.reject(pendingId);
+            return "未写入：用户拒绝了记忆变更。";
+        }
+        return result;
+    }
+
+    /** 判断当前运行是否为终端 UI 发起的前台会话或恢复运行。 */
+    private boolean isForegroundTerminalRun(AgentRunContext context) {
+        if (context == null
+                || !StrUtil.startWith(
+                        context.getSourceKey(), TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX)) {
+            return false;
+        }
+        return "conversation".equals(context.getRunKind())
+                        || "resume".equals(context.getRunKind())
+                ? approvalCoordinator.canRequest(context.getSessionId())
+                : false;
+    }
+
+    /** 生成不含正文的审批动作摘要。 */
+    private String summary(String action, String target) {
+        if (MemoryConstants.ACTION_ADD.equalsIgnoreCase(action)) {
+            return "add to " + target;
+        }
+        if (MemoryConstants.ACTION_REPLACE.equalsIgnoreCase(action)) {
+            return "replace in " + target;
+        }
+        return "remove from " + target;
+    }
+
+    /** 生成供终端用户核对的待写入详情。 */
+    private String detail(String action, String content, String oldText) {
+        if (MemoryConstants.ACTION_REPLACE.equalsIgnoreCase(action)) {
+            return "old:\n"
+                    + StrUtil.nullToEmpty(oldText)
+                    + "\nnew:\n"
+                    + StrUtil.nullToEmpty(content);
+        }
+        return MemoryConstants.ACTION_REMOVE.equalsIgnoreCase(action)
+                ? StrUtil.blankToDefault(oldText, content)
+                : StrUtil.nullToEmpty(content);
+    }
+
+    /** 生成普通记忆管理动作的结构化结果。 */
+    private String response(String action, String target, String result) {
+        ONode response =
+                new ONode()
                 .set("status", status(result))
                 .set("action", StrUtil.nullToEmpty(action))
-                .set("target", safe(normalizedTarget, 200))
-                .set("message", safe(result, 1000))
-                .toJson();
+                .set("target", safe(target, 200))
+                .set("message", safe(result, 1000));
+        Matcher matcher = PENDING_ID_PATTERN.matcher(StrUtil.nullToEmpty(result));
+        if (matcher.find()) {
+            response.set("staged", true).set("pending_id", matcher.group(1));
+        }
+        return response.toJson();
     }
 
     /**

@@ -182,6 +182,9 @@ public interface GatewayCommandConstants {
     /** 命令PLUGINS的统一常量值。 */
     String COMMAND_PLUGINS = "plugins";
 
+    /** 命令MEMORY的统一常量值。 */
+    String COMMAND_MEMORY = "memory";
+
     /** 命令RELOAD技能的统一常量值。 */
     String COMMAND_RELOAD_SKILLS = "reload-skills";
 

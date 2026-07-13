@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { approvalAction, approvalChoiceFromTextCommand } from '../components/prompts.js'
 
 describe('approvalAction — pure key dispatch for ApprovalPrompt', () => {
+  it('rejects permanent approval when the request is one-shot only', () => {
+    expect(approvalAction('3', {}, 0, '', false)).toEqual({ kind: 'choose', choice: 'deny' })
+    expect(approvalAction('/approve always', {}, 0, '', false)).toEqual({ kind: 'noop' })
+    expect(approvalAction('', { return: true }, 1, '', false)).toEqual({ kind: 'choose', choice: 'session' })
+    expect(approvalAction('', { return: true }, 3, '', false)).toEqual({ kind: 'choose', choice: 'deny' })
+  })
+
   it('maps Esc to deny — parity with global Ctrl+C cancellation', () => {
     expect(approvalAction('', { escape: true }, 0)).toEqual({ kind: 'choose', choice: 'deny' })
     expect(approvalAction('', { escape: true }, 2)).toEqual({ kind: 'choose', choice: 'deny' })

@@ -29,8 +29,7 @@ const ESC = String.fromCharCode(27)
 const BRACKETED_PASTE_END = new RegExp(`${ESC}\\[201~`, 'g')
 const BRACKETED_PASTE_START = new RegExp(`${ESC}\\[200~`, 'g')
 
-const stripBracketedPaste = (text: string) =>
-  text.replace(BRACKETED_PASTE_START, '').replace(BRACKETED_PASTE_END, '')
+const stripBracketedPaste = (text: string) => text.replace(BRACKETED_PASTE_START, '').replace(BRACKETED_PASTE_END, '')
 
 type ParsedApprovalCommand = {
   readonly approvalId?: string
@@ -89,7 +88,13 @@ export function approvalChoiceFromTextCommand(text: string): null | ParsedApprov
  * for approvals).  Numbers 1..OPTS.length pick the labelled choice.  Enter
  * confirms the current selection.  ↑/↓ moves the selection within bounds.
  */
-export function approvalAction(ch: string, key: ApprovalKey, sel: number, bufferedText = ''): ApprovalAction {
+export function approvalAction(
+  ch: string,
+  key: ApprovalKey,
+  sel: number,
+  bufferedText = '',
+  allowPermanent = true
+): ApprovalAction {
   if (key.escape) {
     return { kind: 'choose', choice: 'deny' }
   }
@@ -100,34 +105,37 @@ export function approvalAction(ch: string, key: ApprovalKey, sel: number, buffer
   if (key.return && activeBuffer) {
     const parsed = approvalChoiceFromTextCommand(activeBuffer)
 
-    return parsed ? { ...parsed, kind: 'choose' } : { kind: 'buffer', value: '' }
+    return parsed && (allowPermanent || parsed.choice !== 'always')
+      ? { ...parsed, kind: 'choose' }
+      : { kind: 'buffer', value: '' }
   }
 
   if (input.length > 1) {
     const parsed = approvalChoiceFromTextCommand(input)
 
-    return parsed ? { ...parsed, kind: 'choose' } : { kind: 'noop' }
+    return parsed && (allowPermanent || parsed.choice !== 'always') ? { ...parsed, kind: 'choose' } : { kind: 'noop' }
   }
 
   if (activeBuffer || input === '/') {
     return input ? { kind: 'buffer', value: activeBuffer + input } : { kind: 'noop' }
   }
 
+  const options = allowPermanent ? OPTS : OPTS.filter(option => option !== 'always')
   const n = /^[1-4]$/.test(input) ? parseInt(input, 10) : Number.NaN
 
-  if (n >= 1 && n <= OPTS.length) {
-    return { kind: 'choose', choice: OPTS[n - 1]! }
+  if (n >= 1 && n <= options.length) {
+    return { kind: 'choose', choice: options[n - 1]! }
   }
 
   if (key.return) {
-    return { kind: 'choose', choice: OPTS[sel]! }
+    return { kind: 'choose', choice: options[Math.min(Math.max(sel, 0), options.length - 1)]! }
   }
 
   if (key.upArrow && sel > 0) {
     return { kind: 'move', delta: -1 }
   }
 
-  if (key.downArrow && sel < OPTS.length - 1) {
+  if (key.downArrow && sel < options.length - 1) {
     return { kind: 'move', delta: 1 }
   }
 
@@ -139,7 +147,7 @@ export function ApprovalPrompt({ cols = 80, onChoice, req, t }: ApprovalPromptPr
   const [typedApproval, setTypedApproval] = useState('')
 
   useInput((ch, key) => {
-    const action = approvalAction(ch, key, sel, typedApproval)
+    const action = approvalAction(ch, key, sel, typedApproval, req.allowPermanent !== false)
 
     if (action.kind === 'choose') {
       setTypedApproval('')
@@ -182,7 +190,7 @@ export function ApprovalPrompt({ cols = 80, onChoice, req, t }: ApprovalPromptPr
 
       <Text />
 
-      {OPTS.map((o, i) => (
+      {(req.allowPermanent === false ? OPTS.filter(option => option !== 'always') : OPTS).map((o, i) => (
         <Text key={o}>
           <Text bold={sel === i} color={sel === i ? t.color.warn : t.color.muted} inverse={sel === i}>
             {sel === i ? '▸ ' : '  '}
@@ -191,7 +199,9 @@ export function ApprovalPrompt({ cols = 80, onChoice, req, t }: ApprovalPromptPr
         </Text>
       ))}
 
-      <Text color={t.color.muted}>↑/↓ select · Enter confirm · 1-4 quick pick · Esc/Ctrl+C deny</Text>
+      <Text color={t.color.muted}>
+        ↑/↓ select · Enter confirm · 1-{req.allowPermanent === false ? 3 : 4} quick pick · Esc/Ctrl+C deny
+      </Text>
     </Box>
   )
 }

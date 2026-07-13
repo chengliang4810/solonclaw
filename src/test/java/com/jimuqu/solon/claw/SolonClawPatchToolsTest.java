@@ -457,6 +457,112 @@ public class SolonClawPatchToolsTest {
         assertThat(readUtf8(outsideFile)).isEqualTo("TOKEN=old\n");
     }
 
+    /** 验证 patch 的所有写入入口都不能绕过长期记忆审批，且不误伤普通代码目录。 */
+    @Test
+    void shouldBlockMemoryControlPathsAcrossNormalizedProfileAndPatchOperations() throws Exception {
+        Path dir = tempDir("patch-memory-control");
+        Path memory = dir.resolve("memory/2026-07-13.md");
+        Path user = dir.resolve("USER.md");
+        Path source = dir.resolve("source.txt");
+        Path ordinary = dir.resolve("src/memory/Model.java");
+        Path profileMemory = dir.resolve("profiles/worker/memory/2026-07-13.md");
+        Files.createDirectories(memory.getParent());
+        Files.createDirectories(ordinary.getParent());
+        Files.createDirectories(profileMemory.getParent());
+        writeUtf8(memory, "before\n");
+        writeUtf8(user, "before\n");
+        writeUtf8(source, "before\n");
+        writeUtf8(ordinary, "before\n");
+        writeUtf8(profileMemory, "before\n");
+        SolonClawPatchTools tools = patchTools(dir);
+
+        Map<?, ?> replace =
+                parseJsonMap(
+                        tools.patch(
+                                "replace",
+                                "nested/../MEMORY.md",
+                                "before",
+                                "after",
+                                false,
+                                null));
+        Map<?, ?> delete =
+                parseJsonMap(
+                        tools.patch(
+                                "patch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "*** Begin Patch\n*** Delete File: USER.md\n*** End Patch"));
+        Map<?, ?> move =
+                parseJsonMap(
+                        tools.patch(
+                                "patch",
+                                null,
+                                null,
+                                null,
+                                null,
+                                "*** Begin Patch\n"
+                                        + "*** Move File: source.txt -> memory/moved.md\n"
+                                        + "*** End Patch"));
+        Map<?, ?> crossProfile =
+                parseJsonMap(
+                        tools.patch(
+                                "replace",
+                                profileMemory.toString(),
+                                "before",
+                                "after",
+                                false,
+                                null,
+                                true));
+        Map<?, ?> normal =
+                parseJsonMap(
+                        tools.patch(
+                                "replace",
+                                "src/memory/Model.java",
+                                "before",
+                                "after",
+                                false,
+                                null));
+
+        assertThat(String.valueOf(replace.get("error"))).contains("BLOCKED");
+        assertThat(String.valueOf(delete.get("error"))).contains("BLOCKED");
+        assertThat(String.valueOf(move.get("error"))).contains("BLOCKED");
+        assertThat(String.valueOf(crossProfile.get("error"))).contains("BLOCKED");
+        assertThat(normal.get("status")).isEqualTo("success");
+        assertThat(readUtf8(memory)).isEqualTo("before\n");
+        assertThat(readUtf8(user)).isEqualTo("before\n");
+        assertThat(readUtf8(source)).isEqualTo("before\n");
+        assertThat(readUtf8(profileMemory)).isEqualTo("before\n");
+        assertThat(readUtf8(ordinary)).isEqualTo("after\n");
+    }
+
+    /** 验证指向记忆目录的工作区内符号链接同样不能作为 patch 写入绕过。 */
+    @Test
+    void shouldBlockMemoryControlPathReachedThroughSymlink() throws Exception {
+        Path dir = tempDir("patch-memory-control-symlink");
+        Path memory = dir.resolve("memory/2026-07-13.md");
+        Files.createDirectories(memory.getParent());
+        writeUtf8(memory, "before\n");
+        Path link = dir.resolve("memory-link");
+        assumeTrue(createDirectoryLink(link, memory.getParent()));
+        SolonClawPatchTools tools = patchTools(dir);
+
+        Map<?, ?> result =
+                parseJsonMap(
+                        tools.patch(
+                                "replace",
+                                "memory-link/2026-07-13.md",
+                                "before",
+                                "after",
+                                false,
+                                null));
+
+        assertThat(result.get("status")).isEqualTo("error");
+        assertThat(String.valueOf(result.get("error"))).contains("BLOCKED");
+        assertThat(readUtf8(memory)).isEqualTo("before\n");
+    }
+
     void shouldRedactSecretsFromPatchErrors() throws Exception {
         Path dir = tempDir("patch");
         SolonClawPatchTools tools = patchTools(dir);

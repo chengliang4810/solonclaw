@@ -169,13 +169,24 @@ describe('createGatewayEventHandler', () => {
 
     onEvent({ payload: {}, type: 'message.start' } as any)
     onEvent({
-      payload: { approval_id: 'approval-1', command: 'rm file', description: 'delete file' },
+      payload: {
+        allow_permanent: false,
+        approval_id: 'memory:approval-1',
+        approval_kind: 'memory',
+        command: 'remember value',
+        description: 'Save to memory'
+      },
       session_id: 'session-1',
       type: 'approval.request'
     } as any)
     onEvent({ payload: { text: 'approval required' }, type: 'message.complete' } as any)
 
-    expect(getOverlayState().approval).toMatchObject({ approvalId: 'approval-1', sessionId: 'session-1' })
+    expect(getOverlayState().approval).toMatchObject({
+      allowPermanent: false,
+      approvalId: 'memory:approval-1',
+      approvalKind: 'memory',
+      sessionId: 'session-1'
+    })
     expect(getUiState()).toMatchObject({ busy: true, status: '需要审批' })
 
     patchOverlayState({ approval: null })
@@ -237,9 +248,7 @@ describe('createGatewayEventHandler', () => {
       type: 'review.summary'
     } as any)
 
-    expect(ctx.system.sys).toHaveBeenCalledWith(
-      "💾 Self-improvement review: Skill 'solonclaw-release' patched"
-    )
+    expect(ctx.system.sys).toHaveBeenCalledWith("💾 Self-improvement review: Skill 'solonclaw-release' patched")
   })
 
   it('ignores review.summary events with empty or missing text', () => {
@@ -303,7 +312,10 @@ describe('createGatewayEventHandler', () => {
     const onEvent = createGatewayEventHandler(buildCtx(appended))
 
     onEvent({ payload: { name: 'terminal', tool_id: 'tool-failed' }, type: 'tool.start' } as any)
-    onEvent({ payload: { error: 'command failed', name: 'terminal', tool_id: 'tool-failed' }, type: 'tool.complete' } as any)
+    onEvent({
+      payload: { error: 'command failed', name: 'terminal', tool_id: 'tool-failed' },
+      type: 'tool.complete'
+    } as any)
     onEvent({ payload: { text: 'final answer' }, type: 'message.complete' } as any)
 
     expect(appended[0]?.tools?.[0]).toContain('command failed')
@@ -582,7 +594,9 @@ describe('createGatewayEventHandler', () => {
     turnController.flushStreamingSegment()
 
     expect(getTurnState().streaming).not.toContain('<think>')
-    expect(turnController.segmentMessages).toContainEqual(expect.objectContaining({ role: 'assistant', text: '最终答复' }))
+    expect(turnController.segmentMessages).toContainEqual(
+      expect.objectContaining({ role: 'assistant', text: '最终答复' })
+    )
     expect(turnController.segmentMessages).toContainEqual(
       expect.objectContaining({ kind: 'trail', role: 'system', thinking: '内部推理' })
     )
@@ -1001,7 +1015,11 @@ describe('createGatewayEventHandler', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(getOverlayState().approval).toMatchObject({ approvalId: 'appr-2', description: 'dangerous command', sessionId: 'sid-approval' })
+    expect(getOverlayState().approval).toMatchObject({
+      approvalId: 'appr-2',
+      description: 'dangerous command',
+      sessionId: 'sid-approval'
+    })
     expect(getTurnState().activity).toMatchObject([
       { text: 'Traceback: noisy but non-fatal', tone: 'info' },
       { text: 'protocol noise detected · /logs to inspect', tone: 'info' },
@@ -1015,7 +1033,10 @@ describe('createGatewayEventHandler', () => {
     const onEvent = createGatewayEventHandler(buildCtx(appended))
 
     onEvent({ payload: { line: '[startup] backend handshake failed: fetch failed' }, type: 'gateway.stderr' } as any)
-    onEvent({ payload: { line: '[startup] backend handshake failed: connection refused' }, type: 'gateway.stderr' } as any)
+    onEvent({
+      payload: { line: '[startup] backend handshake failed: connection refused' },
+      type: 'gateway.stderr'
+    } as any)
     onEvent({ payload: { line: '[startup] backend handshake failed: fetch failed' }, type: 'gateway.stderr' } as any)
 
     expect(getTurnState().activity.map(a => a.text)).toEqual([
@@ -1051,9 +1072,7 @@ describe('createGatewayEventHandler', () => {
 
     onEvent({ payload: { error: 'Remote host terminated the handshake' }, type: 'run.failed' } as any)
 
-    expect(getTurnState().activity).toMatchObject([
-      { text: 'Remote host terminated the handshake', tone: 'error' }
-    ])
+    expect(getTurnState().activity).toMatchObject([{ text: 'Remote host terminated the handshake', tone: 'error' }])
     expect(ctx.system.sys).toHaveBeenCalledWith('error: Remote host terminated the handshake')
   })
 

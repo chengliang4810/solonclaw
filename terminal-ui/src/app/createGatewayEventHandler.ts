@@ -335,7 +335,9 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
     // users aren't surprised.  (Shares the memoized full-config read.)
     getStartupFullConfig()
       .then(cfg => {
-        recordParentLifecycle(`[startup] config.get full resolved auto_resume=${String(!!cfg?.config?.display?.tui_auto_resume_recent)}`)
+        recordParentLifecycle(
+          `[startup] config.get full resolved auto_resume=${String(!!cfg?.config?.display?.tui_auto_resume_recent)}`
+        )
 
         if (!cfg?.config?.display?.tui_auto_resume_recent) {
           patchUiState({ status: 'forging session…' })
@@ -438,9 +440,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
           const model = `${p.provider}/${p.model}`
           patchUiState(state => ({
             ...state,
-            info: state.info
-              ? { ...state.info, model }
-              : { model, skills: {}, tools: {} }
+            info: state.info ? { ...state.info, model } : { model, skills: {}, tools: {} }
           }))
           setHistoryItems(prev =>
             prev.map(message =>
@@ -705,6 +705,8 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
         patchOverlayState({
           approval: {
+            allowPermanent: ev.payload.allow_permanent !== false,
+            approvalKind: ev.payload.approval_kind,
             approvalId: String(ev.payload.approval_id ?? ''),
             command: String(ev.payload.command ?? ''),
             description,
@@ -769,7 +771,9 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         return
 
       case 'subagent.start':
-        turnController.upsertSubagent(ev.payload, c => (isTerminalSubagentStatus(c.status) ? {} : { status: 'running' }))
+        turnController.upsertSubagent(ev.payload, c =>
+          isTerminalSubagentStatus(c.status) ? {} : { status: 'running' }
+        )
 
         // `subagent.start` is the first delegation event the TUI reliably
         // receives (the delegate callback drops `spawn_requested` in the

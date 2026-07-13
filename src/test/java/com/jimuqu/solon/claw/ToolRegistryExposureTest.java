@@ -895,6 +895,32 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldRejectWorkspaceToolWritesToApprovalManagedMemoryFiles() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        WorkspaceManageTools tool =
+                (WorkspaceManageTools)
+                        env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                                .filter(candidate -> candidate instanceof WorkspaceManageTools)
+                                .findFirst()
+                                .orElseThrow(
+                                        () -> new AssertionError("workspace manage tool missing"));
+
+        ONode memorySave =
+                ONode.ofJson(
+                        tool.workspaceManage("save_file", " MEMORY ", null, "bypass attempt"));
+        ONode userRestore =
+                ONode.ofJson(tool.workspaceManage("restore_file", "USER", null, null));
+        ONode todaySave =
+                ONode.ofJson(
+                        tool.workspaceManage("save", "memory_today", null, "bypass attempt"));
+
+        assertToolError(memorySave);
+        assertThat(memorySave.get("error").getString()).contains("memory tool approval flow");
+        assertToolError(userRestore);
+        assertToolError(todaySave);
+    }
+
+    @Test
     void shouldExposeConfigManagementToolForNaturalLanguageConfigInspection() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String sourceKey = "MEMORY:room-1:user-1";

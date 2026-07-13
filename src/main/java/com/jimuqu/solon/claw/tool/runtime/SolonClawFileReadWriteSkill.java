@@ -238,6 +238,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
             throw new IllegalArgumentException(
                     outsideWorkspaceApprovalRequired(toolName, fileName), e);
         }
+        assertNotMemoryControlWriteTarget(target);
         String staleWarning = fileStateTracker.checkStaleness(fileName, target);
         String result;
         boolean success;
@@ -505,6 +506,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
     public String delete(@Param("fileName") String fileName) {
         assertSafe(ToolNameConstants.FILE_DELETE, fileName);
         Path target = resolvePath(fileName);
+        assertNotMemoryControlWriteTarget(target);
         String result = super.delete(fileName);
         clearReadDedup(target);
         return SecretRedactor.redact(result, 1000);
@@ -1470,6 +1472,18 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
         }
         throw new IllegalArgumentException(
                 "Refusing to write internal read_file status text as file content. Re-read the file or reconstruct the intended file contents before writing.");
+    }
+
+    /**
+     * 阻止模型通用文件工具直接修改长期记忆和记忆审批状态，避免绕过专用记忆审批流程。
+     *
+     * @param target 已通过工作区边界校验的写入目标。
+     */
+    private void assertNotMemoryControlWriteTarget(Path target) {
+        if (MemoryControlPathPolicy.isProtectedWriteTarget(rootPath, target)) {
+            throw new IllegalArgumentException(
+                    "BLOCKED: 模型文件工具不能直接修改长期记忆或记忆审批状态，请使用 memory 工具。");
+        }
     }
 
     /**

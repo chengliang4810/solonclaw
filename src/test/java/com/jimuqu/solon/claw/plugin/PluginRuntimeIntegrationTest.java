@@ -302,6 +302,7 @@ class PluginRuntimeIntegrationTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                env.memoryService);
     }
 }

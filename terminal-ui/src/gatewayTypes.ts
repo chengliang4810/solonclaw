@@ -92,7 +92,12 @@ export interface ConfigVoiceConfig {
 }
 
 export interface ConfigFullResponse {
-  config?: { display?: ConfigDisplayConfig; voice?: ConfigVoiceConfig; paste_collapse_threshold?: number; paste_collapse_char_threshold?: number }
+  config?: {
+    display?: ConfigDisplayConfig
+    voice?: ConfigVoiceConfig
+    paste_collapse_threshold?: number
+    paste_collapse_char_threshold?: number
+  }
 }
 
 export interface ConfigMtimeResponse {
@@ -612,7 +617,11 @@ export type GatewayEvent =
       type: 'gateway.start_timeout'
     }
   | { payload?: { preview?: string }; session_id?: string; type: 'gateway.protocol_error' }
-  | { payload?: { text?: string; verbose?: boolean }; session_id?: string; type: 'reasoning.delta' | 'reasoning.available' }
+  | {
+      payload?: { text?: string; verbose?: boolean }
+      session_id?: string
+      type: 'reasoning.delta' | 'reasoning.available'
+    }
   | { payload: { name?: string; preview?: string }; session_id?: string; type: 'tool.progress' }
   | { payload: { name?: string }; session_id?: string; type: 'tool.generating' }
   | {
@@ -639,7 +648,17 @@ export type GatewayEvent =
       session_id?: string
       type: 'clarify.request'
     }
-  | { payload: { approval_id?: string; command: string; description: string }; session_id?: string; type: 'approval.request' }
+  | {
+      payload: {
+        allow_permanent?: boolean
+        approval_id?: string
+        approval_kind?: string
+        command: string
+        description: string
+      }
+      session_id?: string
+      type: 'approval.request'
+    }
   | { payload: { request_id: string }; session_id?: string; type: 'sudo.request' }
   | { payload: { env_var: string; prompt: string; request_id: string }; session_id?: string; type: 'secret.request' }
   | { payload: { task_id: string; text: string }; session_id?: string; type: 'background.complete' }
