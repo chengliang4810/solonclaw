@@ -48,6 +48,9 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
+import com.jimuqu.solon.claw.profile.ProfileManager;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
+import com.jimuqu.solon.claw.profile.ProfileView;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
@@ -366,6 +369,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_WHOAMI.equals(command)) {
             return handleWhoami(message);
+        }
+
+        if (GatewayCommandConstants.COMMAND_PROFILE.equals(command)) {
+            return handleProfile(args);
         }
 
         if (GatewayCommandConstants.COMMAND_COMMANDS.equals(command)) {
@@ -1541,6 +1548,39 @@ public class DefaultCommandService implements CommandService {
         reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_WHOAMI);
         reply.getRuntimeMetadata().put("role", role);
         reply.getRuntimeMetadata().put("authorized", Boolean.valueOf(authorized));
+        return reply;
+    }
+
+    /**
+     * 查看当前 JVM 实际运行的 Profile，只读取 ProfileView 中的非敏感状态。
+     *
+     * @param args 命令参数；状态查询不接受额外参数，避免隐式扩展为切换或列表命令。
+     * @return 当前运行 Profile 的只读状态回复。
+     * @throws Exception Profile 状态文件读取失败时向调用方返回运行错误。
+     */
+    private GatewayReply handleProfile(String args) throws Exception {
+        if (StrUtil.isNotBlank(args)) {
+            return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_PROFILE);
+        }
+        String name = ProfileRuntimeIdentity.resolve(appConfig);
+        ProfileView view = ProfileManager.current().profileView(name);
+        String aliases =
+                view.getAliases().isEmpty() ? "none" : String.join(", ", view.getAliases());
+        String gateway =
+                view.getGateway() != null && view.getGateway().isRunning() ? "running" : "stopped";
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("name=").append(view.getName()).append('\n');
+        buffer.append("home=").append(view.getHome()).append('\n');
+        buffer.append("model=")
+                .append(StrUtil.blankToDefault(view.getModel(), "not configured"))
+                .append('\n');
+        buffer.append("gateway=").append(gateway).append('\n');
+        buffer.append("skills=").append(view.getSkillsCount()).append('\n');
+        buffer.append("alias=").append(aliases);
+        GatewayReply reply = GatewayReply.ok(buffer.toString());
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_PROFILE);
+        reply.getRuntimeMetadata().put("profile", view.getName());
         return reply;
     }
 

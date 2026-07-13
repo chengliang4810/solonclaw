@@ -36,6 +36,7 @@ public final class CommandRegistry {
         register(core("resume", "session", "恢复指定会话或分支"));
         register(core("sessions", "session", "浏览并搜索历史会话"));
         register(core("whoami", "info", "查看当前 slash 命令访问身份"));
+        register(core("profile", "info", "查看当前运行 Profile 状态"));
         register(core("commands", "info", "浏览全部 slash 命令"));
         register(core("insights", "info", "查看使用洞察与运行摘要"));
         register(core("debug", "info", "查看脱敏调试诊断摘要"));
