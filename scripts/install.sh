@@ -55,6 +55,45 @@ gh_api() {
     curl -fsSL --connect-timeout 10 --max-time 30 "$(gh_url "https://api.github.com$1")"
 }
 
+# 校验 Release jar，未通过时只删除临时下载文件，不覆盖已有安装。
+verify_release_jar() {
+    local checksum_url="$1"
+    local jar_path="$2"
+    local checksum_file expected actual
+    checksum_file="$(mktemp "${TMPDIR:-/tmp}/solonclaw-SHA256SUMS.XXXXXX")"
+
+    if ! curl -fSL --connect-timeout 10 --max-time 30 --max-filesize 1048576 -o "$checksum_file" "$(gh_url "$checksum_url")"; then
+        rm -f "$checksum_file" "$jar_path"
+        error "下载 SHA256SUMS 失败，已取消安装未校验的 jar"
+    fi
+
+    expected="$(awk -v asset="$JAR_NAME" '
+        length($1) == 64 && $1 ~ /^[0-9A-Fa-f]+$/ && ($2 == asset || $2 == "*" asset) {
+            print $1
+            exit
+        }
+    ' "$checksum_file" | tr '[:upper:]' '[:lower:]')"
+    rm -f "$checksum_file"
+    if [ -z "$expected" ]; then
+        rm -f "$jar_path"
+        error "SHA256SUMS 中缺少 $JAR_NAME 的有效校验记录"
+    fi
+
+    if command -v sha256sum &>/dev/null; then
+        actual="$(sha256sum "$jar_path" | awk '{print $1}')"
+    elif command -v shasum &>/dev/null; then
+        actual="$(shasum -a 256 "$jar_path" | awk '{print $1}')"
+    else
+        rm -f "$jar_path"
+        error "未找到 sha256sum 或 shasum，无法校验下载的 jar"
+    fi
+
+    if [ "$expected" != "$actual" ]; then
+        rm -f "$jar_path"
+        error "jar 的 SHA-256 校验失败，已取消安装"
+    fi
+}
+
 # ─── 平台检测 ────────────────────────────────────────────────────────────────
 OS="$(uname -s)"
 case "$OS" in
@@ -356,8 +395,17 @@ deploy_native() {
     else
         DOWNLOAD_URL="https://github.com/$GITHUB_REPO/releases/download/$LATEST_TAG/$JAR_NAME"
     fi
+    CHECKSUM_URL="${DOWNLOAD_URL%/$JAR_NAME}/SHA256SUMS"
+    TEMP_JAR="$(mktemp "$INSTALL_DIR/.${JAR_NAME}.XXXXXX")"
     info "下载 jar: $(gh_url "$DOWNLOAD_URL")"
-    curl -fSL --progress-bar -o "$JAR_PATH" "$(gh_url "$DOWNLOAD_URL")"
+    if ! curl -fSL --progress-bar -o "$TEMP_JAR" "$(gh_url "$DOWNLOAD_URL")"; then
+        rm -f "$TEMP_JAR"
+        error "下载 jar 失败"
+    fi
+    info "校验 jar SHA-256..."
+    verify_release_jar "$CHECKSUM_URL" "$TEMP_JAR"
+    chmod 644 "$TEMP_JAR"
+    mv -f "$TEMP_JAR" "$JAR_PATH"
     ok "jar 已下载: $JAR_PATH ($(du -h "$JAR_PATH" | cut -f1))"
 
     # ─── 创建默认配置 ───────────────────────────────────────────────────

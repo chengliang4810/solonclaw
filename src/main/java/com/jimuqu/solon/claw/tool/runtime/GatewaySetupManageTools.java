@@ -45,7 +45,9 @@ public class GatewaySetupManageTools {
             name = "gateway_setup_manage",
             description =
                     "Start or inspect dashboard QR setup for weixin, feishu, dingtalk, wecom,"
-                            + " qqbot. Actions: start, get.")
+                            + " qqbot. Actions: start, get. A pending result is not success: send the QR,"
+                            + " then call get after the user confirms scanning. Only confirmed means bound;"
+                            + " report failed error_message exactly and never guess the cause.")
     public String gatewaySetupManage(
             @Param(name = "action", description = "start, get") String action,
             @Param(name = "channel", description = "weixin, feishu, dingtalk, wecom, qqbot")
@@ -59,14 +61,28 @@ public class GatewaySetupManageTools {
                 return ToolResultEnvelope.error("gateway setup service unavailable").toJson();
             }
             Map<String, Object> result = run(action, channel, ticket, profile);
+            String status = String.valueOf(result.get("status"));
             return ToolResultEnvelope.ok("网关配置引导查询完成")
                     .preview(SecretRedactor.redact(ONode.serialize(result), 3000))
                     .data("result", result)
+                    .data("setupStatus", status)
+                    .data("nextAction", nextAction(status))
                     .toJson();
         } catch (Exception e) {
             String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             return ToolResultEnvelope.error(SecretRedactor.redact(message, 1000)).toJson();
         }
+    }
+
+    /** 返回扫码状态对应的唯一后续动作，避免 Agent 把 pending 或 failed 误报为绑定成功。 */
+    private String nextAction(String status) {
+        if ("confirmed".equals(status)) {
+            return "report_confirmed";
+        }
+        if ("failed".equals(status)) {
+            return "report_error_message_without_guessing";
+        }
+        return "send_qr_then_get_after_user_confirms_scan";
     }
 
     /**

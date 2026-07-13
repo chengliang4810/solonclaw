@@ -1,17 +1,20 @@
 package com.jimuqu.solon.claw.storage.repository;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SearchTextSupport;
+import com.jimuqu.solon.claw.support.SourceKeySupport;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -413,6 +416,169 @@ public class SqliteSessionRepository implements SessionRepository {
         } finally {
             connection.setAutoCommit(true);
             connection.close();
+        }
+    }
+
+    /**
+     * 将外部投递说明原子追加到匹配渠道来源的当前绑定会话。
+     *
+     * @param platform 目标渠道。
+     * @param chatId 目标聊天标识。
+     * @param threadId 可选线程标识；为空时不限制线程。
+     * @param userId 可选用户标识；为空时仅允许唯一用户来源。
+     * @param content 作为用户上下文写入的投递说明。
+     * @return 成功写入返回 true；目标缺失或不唯一时返回 false。
+     * @throws Exception 会话读取或写入失败时抛出异常。
+     */
+    @Override
+    public boolean appendBoundOriginUserMessage(
+            PlatformType platform, String chatId, String threadId, String userId, String content)
+            throws Exception {
+        if (platform == null || StrUtil.isBlank(chatId) || StrUtil.isBlank(content)) {
+            return false;
+        }
+        Connection connection = database.openConnection();
+        try {
+            connection.setAutoCommit(false);
+            List<OriginSessionCandidate> candidates =
+                    findOriginSessionCandidates(
+                            connection, platform, chatId.trim(), StrUtil.trimToNull(threadId));
+            OriginSessionCandidate target = selectOriginSession(candidates, userId);
+            if (target == null) {
+                connection.rollback();
+                return false;
+            }
+
+            String line =
+                    MessageSupport.toNdjson(
+                                    Collections.singletonList(ChatMessage.ofUser(content.trim())))
+                            .trim();
+            long now = System.currentTimeMillis();
+            PreparedStatement update =
+                    connection.prepareStatement(
+                            "update sessions set ndjson = case "
+                                    + "when trim(coalesce(ndjson, '')) = '' then ? "
+                                    + "else rtrim(ndjson, char(10) || char(13)) || char(10) || ? end, "
+                                    + "updated_at = ? where session_id = ?");
+            try {
+                update.setString(1, line);
+                update.setString(2, line);
+                update.setLong(3, now);
+                update.setString(4, target.sessionId);
+                if (update.executeUpdate() != 1) {
+                    connection.rollback();
+                    return false;
+                }
+            } finally {
+                update.close();
+            }
+
+            SessionRecord updated = findById(connection, target.sessionId);
+            if (updated != null) {
+                upsertSearchIndex(connection, updated);
+            }
+            connection.commit();
+            return true;
+        } catch (Exception e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
+            connection.close();
+        }
+    }
+
+    /** 查询与渠道来源匹配的当前绑定会话，结果按最近更新时间降序排列。 */
+    private List<OriginSessionCandidate> findOriginSessionCandidates(
+            Connection connection, PlatformType platform, String chatId, String threadId)
+            throws Exception {
+        List<OriginSessionCandidate> candidates = new ArrayList<OriginSessionCandidate>();
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "select b.source_key as binding_source_key, s.session_id, s.updated_at "
+                                + "from bindings b join sessions s on s.session_id = b.session_id "
+                                + "order by s.updated_at desc");
+        try {
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    String[] parts =
+                            SourceKeySupport.split(resultSet.getString("binding_source_key"));
+                    if (PlatformType.fromName(parts[0]) != platform
+                            || !chatId.equals(parts[1])
+                            || (threadId != null && !threadId.equals(parts[3]))) {
+                        continue;
+                    }
+                    candidates.add(
+                            new OriginSessionCandidate(
+                                    resultSet.getString("session_id"), parts[2]));
+                }
+            } finally {
+                resultSet.close();
+            }
+        } finally {
+            statement.close();
+        }
+        return candidates;
+    }
+
+    /** 按用户来源消除同一聊天下的会话歧义，避免把通知写入其他用户上下文。 */
+    private OriginSessionCandidate selectOriginSession(
+            List<OriginSessionCandidate> candidates, String userId) {
+        if (candidates == null || candidates.isEmpty()) {
+            return null;
+        }
+        String expectedUserId = StrUtil.trimToNull(userId);
+        if (expectedUserId != null) {
+            for (OriginSessionCandidate candidate : candidates) {
+                if (expectedUserId.equals(candidate.userId)) {
+                    return candidate;
+                }
+            }
+            return candidates.size() == 1 ? candidates.get(0) : null;
+        }
+
+        LinkedHashSet<String> users = new LinkedHashSet<String>();
+        LinkedHashSet<String> sessions = new LinkedHashSet<String>();
+        for (OriginSessionCandidate candidate : candidates) {
+            sessions.add(candidate.sessionId);
+            if (StrUtil.isNotBlank(candidate.userId)) {
+                users.add(candidate.userId);
+            }
+        }
+        return users.size() > 1 && sessions.size() > 1 ? null : candidates.get(0);
+    }
+
+    /** 使用当前事务连接读取会话，供原子追加后同步全文索引。 */
+    private SessionRecord findById(Connection connection, String sessionId) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "select " + SELECT_COLUMNS + " from sessions where session_id = ?");
+        try {
+            statement.setString(1, sessionId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? map(resultSet) : null;
+            } finally {
+                resultSet.close();
+            }
+        } finally {
+            statement.close();
+        }
+    }
+
+    /** 渠道来源匹配后的最小会话候选信息。 */
+    private static final class OriginSessionCandidate {
+        /** 当前绑定的会话标识。 */
+        private final String sessionId;
+
+        /** 来源键中的用户标识。 */
+        private final String userId;
+
+        /** 创建渠道来源会话候选。 */
+        private OriginSessionCandidate(String sessionId, String userId) {
+            this.sessionId = sessionId;
+            this.userId = userId;
         }
     }
 

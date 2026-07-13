@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.CronAutoDeliveryContext;
@@ -340,6 +341,37 @@ public class MessagingToolsAttachmentTest {
         assertThat(request.getAttachments().get(0).getOriginalName())
                 .endsWith("jimuqu_agent_report.pdf");
         assertThat(request.getAttachments().get(0).getMimeType()).isEqualTo("application/pdf");
+    }
+
+    /** 当前 Profile 工作区中的生成图片应安全导入缓存并作为渠道附件投递。 */
+    @Test
+    void shouldImportWorkspaceImageIntoMediaCache() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:chat-1:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+        Path profileHome = Files.createTempDirectory("solonclaw-profile-media-");
+        File image = profileHome.resolve("dingtalk_qr.png").toFile();
+        Files.write(image.toPath(), pngBytes());
+
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        "media-profile",
+                        profileHome,
+                        Collections.<String, String>emptyMap(),
+                        null)) {
+            tools.sendMessage(
+                    null, null, "发送二维码", Collections.singletonList("dingtalk_qr.png"), null);
+        }
+
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getAttachments()).hasSize(1);
+        assertThat(request.getAttachments().get(0).getKind()).isEqualTo("image");
+        assertThat(request.getAttachments().get(0).getLocalPath())
+                .contains(File.separator + "cache" + File.separator + "media" + File.separator);
     }
 
     @Test

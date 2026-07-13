@@ -319,7 +319,11 @@ public class DomesticQrSetupService {
                     return;
                 }
                 if ("FAIL".equals(status) || "EXPIRED".equals(status)) {
-                    state.fail("qr_failed", "钉钉扫码授权失败：" + status);
+                    String reason =
+                            StrUtil.blankToDefault(
+                                    poll.get("fail_reason").getString(),
+                                    StrUtil.blankToDefault(poll.get("errmsg").getString(), status));
+                    state.fail("qr_failed", "钉钉扫码授权失败：" + reason);
                     return;
                 }
                 if (!"WAITING".equals(status)) {

@@ -794,6 +794,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             ConversationFeedbackSink feedbackSink = feedbackSinkFor(message);
             invokeHook(AgentHookName.PRE_LLM_CALL, session.getSessionId(), effectiveUserText);
             String memoryPrefetchContext = prefetchMemory(message.sourceKey(), effectiveUserText);
+            MessageDeliveryTracker.clearDirectDelivery(message.sourceKey());
             AgentRunOutcome outcome =
                     agentRunSupervisor.run(
                             session,
@@ -815,8 +816,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             StrUtil.blankToDefault(
                                     outcome.getFinalReply(),
                                     AgentRecoveryPromptConstants.EMPTY_REPLY_FALLBACK));
-            if (MessageDeliveryTracker.consumeDuplicateFinalReply(
-                    message.sourceKey(), finalReply)) {
+            if (MessageDeliveryTracker.consumeDirectDelivery(message.sourceKey())) {
                 finalReply = "";
             } else {
                 finalReply = decorateFinalReply(finalReply, message.getPlatform(), outcome);

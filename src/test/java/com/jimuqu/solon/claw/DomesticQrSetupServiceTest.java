@@ -440,6 +440,41 @@ public class DomesticQrSetupServiceTest {
         assertThat(String.valueOf(current.get("error_message"))).contains("BROKEN");
     }
 
+    /** 钉钉终态失败必须保留服务端原因，避免 Agent 对账号类型进行无依据猜测。 */
+    @Test
+    void shouldPreserveDingTalkPollFailureReason() throws Exception {
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(
+                "/app/registration/init",
+                exchange -> writeJson(exchange, "{\"errcode\":0,\"nonce\":\"nonce-1\"}"));
+        server.createContext(
+                "/app/registration/begin",
+                exchange ->
+                        writeJson(
+                                exchange,
+                                "{\"errcode\":0,\"device_code\":\"device-1\",\"verification_uri_complete\":\"https://login.dingtalk.test/qr\",\"expires_in\":60,\"interval\":1}"));
+        server.createContext(
+                "/app/registration/poll",
+                exchange ->
+                        writeJson(
+                                exchange,
+                                "{\"errcode\":0,\"status\":\"FAIL\",\"fail_reason\":\"tenant authorization denied\"}"));
+        server.start();
+
+        AppConfig config = testConfig();
+        config.getChannels()
+                .getDingtalk()
+                .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        DomesticQrSetupService service = service(config);
+
+        Map<String, Object> start = service.start("dingtalk");
+        Map<String, Object> current = waitForTerminal(service, String.valueOf(start.get("ticket")));
+
+        assertThat(current).containsEntry("status", "failed");
+        assertThat(String.valueOf(current.get("error_message")))
+                .contains("tenant authorization denied");
+    }
+
     private DomesticQrSetupService service(AppConfig config) {
         GatewayRuntimeRefreshService refreshService = refreshService(config);
         return new DomesticQrSetupService(
