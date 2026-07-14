@@ -42,6 +42,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
@@ -183,6 +184,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 保存typingTickets映射，便于按键快速查询。 */
     private final ConcurrentMap<String, TypingTicketState> typingTickets =
             new ConcurrentHashMap<String, TypingTicketState>();
+
+    /** 防止同一微信用户的 ticket 刷新请求并发堆积。 */
+    private final ConcurrentMap<String, Boolean> typingTicketFetches =
+            new ConcurrentHashMap<String, Boolean>();
 
     /** 保存私聊输入状态生命周期，确保消息排队、执行和清理阶段共用同一心跳。 */
     private final ConcurrentMap<String, TypingLifecycle> activeTypingLifecycles =
@@ -331,6 +336,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             typingHeartbeatExecutor = null;
         }
         typingTickets.clear();
+        typingTicketFetches.clear();
         pendingTextBatches.clear();
         pendingTextBatchTasks.clear();
         // 关闭控制命令并发执行器，避免断开连接后线程泄漏
@@ -1385,6 +1391,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (StrUtil.isNotBlank(contextToken)) {
             saveContextToken(chatTarget.chatId, contextToken);
         }
+        if ("dm".equals(chatTarget.chatType)) {
+            prefetchTypingTicket(chatTarget.chatId, contextToken);
+        }
 
         ONode itemList = message.get("item_list");
         String text = extractInboundText(itemList);
@@ -1579,24 +1588,49 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             return ensureTypingHeartbeatExecutor()
                     .scheduleAtFixedRate(
                             new Runnable() {
-                                /** 执行心跳刷新：重新获取 ticket 后重发 TYPING_START。 */
+                                /** 提交一次输入状态刷新，慢网络请求不会阻塞后续定时 tick。 */
                                 @Override
                                 public void run() {
+                                    if (!lifecycle.heartbeatInFlight.compareAndSet(false, true)) {
+                                        return;
+                                    }
                                     try {
-                                        if (lifecycle.stopped) {
-                                            return;
-                                        }
-                                        maybeFetchTypingTicket(
-                                                lifecycle.chatId, lifecycle.contextToken);
-                                        synchronized (lifecycle) {
-                                            if (lifecycle.stopped) {
-                                                return;
-                                            }
-                                            sendTyping(lifecycle.chatId, TYPING_START);
-                                        }
+                                        ensureTypingHeartbeatExecutor()
+                                                .execute(
+                                                        new Runnable() {
+                                                            /** 执行输入状态网络刷新。 */
+                                                            @Override
+                                                            public void run() {
+                                                                try {
+                                                                    if (lifecycle.stopped) {
+                                                                        return;
+                                                                    }
+                                                                    maybeFetchTypingTicket(
+                                                                            lifecycle.chatId,
+                                                                            lifecycle.contextToken);
+                                                                    synchronized (lifecycle) {
+                                                                        if (lifecycle.stopped) {
+                                                                            return;
+                                                                        }
+                                                                        sendTyping(
+                                                                                lifecycle.chatId,
+                                                                                TYPING_START);
+                                                                    }
+                                                                } catch (Exception e) {
+                                                                    log.debug(
+                                                                            "[WEIXIN] typing heartbeat tick failed: errorType={}, error={}",
+                                                                            errorType(e),
+                                                                            safeError(e));
+                                                                } finally {
+                                                                    lifecycle.heartbeatInFlight.set(
+                                                                            false);
+                                                                }
+                                                            }
+                                                        });
                                     } catch (Exception e) {
+                                        lifecycle.heartbeatInFlight.set(false);
                                         log.debug(
-                                                "[WEIXIN] typing heartbeat tick failed: errorType={}, error={}",
+                                                "[WEIXIN] typing heartbeat submit failed: errorType={}, error={}",
                                                 errorType(e),
                                                 safeError(e));
                                     }
@@ -1611,6 +1645,38 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     errorType(e),
                     safeError(e));
             return null;
+        }
+    }
+
+    /** 异步预取微信 typing ticket，避免首个输入状态刷新被取票请求拖慢。 */
+    private void prefetchTypingTicket(String userId, String contextToken) {
+        if (disconnecting) {
+            return;
+        }
+        try {
+            ensureTypingHeartbeatExecutor()
+                    .execute(
+                            new Runnable() {
+                                /** 执行 ticket 预取任务。 */
+                                @Override
+                                public void run() {
+                                    maybeFetchTypingTicket(userId, contextToken);
+                                    TypingLifecycle lifecycle =
+                                            activeTypingLifecycles.get(userId);
+                                    if (lifecycle != null) {
+                                        synchronized (lifecycle) {
+                                            if (!lifecycle.stopped) {
+                                                sendTyping(userId, TYPING_START);
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+        } catch (Exception e) {
+            log.debug(
+                    "[WEIXIN] typing ticket prefetch submit failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
         }
     }
 
@@ -2072,6 +2138,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (existing != null && existing.isValid()) {
             return;
         }
+        if (typingTicketFetches.putIfAbsent(userId, Boolean.TRUE) != null) {
+            return;
+        }
         String effectiveContextToken =
                 StrUtil.isNotBlank(contextToken) ? contextToken : loadContextToken(userId);
         try {
@@ -2095,6 +2164,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     "[WEIXIN] fetch typing ticket failed: errorType={}, error={}",
                     errorType(e),
                     safeError(e));
+        } finally {
+            typingTicketFetches.remove(userId, Boolean.TRUE);
         }
     }
 
@@ -2534,6 +2605,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         /** 生命周期已停止，防止取消时仍在途的心跳再次发送开始状态。 */
         private volatile boolean stopped;
+
+        /** 防止慢的网络刷新与下一次心跳重叠，避免请求堆积和输入状态闪烁。 */
+        private final AtomicBoolean heartbeatInFlight = new AtomicBoolean(false);
 
         /**
          * 创建输入状态生命周期。
