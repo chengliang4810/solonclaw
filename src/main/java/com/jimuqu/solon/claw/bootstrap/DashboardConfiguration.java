@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.context.SkillUsageTracker;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
+import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
@@ -215,8 +216,11 @@ public class DashboardConfiguration {
      */
     @Bean
     public ProactiveDiagnosticsService proactiveDiagnosticsService(
-            AppConfig appConfig, SessionRepository sessionRepository) {
-        return new ProactiveDiagnosticsService(appConfig, sessionRepository);
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            GatewayPolicyRepository gatewayPolicyRepository) {
+        return new ProactiveDiagnosticsService(
+                appConfig, sessionRepository, gatewayPolicyRepository);
     }
 
     /**

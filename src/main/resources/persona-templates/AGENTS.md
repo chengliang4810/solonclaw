@@ -133,7 +133,7 @@ Discord / Slack 等支持 reaction 的平台上，用表情代替文字回复：
 
 ## 心跳
 
-默认心跳指令：有 `HEARTBEAT.md` 就读，严格执行。不要臆测，不要重复旧任务。确实无事可做才回 `HEARTBEAT_OK`。
+默认心跳指令：有 `HEARTBEAT.md` 就读，严格执行。不要臆测，不要重复旧任务。确实无事可做才回 `[SILENT]`。
 
 `HEARTBEAT.md` 随你编辑——加清单、加提醒，保持精简。
 

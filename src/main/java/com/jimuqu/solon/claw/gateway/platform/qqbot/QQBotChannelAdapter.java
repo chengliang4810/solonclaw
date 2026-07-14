@@ -67,6 +67,9 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** QQBot 消息、群聊、频道私信与交互事件所需的网关订阅位。 */
     private static final int GATEWAY_INTENTS = (1 << 25) | (1 << 30) | (1 << 12) | (1 << 26);
 
+    /** QQBot 单条文本或 Markdown 消息最大字符数。 */
+    private static final int MAX_MESSAGE_LENGTH = 4000;
+
     /** 心跳提前量，避免网络抖动时刚好超过服务端声明的超时时间。 */
     private static final double HEARTBEAT_INTERVAL_RATIO = 0.8D;
 
@@ -284,9 +287,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             return;
         }
         if (StrUtil.isNotBlank(request.getText())) {
-            postJson(
-                    resolveMessagePath(request),
-                    buildTextBody(request.getText(), request.getReplyToMessageId()).toJson());
+            String replyTo = request.getReplyToMessageId();
+            for (String chunk : splitOutboundText(request.getText())) {
+                postJson(resolveMessagePath(request), buildTextBody(chunk, replyTo).toJson());
+                replyTo = null;
+            }
         }
         List<MessageAttachment> attachments = request.getAttachments();
         if (attachments != null) {
@@ -294,6 +299,33 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 sendAttachment(request, attachment);
             }
         }
+    }
+
+    /** 按自然换行或空格拆分 QQBot 长消息，避免整段因平台长度限制丢失。 */
+    protected List<String> splitOutboundText(String text) {
+        List<String> chunks = new ArrayList<String>();
+        String remaining = StrUtil.nullToEmpty(text);
+        while (remaining.length() > MAX_MESSAGE_LENGTH) {
+            int split = remaining.lastIndexOf('\n', MAX_MESSAGE_LENGTH);
+            if (split < MAX_MESSAGE_LENGTH / 2) {
+                split = remaining.lastIndexOf(' ', MAX_MESSAGE_LENGTH);
+            }
+            if (split < MAX_MESSAGE_LENGTH / 2) {
+                split = MAX_MESSAGE_LENGTH;
+                if (Character.isHighSurrogate(remaining.charAt(split - 1))) {
+                    split--;
+                }
+            }
+            chunks.add(remaining.substring(0, split));
+            remaining = remaining.substring(split);
+            if (remaining.startsWith("\n") || remaining.startsWith(" ")) {
+                remaining = remaining.substring(1);
+            }
+        }
+        if (StrUtil.isNotEmpty(remaining)) {
+            chunks.add(remaining);
+        }
+        return chunks;
     }
 
     /**

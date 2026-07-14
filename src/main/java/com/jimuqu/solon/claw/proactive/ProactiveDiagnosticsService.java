@@ -1,10 +1,10 @@
 package com.jimuqu.solon.claw.proactive;
 
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
-import com.jimuqu.solon.claw.support.SourceKeySupport;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -16,10 +16,17 @@ public class ProactiveDiagnosticsService {
     /** 会话仓储。 */
     private final SessionRepository sessionRepository;
 
+    /** 网关策略仓储，用于确认主对话已显式绑定。 */
+    private final GatewayPolicyRepository gatewayPolicyRepository;
+
     /** 创建主动提醒诊断服务。 */
-    public ProactiveDiagnosticsService(AppConfig appConfig, SessionRepository sessionRepository) {
+    public ProactiveDiagnosticsService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            GatewayPolicyRepository gatewayPolicyRepository) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
+        this.gatewayPolicyRepository = gatewayPolicyRepository;
     }
 
     /** 返回 Dashboard 使用的主动提醒状态。 */
@@ -54,17 +61,19 @@ public class ProactiveDiagnosticsService {
 
     /** 判断是否存在可投递的国内渠道主对话。 */
     private boolean hasHomeChannel() {
-        if (sessionRepository == null) {
+        if (sessionRepository == null || gatewayPolicyRepository == null) {
             return false;
         }
         try {
+            java.util.List<HomeChannelRecord> homes = gatewayPolicyRepository.listHomeChannels();
+            if (homes == null || homes.isEmpty()) {
+                return false;
+            }
             for (SessionRecord session : sessionRepository.listRecent(50)) {
-                String[] source = SourceKeySupport.split(session.getSourceKey());
-                PlatformType platform = PlatformType.fromName(source[0]);
-                if (PlatformType.DOMESTIC_PLATFORMS.contains(platform)
-                        && source[1] != null
-                        && !source[1].trim().isEmpty()) {
-                    return true;
+                for (HomeChannelRecord home : homes) {
+                    if (ProactiveReminderScheduler.matchesHome(session, home)) {
+                        return true;
+                    }
                 }
             }
         } catch (Exception ignored) {

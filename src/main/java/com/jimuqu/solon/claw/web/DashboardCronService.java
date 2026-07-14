@@ -585,13 +585,6 @@ public class DashboardCronService {
      */
     private void runOrTrigger(String id, String triggerType) throws Exception {
         if (cronScheduler == null) {
-            if (!profileName.equals(profileScope.currentProfile())) {
-                cronJobService.trigger(id, triggerType);
-                throw new IllegalStateException(
-                        "Cron job for profile '"
-                                + profileName
-                                + "' is queued in its isolated database; start that profile gateway to execute it.");
-            }
             cronJobService.trigger(id, triggerType);
             return;
         }

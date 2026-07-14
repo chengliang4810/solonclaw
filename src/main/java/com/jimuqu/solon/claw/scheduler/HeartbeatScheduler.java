@@ -29,11 +29,11 @@ public class HeartbeatScheduler {
     private static final String HEARTBEAT_USER = "__heartbeat__";
 
     /** QUIETtoken的统一常量值。 */
-    private static final String QUIET_TOKEN = "HEARTBEAT_OK";
+    private static final String QUIET_TOKEN = "[SILENT]";
 
     /** 默认提示词的统一常量值。 */
     private static final String DEFAULT_PROMPT =
-            "请阅读 HEARTBEAT.md 并严格执行其中的检查清单。如果没有任何需要关注的内容，只回复 HEARTBEAT_OK。";
+            "请阅读 HEARTBEAT.md 并严格执行其中的检查清单。如果没有任何需要关注的内容，只回复 [SILENT]。";
 
     /** 注入应用配置，用于心跳调度器。 */
     private final AppConfig appConfig;

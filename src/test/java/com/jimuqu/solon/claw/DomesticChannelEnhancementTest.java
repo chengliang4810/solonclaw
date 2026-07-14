@@ -1025,6 +1025,26 @@ public class DomesticChannelEnhancementTest {
                 .doesNotContain("sk-qqbot-json-secret");
     }
 
+    /** QQBot 长文本必须拆分为平台可接受的片段且不切断代理对字符。 */
+    @Test
+    void shouldSplitLongQQBotText() {
+        AppConfig config = new AppConfig();
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+        StringBuilder text = new StringBuilder();
+        for (int index = 0; index < 3999; index++) {
+            text.append('中');
+        }
+        text.append("😀");
+        for (int index = 0; index < 20; index++) {
+            text.append('尾');
+        }
+
+        List<String> chunks = adapter.splitText(text.toString());
+
+        assertThat(chunks).hasSize(2).allMatch(chunk -> chunk.length() <= 4000);
+        assertThat(String.join("", chunks)).isEqualTo(text.toString());
+    }
+
     @Test
     void shouldRedactWeComFailureJson() throws Throwable {
         AppConfig config = new AppConfig();
@@ -1161,6 +1181,10 @@ public class DomesticChannelEnhancementTest {
 
         protected ONode buildMediaBody(String fileInfo, String replyTo) {
             return super.buildMediaBody(fileInfo, replyTo);
+        }
+
+        private List<String> splitText(String text) {
+            return splitOutboundText(text);
         }
     }
 

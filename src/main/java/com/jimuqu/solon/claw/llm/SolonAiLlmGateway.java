@@ -46,10 +46,12 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1220,13 +1222,6 @@ public class SolonAiLlmGateway implements LlmGateway {
                 AssistantMessage assistantMessage = ChatMessage.ofAssistant(interrupted);
                 recordOwnedPartialAssistant(agentSession, assistantMessage);
                 effectiveEventSink.onAssistantDelta(interrupted);
-                return new OwnedModelResponse(
-                        finalResponse[0],
-                        assistantMessage,
-                        interrupted,
-                        true,
-                        thinkingSplitter.reasoningText(),
-                        finishReason(finalResponse[0]));
             }
             if (e instanceof Exception) {
                 throw (Exception) e;
@@ -1408,15 +1403,26 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (messages == null || messages.isEmpty()) {
             return null;
         }
+        Set<String> completedCallIds = new HashSet<String>();
         for (int i = messages.size() - 1; i >= 0; i--) {
             ChatMessage message = messages.get(i);
             if (message instanceof ToolMessage) {
-                return null;
+                completedCallIds.add(StrUtil.nullToEmpty(((ToolMessage) message).getToolCallId()));
+                continue;
             }
             if (message instanceof AssistantMessage) {
                 AssistantMessage assistant = (AssistantMessage) message;
                 List<ToolCall> calls = assistant.getToolCalls();
-                return calls == null || calls.isEmpty() ? null : assistant;
+                if (calls == null || calls.isEmpty()) {
+                    return null;
+                }
+                for (ToolCall call : calls) {
+                    if (call != null
+                            && !completedCallIds.contains(StrUtil.nullToEmpty(call.getId()))) {
+                        return assistant;
+                    }
+                }
+                return null;
             }
             if (message != null
                     && "user"

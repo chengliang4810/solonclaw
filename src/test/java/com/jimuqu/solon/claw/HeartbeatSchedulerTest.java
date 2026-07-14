@@ -142,7 +142,7 @@ public class HeartbeatSchedulerTest {
         InMemoryGatewayPolicyRepository repository = new InMemoryGatewayPolicyRepository();
         repository.saveHomeChannel(home(PlatformType.WECOM, "chat-2"));
         CapturingOrchestrator orchestrator = new CapturingOrchestrator();
-        orchestrator.reply = GatewayReply.ok("HEARTBEAT_OK");
+        orchestrator.reply = GatewayReply.ok("[SILENT]");
         CapturingDeliveryService deliveryService = new CapturingDeliveryService();
 
         HeartbeatScheduler scheduler =
@@ -208,7 +208,7 @@ public class HeartbeatSchedulerTest {
     private static class CapturingOrchestrator implements ConversationOrchestrator {
         private int calls;
         private GatewayMessage lastMessage;
-        private GatewayReply reply = GatewayReply.ok("HEARTBEAT_OK");
+        private GatewayReply reply = GatewayReply.ok("[SILENT]");
 
         @Override
         public GatewayReply handleIncoming(GatewayMessage message) {

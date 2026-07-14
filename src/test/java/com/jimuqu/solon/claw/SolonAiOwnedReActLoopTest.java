@@ -159,6 +159,26 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(validateArguments(validator, gateway, "{\"value\":7}")).isNull();
     }
 
+    /** 同一 assistant 的部分工具已有结果时，仍应识别尚未完成的 sibling 调用。 */
+    @Test
+    void shouldKeepAssistantWhenOneOfMultipleToolCallsIsUnresolved() throws Exception {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config());
+        Method finder =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "lastUnresolvedAssistantToolCall", List.class);
+        finder.setAccessible(true);
+        List<ToolCall> calls =
+                Arrays.asList(
+                        new ToolCall("0", "call-a", "first", "{}", Collections.emptyMap()),
+                        new ToolCall("1", "call-b", "second", "{}", Collections.emptyMap()));
+        AssistantMessage assistant =
+                new AssistantMessage("", false, null, Collections.emptyList(), calls, null);
+        List<ChatMessage> messages =
+                Arrays.asList(assistant, ChatMessage.ofTool("done", "first", "call-a"));
+
+        assertThat(finder.invoke(gateway, messages)).isSameAs(assistant);
+    }
+
     /** 调用 arguments 根类型校验器。 */
     private String validateArguments(Method validator, SolonAiLlmGateway gateway, String raw)
             throws Exception {
@@ -1092,9 +1112,9 @@ public class SolonAiOwnedReActLoopTest {
                                         || message.getContent().contains("不要重复已经输出的内容"));
     }
 
-    /** 流式正文中断后应保留已接收内容并结束本轮，不能重放同一请求。 */
+    /** 流式正文中断后可展示已接收内容，但必须按失败交给重试和备用模型。 */
     @Test
-    void shouldKeepVisiblePartialResponseWhenStreamFails() throws Exception {
+    void shouldExposePartialResponseButFailWhenStreamBreaks() throws Exception {
         AppConfig config = config();
         RecordingSessionRepository repository = new RecordingSessionRepository();
         FakeChatModel model =
@@ -1103,28 +1123,24 @@ public class SolonAiOwnedReActLoopTest {
         SessionRecord session = session("owned-loop-stream-partial-session");
         RecordingEventSink eventSink = new RecordingEventSink();
 
-        LlmResult result =
-                invokeExecuteSingle(
-                        gateway,
-                        session,
-                        "system",
-                        "请流式回复",
-                        Collections.emptyList(),
-                        ConversationFeedbackSink.noop(),
-                        eventSink,
-                        false,
-                        config.getLlm(),
-                        null);
+        assertThatThrownBy(
+                        () ->
+                                invokeExecuteSingle(
+                                        gateway,
+                                        session,
+                                        "system",
+                                        "请流式回复",
+                                        Collections.emptyList(),
+                                        ConversationFeedbackSink.noop(),
+                                        eventSink,
+                                        false,
+                                        config.getLlm(),
+                                        null))
+                .hasRootCauseInstanceOf(IOException.class)
+                .hasRootCauseMessage("stream interrupted");
 
         assertThat(model.calls).isEqualTo(1);
-        assertThat(result.getAssistantMessage().getResultContent())
-                .isEqualTo("已经完成一半\n\n（响应流意外中断，以上为已接收的部分内容）");
         assertThat(eventSink.assistantDeltas).containsExactly("已经完成一半\n\n（响应流意外中断，以上为已接收的部分内容）");
-        assertThat(MessageSupport.loadMessages(result.getNdjson()))
-                .anyMatch(
-                        message ->
-                                message instanceof AssistantMessage
-                                        && message.getContent().contains("响应流意外中断"));
     }
 
     /** 流中断前出现未完成工具调用时必须继续按失败处理，不能把工具前缀当成答复。 */

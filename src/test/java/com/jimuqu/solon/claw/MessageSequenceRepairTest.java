@@ -72,6 +72,64 @@ public class MessageSequenceRepairTest {
     }
 
     @Test
+    void shouldNormalizePersistedToolCallIdsForOpenAiCompatibleReplay() {
+        AssistantMessage assistant =
+                assistantWithToolCalls("", "functions.gateway_setup_manage:45");
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                ChatMessage.ofUser("setup"),
+                                assistant,
+                                ChatMessage.ofTool(
+                                        "done",
+                                        "gateway_setup_manage",
+                                        "functions.gateway_setup_manage:45")));
+
+        int repairs = MessageSupport.repairMessageSequence(messages);
+
+        assertThat(repairs).isGreaterThan(0);
+        AssistantMessage repaired = (AssistantMessage) messages.get(1);
+        String repairedId = repaired.getToolCalls().get(0).getId();
+        assertThat(repairedId).matches("^[a-zA-Z0-9_-]+$");
+        assertThat(repaired.getToolCalls().get(0).getIndex()).isEqualTo(repairedId);
+        assertThat(repaired.getToolCallsRaw().get(0).get("id")).isEqualTo(repairedId);
+        assertThat(((org.noear.solon.ai.chat.message.ToolMessage) messages.get(2)).getToolCallId())
+                .isEqualTo(repairedId);
+    }
+
+    @Test
+    void shouldNormalizePersistedToolCallIndexWhenProviderStoredIdAsIndex() {
+        AssistantMessage assistant = assistantWithToolCall("functions.image_generate:47", "image_generate");
+        ToolCall call = assistant.getToolCalls().get(0);
+        assistant =
+                new AssistantMessage(
+                        assistant.getContent(),
+                        false,
+                        null,
+                        assistant.getToolCallsRaw(),
+                        Collections.singletonList(
+                                new ToolCall(
+                                        call.getId(),
+                                        call.getId(),
+                                        call.getName(),
+                                        call.getArgumentsStr(),
+                                        call.getArguments())),
+                        null);
+        List<ChatMessage> messages =
+                new ArrayList<ChatMessage>(
+                        Arrays.asList(
+                                assistant,
+                                ChatMessage.ofTool("done", "image_generate", call.getId())));
+
+        MessageSupport.repairMessageSequence(messages);
+
+        AssistantMessage repaired = (AssistantMessage) messages.get(0);
+        assertThat(repaired.getToolCalls().get(0).getIndex()).matches("^[a-zA-Z0-9_-]+$");
+        assertThat(repaired.getToolCalls().get(0).getId())
+                .isEqualTo(repaired.getToolCalls().get(0).getIndex());
+    }
+
+    @Test
     void shouldRemoveAssistantToolCallsWithoutFollowingToolResults() {
         AssistantMessage assistant = assistantWithToolCalls("Plan", "call_kept", "call_orphan");
         List<ChatMessage> messages =
