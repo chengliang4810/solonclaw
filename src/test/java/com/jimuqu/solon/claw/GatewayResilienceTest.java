@@ -460,7 +460,7 @@ public class GatewayResilienceTest {
         heartbeat.setHeartbeat(true);
         GatewayReply reply = env.gatewayService.handle(heartbeat);
 
-        assertThat(reply.getContent()).isEqualTo("HEARTBEAT_OK");
+        assertThat(reply.getContent()).isEqualTo("[SILENT]");
         assertThat(reply.getRuntimeMetadata()).containsEntry("busy_status", "heartbeat");
         assertThat(env.agentRunControlService.isRunning(sourceKey)).isTrue();
         assertThat(env.agentRunRepository.findNextQueuedMessage(sourceKey, session.getSessionId()))

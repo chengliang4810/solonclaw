@@ -399,7 +399,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             decision.setPolicy(policy);
             decision.setStatus("heartbeat");
             decision.setRunId(handle.runId);
-            decision.setMessage("HEARTBEAT_OK");
+            decision.setMessage("[SILENT]");
             return decision;
         }
         if ("interrupt".equals(policy)) {
