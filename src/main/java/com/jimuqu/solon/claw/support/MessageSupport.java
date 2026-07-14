@@ -6,6 +6,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,9 @@ public final class MessageSupport {
             Pattern.compile(
                     "</?\\s*(?:think|thinking|reasoning|thought|reasoning_scratchpad)\\s*>\\s*",
                     Pattern.CASE_INSENSITIVE);
+
+    /** OpenAI 兼容协议要求工具调用标识只能包含字母、数字、下划线和连字符。 */
+    private static final Pattern TOOL_CALL_ID_PATTERN = Pattern.compile("^[a-zA-Z0-9_-]+$");
 
     /** 创建消息辅助实例。 */
     private MessageSupport() {}
@@ -136,7 +140,8 @@ public final class MessageSupport {
             return 0;
         }
 
-        int repairs = dropStrayToolMessages(messages);
+        int repairs = normalizeToolCallIds(messages);
+        repairs += dropStrayToolMessages(messages);
         repairs += dropDuplicateAdjacentAssistantToolCalls(messages);
         if (!preserveUnansweredToolCalls) {
             repairs += dropUnansweredAssistantToolCalls(messages);
@@ -145,6 +150,113 @@ public final class MessageSupport {
         repairs += dropEmptyAssistantMessages(messages);
         repairs += mergeConsecutiveTextUsers(messages);
         return repairs;
+    }
+
+    /**
+     * 规范化历史工具调用标识，避免旧供应商生成的 {@code functions.name:1} 这类 ID 在重放时被 OpenAI 兼容协议拒绝。
+     *
+     * @param messages 会话消息列表。
+     * @return 返回被修复的消息字段数量。
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static int normalizeToolCallIds(List<ChatMessage> messages) {
+        int repairs = 0;
+        Map<String, String> normalizedIds = new HashMap<String, String>();
+        for (int i = 0; i < messages.size(); i++) {
+            ChatMessage message = messages.get(i);
+            if (message instanceof AssistantMessage) {
+                AssistantMessage assistant = (AssistantMessage) message;
+                List<ToolCall> calls = assistant.getToolCalls();
+                List<ToolCall> normalizedCalls = null;
+                if (calls != null && !calls.isEmpty()) {
+                    normalizedCalls = new ArrayList<ToolCall>(calls.size());
+                    for (ToolCall call : calls) {
+                        if (call == null) {
+                            normalizedCalls.add(null);
+                            continue;
+                        }
+                        String normalizedId =
+                                normalizedToolCallId(call.getId(), normalizedIds);
+                        String normalizedIndex =
+                                normalizedToolCallId(call.getIndex(), normalizedIds);
+                        if (!StrUtil.equals(call.getId(), normalizedId)
+                                || !StrUtil.equals(call.getIndex(), normalizedIndex)) {
+                            ToolCall replacement =
+                                    new ToolCall(
+                                            normalizedIndex,
+                                            normalizedId,
+                                            call.getName(),
+                                            call.getArgumentsStr(),
+                                            call.getArguments());
+                            replacement.setThoughtSignature(call.getThoughtSignature());
+                            normalizedCalls.add(replacement);
+                            repairs++;
+                        } else {
+                            normalizedCalls.add(call);
+                        }
+                    }
+                }
+                List<Map> rawCalls = assistant.getToolCallsRaw();
+                if (rawCalls != null) {
+                    for (Map raw : rawCalls) {
+                        if (raw == null) {
+                            continue;
+                        }
+                        Object id = raw.get("id");
+                        String normalized = normalizedToolCallId(id, normalizedIds);
+                        if (id != null && !StrUtil.equals(String.valueOf(id), normalized)) {
+                            raw.put("id", normalized);
+                            repairs++;
+                        }
+                    }
+                }
+                if (normalizedCalls != null) {
+                    messages.set(
+                            i,
+                            new AssistantMessage(
+                                    assistant.getContent(),
+                                    assistant.isThinking(),
+                                    assistant.getContentRaw(),
+                                    assistant.getToolCallsRaw(),
+                                    normalizedCalls,
+                                    assistant.getSearchResultsRaw()));
+                }
+            } else if (message instanceof ToolMessage) {
+                ToolMessage tool = (ToolMessage) message;
+                String normalized = normalizedToolCallId(tool.getToolCallId(), normalizedIds);
+                if (!StrUtil.equals(tool.getToolCallId(), normalized)) {
+                    messages.set(
+                            i, ChatMessage.ofTool(tool.getContent(), tool.getName(), normalized));
+                    repairs++;
+                }
+            }
+        }
+        return repairs;
+    }
+
+    /**
+     * 返回协议安全的工具调用 ID；同一个原始 ID 在同次修复中始终映射到同一个新 ID。
+     *
+     * @param value 原始工具调用 ID 或索引。
+     * @param normalizedIds 已生成的映射。
+     * @return 协议安全 ID。
+     */
+    private static String normalizedToolCallId(Object value, Map<String, String> normalizedIds) {
+        if (value == null) {
+            return null;
+        }
+        String id = String.valueOf(value);
+        if (StrUtil.isBlank(id) || TOOL_CALL_ID_PATTERN.matcher(id).matches()) {
+            return id;
+        }
+        String existing = normalizedIds.get(id);
+        if (existing != null) {
+            return existing;
+        }
+        String normalized =
+                id.replaceAll("[^a-zA-Z0-9_-]", "_") + "_" + Integer.toHexString(id.hashCode());
+        normalizedIds.put(id, normalized);
+        return normalized;
     }
 
     /**
