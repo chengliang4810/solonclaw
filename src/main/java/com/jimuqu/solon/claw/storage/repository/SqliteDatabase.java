@@ -429,9 +429,18 @@ public class SqliteDatabase {
                             + "chat_id text not null,"
                             + "thread_id text,"
                             + "chat_name text,"
+                            + "is_primary integer not null default 0,"
                             + "updated_at integer not null"
                             + ")");
             addColumn(statement, "home_channels", "thread_id text");
+            addColumn(statement, "home_channels", "is_primary integer not null default 0");
+            statement.execute(
+                    "update home_channels set is_primary = 1 "
+                            + "where platform = (select platform from home_channels order by updated_at desc, platform asc limit 1) "
+                            + "and not exists (select 1 from home_channels where is_primary = 1)");
+            statement.execute(
+                    "create unique index if not exists idx_home_channels_primary "
+                            + "on home_channels(is_primary) where is_primary = 1");
             statement.execute(
                     "create table if not exists approved_users ("
                             + "platform text not null,"

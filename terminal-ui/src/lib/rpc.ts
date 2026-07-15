@@ -14,7 +14,7 @@ export const asCommandDispatch = (value: unknown): CommandDispatchResponse | nul
 
   const t = o.type
 
-  if (t === 'exec' || t === 'plugin') {
+  if (t === 'exec') {
     return { type: t, output: typeof o.output === 'string' ? o.output : undefined }
   }
 

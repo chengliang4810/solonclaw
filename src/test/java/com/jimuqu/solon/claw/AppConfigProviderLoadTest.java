@@ -35,8 +35,6 @@ public class AppConfigProviderLoadTest {
         assertThat(config.getTask().getMediaCacheTtlHours()).isEqualTo(168);
         assertThat(config.getMcp().isEnabled()).isFalse();
         assertThat(config.getPricing().getPrices()).isEmpty();
-        assertThat(config.getPlugins().getEnabled()).isEmpty();
-        assertThat(config.getPlugins().getDisabled()).isEmpty();
     }
 
     @Test

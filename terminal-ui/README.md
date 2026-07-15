@@ -224,7 +224,7 @@ Anything else falls through to:
 1. `slash.exec`
 2. `command.dispatch`
 
-That lets the Java backend own aliases, plugins, skills, and registry-backed commands without duplicating the logic in the TUI.
+That lets the Java backend own aliases, skills, and registry-backed commands without duplicating the logic in the TUI.
 
 ## Event surface
 

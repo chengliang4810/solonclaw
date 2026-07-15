@@ -369,7 +369,7 @@ public class TestEnvironment {
                 new BrowserRuntimeService(
                         config,
                         java.util.Collections
-                                .<com.jimuqu.solon.claw.plugin.provider.BrowserProvider>emptyList(),
+                                .<com.jimuqu.solon.claw.provider.BrowserProvider>emptyList(),
                         securityPolicyService);
         DashboardRunService dashboardRunService = new DashboardRunService(agentRunRepository);
         ToolRegistry toolRegistry =
@@ -494,8 +494,6 @@ public class TestEnvironment {
                         null,
                         gatewayRestartCoordinator,
                         slashConfirmService,
-                        null,
-                        null,
                         dashboardCuratorService,
                         dashboardSkillsService,
                         browserRuntimeService,

@@ -554,10 +554,6 @@ public class RuntimeConfigResolver {
         addDynamicPrefix(prefixes, "providers.");
         addDynamicPrefix(prefixes, "pricing.prices");
         addDynamicPrefix(prefixes, "solonclaw.pricing.prices");
-        addDynamicPrefix(prefixes, "plugins.enabled");
-        addDynamicPrefix(prefixes, "plugins.disabled");
-        addDynamicPrefix(prefixes, "solonclaw.plugins.enabled");
-        addDynamicPrefix(prefixes, "solonclaw.plugins.disabled");
         addDynamicPrefix(prefixes, "solonclaw.gateway.platforms.");
         addDynamicPrefix(prefixes, "solonclaw.agent.personalities.");
         addDynamicPrefix(prefixes, "solonclaw.channels.wecom.groups.");

@@ -16,7 +16,6 @@ import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
 import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
-import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
@@ -171,9 +170,6 @@ public class SolonAiLlmGateway implements LlmGateway {
     /** 记录SolonAi大模型消息网关中的pdf技能。 */
     private volatile PdfTalent pdfSkill;
 
-    /** 记录SolonAi大模型消息网关中的钩子BridgeInterceptor。 */
-    private HookBridgeInterceptor hookBridgeInterceptor;
-
     /**
      * 创建Solon Ai大模型消息网关实例，并注入运行所需依赖。
      *
@@ -321,15 +317,6 @@ public class SolonAiLlmGateway implements LlmGateway {
             this.dangerousCommandApprovalService.setSmartApprovalJudge(
                     new SolonAiSmartApprovalJudge());
         }
-    }
-
-    /**
-     * 写入钩子Bridge Interceptor。
-     *
-     * @param hookBridgeInterceptor 钩子BridgeInterceptor标识或键值。
-     */
-    public void setHookBridgeInterceptor(HookBridgeInterceptor hookBridgeInterceptor) {
-        this.hookBridgeInterceptor = hookBridgeInterceptor;
     }
 
     /**
@@ -1926,9 +1913,6 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         if (usageCollector != null) {
             options.interceptorAdd(new UsageCollectingInterceptor(usageCollector));
-        }
-        if (hookBridgeInterceptor != null) {
-            options.interceptorAdd(hookBridgeInterceptor);
         }
         if (toolObjects != null) {
             for (Object toolObject : toolObjects) {

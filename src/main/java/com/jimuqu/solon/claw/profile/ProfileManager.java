@@ -140,7 +140,6 @@ public class ProfileManager {
                     "cron",
                     "scripts",
                     "sessions",
-                    "plugins",
                     "memories",
                     "memory",
                     "knowledge",

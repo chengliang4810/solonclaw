@@ -31,7 +31,7 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select platform, chat_id, thread_id, chat_name, updated_at from home_channels where platform = ?");
+                            "select platform, chat_id, thread_id, chat_name, is_primary, updated_at from home_channels where platform = ?");
             statement.setString(1, key(platform));
             ResultSet resultSet = statement.executeQuery();
             try {
@@ -56,7 +56,7 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select platform, chat_id, thread_id, chat_name, updated_at from home_channels order by platform asc");
+                            "select platform, chat_id, thread_id, chat_name, is_primary, updated_at from home_channels order by is_primary desc, platform asc");
             ResultSet resultSet = statement.executeQuery();
             try {
                 while (resultSet.next()) {
@@ -72,6 +72,27 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         return records;
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public HomeChannelRecord getPrimaryHomeChannel() throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select platform, chat_id, thread_id, chat_name, is_primary, updated_at "
+                                    + "from home_channels order by is_primary desc, updated_at desc, platform asc limit 1");
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? mapHome(resultSet) : null;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
     /**
      * 保存主渠道渠道。
      *
@@ -80,17 +101,74 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
     public void saveHomeChannel(HomeChannelRecord record) throws Exception {
         Connection connection = database.openConnection();
         try {
+            connection.setAutoCommit(false);
+            boolean primary =
+                    record.isPrimary()
+                            || isPrimary(connection, record.getPlatform())
+                            || !hasPrimaryHomeChannel(connection);
+            if (record.isPrimary()) {
+                clearPrimaryHomeChannel(connection);
+            }
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into home_channels (platform, chat_id, thread_id, chat_name, updated_at) values (?, ?, ?, ?, ?)");
+                            "insert or replace into home_channels (platform, chat_id, thread_id, chat_name, is_primary, updated_at) values (?, ?, ?, ?, ?, ?)");
             statement.setString(1, key(record.getPlatform()));
             statement.setString(2, record.getChatId());
             statement.setString(3, record.getThreadId());
             statement.setString(4, record.getChatName());
-            statement.setLong(5, record.getUpdatedAt());
+            statement.setInt(5, primary ? 1 : 0);
+            statement.setLong(6, record.getUpdatedAt());
             statement.executeUpdate();
             statement.close();
+            connection.commit();
+            record.setPrimary(primary);
+        } catch (Exception e) {
+            connection.rollback();
+            throw e;
         } finally {
+            connection.setAutoCommit(true);
+            connection.close();
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public HomeChannelRecord setPrimaryHomeChannel(PlatformType platform) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            connection.setAutoCommit(false);
+            clearPrimaryHomeChannel(connection);
+            PreparedStatement update =
+                    connection.prepareStatement(
+                            "update home_channels set is_primary = 1 where platform = ?");
+            update.setString(1, key(platform));
+            int affected = update.executeUpdate();
+            update.close();
+            if (affected != 1) {
+                connection.rollback();
+                throw new IllegalArgumentException("目标平台尚未绑定 home channel。");
+            }
+            PreparedStatement select =
+                    connection.prepareStatement(
+                            "select platform, chat_id, thread_id, chat_name, is_primary, updated_at from home_channels where platform = ?");
+            select.setString(1, key(platform));
+            ResultSet resultSet = select.executeQuery();
+            try {
+                if (!resultSet.next()) {
+                    throw new IllegalStateException("主要通知渠道写入后无法读取。");
+                }
+                HomeChannelRecord record = mapHome(resultSet);
+                connection.commit();
+                return record;
+            } finally {
+                resultSet.close();
+                select.close();
+            }
+        } catch (Exception e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
             connection.close();
         }
     }
@@ -145,6 +223,65 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /** 在同一事务中首次绑定管理员、默认私聊并消费 pairing 请求。 */
+    @Override
+    public boolean claimPlatformAdminIfAbsent(
+            PairingRequestRecord request, PlatformAdminRecord admin, HomeChannelRecord home)
+            throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            connection.setAutoCommit(false);
+            PreparedStatement insertAdmin =
+                    connection.prepareStatement(
+                            "insert or ignore into platform_admins (platform, user_id, user_name, chat_id, created_at) values (?, ?, ?, ?, ?)");
+            insertAdmin.setString(1, key(admin.getPlatform()));
+            insertAdmin.setString(2, admin.getUserId());
+            insertAdmin.setString(3, admin.getUserName());
+            insertAdmin.setString(4, admin.getChatId());
+            insertAdmin.setLong(5, admin.getCreatedAt());
+            int adminInserted = insertAdmin.executeUpdate();
+            insertAdmin.close();
+            if (adminInserted == 0) {
+                connection.rollback();
+                return false;
+            }
+
+            PreparedStatement saveHome =
+                    connection.prepareStatement(
+                            "insert or replace into home_channels (platform, chat_id, thread_id, chat_name, is_primary, updated_at) values (?, ?, ?, ?, ?, ?)");
+            boolean primary = !hasPrimaryHomeChannel(connection);
+            saveHome.setString(1, key(home.getPlatform()));
+            saveHome.setString(2, home.getChatId());
+            saveHome.setString(3, home.getThreadId());
+            saveHome.setString(4, home.getChatName());
+            saveHome.setInt(5, primary ? 1 : 0);
+            saveHome.setLong(6, home.getUpdatedAt());
+            saveHome.executeUpdate();
+            saveHome.close();
+            home.setPrimary(primary);
+
+            PreparedStatement consumeRequest =
+                    connection.prepareStatement(
+                            "delete from pairing_requests where platform = ? and code = ? and user_id = ?");
+            consumeRequest.setString(1, key(request.getPlatform()));
+            consumeRequest.setString(2, request.getCode());
+            consumeRequest.setString(3, request.getUserId());
+            int consumed = consumeRequest.executeUpdate();
+            consumeRequest.close();
+            if (consumed != 1) {
+                throw new IllegalStateException("pairing 请求已被消费，请刷新后重试。");
+            }
+            connection.commit();
+            return true;
+        } catch (Exception e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
+            connection.close();
+        }
+    }
+
     /** {@inheritDoc} */
     @Override
     public void savePlatformAdmin(PlatformAdminRecord record) throws Exception {
@@ -170,12 +307,27 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
     public void deletePlatformAdmin(PlatformType platform) throws Exception {
         Connection connection = database.openConnection();
         try {
-            PreparedStatement statement =
+            connection.setAutoCommit(false);
+            boolean primary = isPrimary(connection, platform);
+            PreparedStatement deleteAdmin =
                     connection.prepareStatement("delete from platform_admins where platform = ?");
-            statement.setString(1, key(platform));
-            statement.executeUpdate();
-            statement.close();
+            deleteAdmin.setString(1, key(platform));
+            deleteAdmin.executeUpdate();
+            deleteAdmin.close();
+            PreparedStatement deleteHome =
+                    connection.prepareStatement("delete from home_channels where platform = ?");
+            deleteHome.setString(1, key(platform));
+            deleteHome.executeUpdate();
+            deleteHome.close();
+            if (primary) {
+                promotePrimaryHomeChannel(connection);
+            }
+            connection.commit();
+        } catch (Exception e) {
+            connection.rollback();
+            throw e;
         } finally {
+            connection.setAutoCommit(true);
             connection.close();
         }
     }
@@ -720,8 +872,58 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         record.setChatId(resultSet.getString("chat_id"));
         record.setThreadId(resultSet.getString("thread_id"));
         record.setChatName(resultSet.getString("chat_name"));
+        record.setPrimary(resultSet.getInt("is_primary") == 1);
         record.setUpdatedAt(resultSet.getLong("updated_at"));
         return record;
+    }
+
+    /** 判断事务中是否已经存在主要通知渠道。 */
+    private boolean hasPrimaryHomeChannel(Connection connection) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "select 1 from home_channels where is_primary = 1 limit 1");
+        ResultSet resultSet = statement.executeQuery();
+        try {
+            return resultSet.next();
+        } finally {
+            resultSet.close();
+            statement.close();
+        }
+    }
+
+    /** 判断指定平台当前是否为主要通知渠道。 */
+    private boolean isPrimary(Connection connection, PlatformType platform) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "select is_primary from home_channels where platform = ?");
+        statement.setString(1, key(platform));
+        ResultSet resultSet = statement.executeQuery();
+        try {
+            return resultSet.next() && resultSet.getInt("is_primary") == 1;
+        } finally {
+            resultSet.close();
+            statement.close();
+        }
+    }
+
+    /** 清除旧主渠道标记，供同一事务内切换主要通知渠道。 */
+    private void clearPrimaryHomeChannel(Connection connection) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement("update home_channels set is_primary = 0");
+        statement.executeUpdate();
+        statement.close();
+    }
+
+    /** 提升仍有平台主人的最近通知渠道，避免主人解绑后继续投递给旧私聊。 */
+    private void promotePrimaryHomeChannel(Connection connection) throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "update home_channels set is_primary = 1 where platform = ("
+                                + "select home.platform from home_channels home "
+                                + "join platform_admins admin on admin.platform = home.platform "
+                                + "order by home.updated_at desc, home.platform asc limit 1)");
+        statement.executeUpdate();
+        statement.close();
     }
 
     /**

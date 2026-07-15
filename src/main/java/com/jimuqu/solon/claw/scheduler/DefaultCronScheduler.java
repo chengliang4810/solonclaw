@@ -1763,24 +1763,23 @@ public class DefaultCronScheduler {
      * @return 返回origin兜底主渠道Target结果。
      */
     private CronDeliveryTarget originFallbackHomeTarget(CronJobRecord job) {
-        PlatformType source = sourcePlatform(job);
-        CronDeliveryTarget target = homeTarget(source);
-        if (target != null) {
-            return target;
-        }
-        for (PlatformType platform : PlatformType.values()) {
-            if (platform == source || platform == PlatformType.MEMORY) {
-                continue;
-            }
-            target = homeTarget(platform);
-            if (target != null) {
+        try {
+            HomeChannelRecord home = gatewayPolicyRepository.getPrimaryHomeChannel();
+            if (home != null && home.getPlatform() != null && StrUtil.isNotBlank(home.getChatId())) {
                 log.info(
-                        "Cron job has deliver=origin but no origin/source chat; falling back to {}"
-                                + " home channel: jobId={}",
-                        platform,
+                        "Cron job has deliver=origin but no origin/source chat; falling back to primary {} home channel: jobId={}",
+                        home.getPlatform(),
                         job.getJobId());
-                return target;
+                return new CronDeliveryTarget(
+                        home.getPlatform(),
+                        home.getChatId(),
+                        CronJobSupport.normalizeBlank(home.getThreadId()));
             }
+        } catch (Exception e) {
+            log.warn(
+                    "Cron primary home channel lookup failed: jobId={}, error={}",
+                    job.getJobId(),
+                    safeError(e));
         }
         return null;
     }

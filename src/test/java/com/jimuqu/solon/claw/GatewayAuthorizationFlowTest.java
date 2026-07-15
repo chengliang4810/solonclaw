@@ -7,8 +7,9 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import org.junit.jupiter.api.Test;
 
 public class GatewayAuthorizationFlowTest {
+    /** 平台已有主人后，第二个私聊用户必须静默，且不能再产生可审批请求。 */
     @Test
-    void shouldRequirePairingForSecondUserAfterAdminBootstrap() throws Exception {
+    void shouldSilentlyIgnoreSecondUserAfterOwnerBinding() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         env.gatewayAuthorizationService.setPlatformAdmin(
@@ -17,29 +18,22 @@ public class GatewayAuthorizationFlowTest {
                 "admin",
                 "admin-chat");
 
-        GatewayReply pairPrompt = env.send("user-chat", "user-2", "hi there");
-        assertThat(pairPrompt.getContent()).contains("pairing code");
-        String code = pairPrompt.getContent().split("`")[1];
+        GatewayReply strangerDirect = env.send("user-chat", "user-2", "hi there");
+        assertThat(strangerDirect).isNull();
 
-        GatewayReply groupUnauthorized =
+        GatewayReply isolatedGroupReply =
                 env.gatewayService.handle(
                         env.message(
                                 "group-1", "user-2", "group", "Dev Group", "Bob", "hello group"));
-        assertThat(groupUnauthorized).isNull();
+        assertThat(isolatedGroupReply.getContent()).contains("echo:hello group");
 
         GatewayReply pending = env.send("admin-chat", "admin-user", "/pairing pending memory");
-        assertThat(pending.getContent()).contains("user-2").doesNotContain(code);
-
-        GatewayReply approve =
-                env.send("admin-chat", "admin-user", "/pairing approve memory " + code);
-        assertThat(approve.getContent()).contains("已批准");
-
-        GatewayReply normalReply = env.send("user-chat", "user-2", "hello after pairing");
-        assertThat(normalReply.getContent()).contains("echo:hello after pairing");
+        assertThat(pending.getContent()).contains("渠道内不支持 pairing 管理");
     }
 
+    /** 主人仍可查看和清理绑定队列，但陌生私聊不能进入该队列。 */
     @Test
-    void shouldSupportPairingListAndClearPendingAliases() throws Exception {
+    void shouldKeepPairingManagementQueueEmptyForUnknownDirectUsers() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         env.gatewayAuthorizationService.setPlatformAdmin(
@@ -47,21 +41,9 @@ public class GatewayAuthorizationFlowTest {
                 "admin-user",
                 "admin",
                 "admin-chat");
-        GatewayReply pairPrompt = env.send("user-chat", "user-2", "hi there");
-        String code = pairPrompt.getContent().split("`")[1];
+        assertThat(env.send("user-chat", "user-2", "hi there")).isNull();
 
-        GatewayReply list = env.send("admin-chat", "admin-user", "/pairing list");
-        assertThat(list.getContent())
-                .contains("待处理 pairing")
-                .contains("user-2")
-                .doesNotContain(code)
-                .contains("已批准用户")
-                .contains("无");
-
-        GatewayReply cleared = env.send("admin-chat", "admin-user", "/pairing clear-pending");
-        assertThat(cleared.getContent()).contains("memory 平台待处理 pairing 请求已清理");
-
-        GatewayReply pending = env.send("admin-chat", "admin-user", "/pairing pending memory");
-        assertThat(pending.getContent()).contains("当前没有待处理的 pairing 请求");
+        GatewayReply pairing = env.send("admin-chat", "admin-user", "/pairing pending memory");
+        assertThat(pairing.getContent()).contains("渠道内不支持 pairing 管理");
     }
 }

@@ -23,8 +23,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.SpeechService;
-import com.jimuqu.solon.claw.plugin.AgentPluginManager;
-import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
@@ -61,7 +60,6 @@ import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardMediaService;
 import com.jimuqu.solon.claw.web.DashboardPairingService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
-import com.jimuqu.solon.claw.web.DashboardPluginStatusService;
 import com.jimuqu.solon.claw.web.DashboardProfileService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
@@ -152,13 +150,21 @@ public class DashboardConfiguration {
      *
      * @param gatewayAuthorizationService 当前 Profile 授权服务。
      * @param dashboardProfileContext Dashboard Profile 请求上下文。
+     * @param deliveryService 当前 Profile 消息投递服务。
+     * @param profileMultiplexRuntimeManager 命名 Profile 子运行时管理器。
      * @return pairing 管理服务。
      */
     @Bean
     public DashboardPairingService dashboardPairingService(
             GatewayAuthorizationService gatewayAuthorizationService,
-            DashboardProfileContext dashboardProfileContext) {
-        return new DashboardPairingService(gatewayAuthorizationService, dashboardProfileContext);
+            DashboardProfileContext dashboardProfileContext,
+            DeliveryService deliveryService,
+            ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager) {
+        return new DashboardPairingService(
+                gatewayAuthorizationService,
+                dashboardProfileContext,
+                deliveryService,
+                profileMultiplexRuntimeManager);
     }
 
     /**
@@ -268,18 +274,6 @@ public class DashboardConfiguration {
             com.jimuqu.solon.claw.core.service.DelegationService delegationService) {
         return new DashboardRunService(
                 agentRunRepository, agentRunControlService, delegationService);
-    }
-
-    /**
-     * 执行控制台插件状态服务相关逻辑。
-     *
-     * @param pluginManager 插件生命周期管理器。
-     * @return 返回控制台插件状态服务。
-     */
-    @Bean
-    public DashboardPluginStatusService dashboardPluginStatusService(
-            AgentPluginManager pluginManager) {
-        return new DashboardPluginStatusService(pluginManager);
     }
 
     /**

@@ -19,7 +19,6 @@ import com.jimuqu.solon.claw.core.service.MemoryManager;
 import com.jimuqu.solon.claw.core.service.MemoryService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
-import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
@@ -156,7 +155,6 @@ class ProfileRuntimeIsolationIntegrationTest {
         assertDifferentBean(rootContext, child, MemoryService.class);
         assertDifferentBean(rootContext, child, MemoryManager.class);
         assertDifferentBean(rootContext, child, McpRuntimeService.class);
-        assertDifferentBean(rootContext, child, AgentPluginManager.class);
         assertDifferentBean(rootContext, child, ChannelConnectionManager.class);
 
         AppConfig rootConfig = rootContext.getBean(AppConfig.class);
@@ -179,10 +177,6 @@ class ProfileRuntimeIsolationIntegrationTest {
         assertThat(workerConfig.getChannels().getFeishu().getAppSecret())
                 .isEqualTo("worker-secret");
         assertThat(workerConfig.getGateway().isMultiplexProfiles()).isFalse();
-        assertThat(rootContext.getBean(AgentPluginManager.class).getUserPluginsDir())
-                .isEqualTo(root.resolve("plugins").toAbsolutePath().normalize());
-        assertThat(child.getBean(AgentPluginManager.class).getUserPluginsDir())
-                .isEqualTo(worker.home().resolve("plugins").toAbsolutePath().normalize());
         assertThat(rootContext.getBean(DefaultGatewayService.class).profileName())
                 .isEqualTo("default");
         assertThat(child.getBean(DefaultGatewayService.class).profileName()).isEqualTo("worker");

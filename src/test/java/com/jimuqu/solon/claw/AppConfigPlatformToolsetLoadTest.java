@@ -57,7 +57,7 @@ public class AppConfigPlatformToolsetLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getGateway().getPlatforms()).isEmpty();
-        assertThat(config.getGateway().isMultiplexProfiles()).isFalse();
+        assertThat(config.getGateway().isMultiplexProfiles()).isTrue();
     }
 
     /** 复用网关开关从当前项目的嵌套配置读取，并支持常见布尔文本。 */

@@ -3,7 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.media.VisionAnalysisService;
-import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
+import com.jimuqu.solon.claw.provider.BrowserProvider;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.net.URI;

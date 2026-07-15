@@ -16,7 +16,7 @@ final class ToolCrossProfilePathSupport {
     /** 允许通过 cross_profile 显式放行的 Profile 局部目录。 */
     private static final Set<String> GUARDED_AREAS =
             new LinkedHashSet<String>(
-                    Arrays.asList("skills", "plugins", "cron", "memory", "memories"));
+                    Arrays.asList("skills", "cron", "memory", "memories"));
 
     /** 工具辅助类不允许创建实例。 */
     private ToolCrossProfilePathSupport() {}

@@ -4,7 +4,7 @@ import cn.hutool.core.codec.Base64;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
-import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -18,18 +18,18 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** 图片生成运行时服务，负责选择插件提供方、下载或解码图片结果，并写入附件缓存。 */
+/** 图片生成运行时服务，负责选择内置提供方、下载或解码图片结果，并写入附件缓存。 */
 public class ImageGenerationService {
-    /** 单张生成图片允许缓存的最大字节数，避免插件返回超大文件拖垮运行时。 */
+    /** 单张生成图片允许缓存的最大字节数，避免提供方返回超大文件拖垮运行时。 */
     private static final long MAX_IMAGE_BYTES = 32L * 1024L * 1024L;
 
     /** 附件缓存服务，用于把生成结果落到本地媒体缓存并形成 mediaReference。 */
     private final AttachmentCacheService attachmentCacheService;
 
-    /** 图片生成提供方列表，按配置或插件注册顺序选择第一个可用提供方。 */
+    /** 图片生成提供方列表，按配置顺序选择第一个可用提供方。 */
     private final List<ImageGenProvider> providers;
 
-    /** URL 安全策略服务，用于约束插件返回的远程图片下载地址。 */
+    /** URL 安全策略服务，用于约束提供方返回的远程图片下载地址。 */
     private final SecurityPolicyService securityPolicyService;
 
     /** 图片输入统一边界，用于把编辑主图和参考图归一到受控附件缓存。 */
@@ -194,9 +194,9 @@ public class ImageGenerationService {
     }
 
     /**
-     * 从插件返回地址读取图片字节，支持 data URL 和经过安全策略校验的 HTTP(S) URL。
+     * 从提供方返回地址读取图片字节，支持 data URL 和经过安全策略校验的 HTTP(S) URL。
      *
-     * @param url 插件返回的图片地址。
+     * @param url 提供方返回的图片地址。
      * @return 图片字节与推断 MIME。
      */
     private ImageBytes bytesFromProviderUrl(String url) {
@@ -233,7 +233,7 @@ public class ImageGenerationService {
     /**
      * 从 data URL 推断图片 MIME，推断失败时回退到 png。
      *
-     * @param url 插件返回的图片地址。
+     * @param url 提供方返回的图片地址。
      * @return 可用于附件缓存的图片 MIME。
      */
     private String mimeFromProviderUrl(String url) {
@@ -295,7 +295,7 @@ public class ImageGenerationService {
                 StrUtil.blankToDefault(value, "Image generation failed"), 1000);
     }
 
-    /** 承载插件图片结果的原始字节和 MIME。 */
+    /** 承载图片结果的原始字节和 MIME。 */
     private static class ImageBytes {
         /** 图片原始字节。 */
         private final byte[] bytes;
@@ -326,7 +326,7 @@ public class ImageGenerationService {
         /** 成功时可回填到会话或工具结果的媒体引用。 */
         private final String mediaReference;
 
-        /** 实际执行生成的插件提供方名称。 */
+        /** 实际执行生成的内置提供方名称。 */
         private final String provider;
 
         /** 失败时经过脱敏处理的错误。 */
@@ -416,7 +416,7 @@ public class ImageGenerationService {
         }
 
         /**
-         * 读取实际使用的插件提供方名称。
+         * 读取实际使用的内置提供方名称。
          *
          * @return 返回读取到的提供方。
          */

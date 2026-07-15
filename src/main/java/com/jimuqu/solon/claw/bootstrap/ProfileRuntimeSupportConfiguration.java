@@ -18,8 +18,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
-import com.jimuqu.solon.claw.plugin.ToolRegistration;
-import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
+import com.jimuqu.solon.claw.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.profile.ProfileChildRuntimeMarker;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
@@ -44,6 +43,7 @@ import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import com.jimuqu.solon.claw.web.McpPackageSecurityService;
+import java.util.Collections;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Condition;
@@ -160,7 +160,6 @@ public class ProfileRuntimeSupportConfiguration {
             AgentRunRepository agentRunRepository,
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
-            List<ToolRegistration> pluginTools,
             List<WebSearchProvider> webSearchProviders) {
         return new DefaultToolRegistry(
                 appConfig,
@@ -204,7 +203,7 @@ public class ProfileRuntimeSupportConfiguration {
                 agentRunRepository,
                 cronJobRepository,
                 usageEventRepository,
-                pluginTools,
+                Collections.emptyList(),
                 webSearchProviders);
     }
 }

@@ -22,9 +22,9 @@ import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.media.VisionAnalysisService;
-import com.jimuqu.solon.claw.plugin.ToolRegistration;
-import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
-import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
+import com.jimuqu.solon.claw.tool.runtime.ToolRegistration;
+import com.jimuqu.solon.claw.provider.BrowserProvider;
+import com.jimuqu.solon.claw.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -193,10 +193,10 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 语音服务。 */
     private final SpeechService speechService;
 
-    /** 插件注册工具。 */
-    private final List<ToolRegistration> pluginTools;
+    /** 额外注册工具。 */
+    private final List<ToolRegistration> extraTools;
 
-    /** Web 搜索插件提供方，用于按配置接管内置 websearch 后端。 */
+    /** Web 搜索附加提供方，用于按配置接管内置 websearch 后端。 */
     private List<WebSearchProvider> webSearchProviders = Collections.emptyList();
 
     /** Dashboard 运行服务，用于给 Agent 暴露一等运行管理工具。 */
@@ -708,7 +708,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param securityPolicyService 安全策略服务依赖。
      * @param processRegistry 进程注册表依赖组件。
      * @param mcpRuntimeService MCP运行时服务依赖。
-     * @param pluginTools 插件Tools参数。
+     * @param extraTools 额外工具参数。
      */
     public DefaultToolRegistry(
             AppConfig appConfig,
@@ -729,7 +729,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             SecurityPolicyService securityPolicyService,
             ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService,
-            List<ToolRegistration> pluginTools) {
+            List<ToolRegistration> extraTools) {
         this(
                 appConfig,
                 preferenceStore,
@@ -753,7 +753,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
-                pluginTools);
+                extraTools);
     }
 
     /**
@@ -904,7 +904,7 @@ public class DefaultToolRegistry implements ToolRegistry {
     }
 
     /**
-     * 创建默认工具注册表实例，并注入浏览器、媒体和插件工具依赖。
+     * 创建默认工具注册表实例，并注入浏览器、媒体和额外工具依赖。
      *
      * @param appConfig 应用运行配置。
      * @param preferenceStore 本地偏好存储依赖。
@@ -927,7 +927,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
-     * @param pluginTools 插件Tools参数。
+     * @param extraTools 额外工具参数。
      */
     public DefaultToolRegistry(
             AppConfig appConfig,
@@ -951,7 +951,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
-            List<ToolRegistration> pluginTools) {
+            List<ToolRegistration> extraTools) {
         this(
                 appConfig,
                 preferenceStore,
@@ -975,7 +975,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
-                pluginTools);
+                extraTools);
     }
 
     /**
@@ -1002,7 +1002,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
-     * @param pluginTools 插件Tools参数。
+     * @param extraTools 额外工具参数。
      */
     public DefaultToolRegistry(
             AppConfig appConfig,
@@ -1027,7 +1027,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
-            List<ToolRegistration> pluginTools) {
+            List<ToolRegistration> extraTools) {
         this(
                 appConfig,
                 preferenceStore,
@@ -1070,11 +1070,11 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
                 (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
                 (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
-                pluginTools);
+                extraTools);
     }
 
     /**
-     * 创建默认工具注册表实例，并额外注入 Web 搜索插件提供方。
+     * 创建默认工具注册表实例，并额外注入 Web 搜索附加提供方。
      *
      * @param appConfig 应用运行配置。
      * @param preferenceStore 本地偏好存储依赖。
@@ -1097,8 +1097,8 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
-     * @param pluginTools 插件工具列表。
-     * @param webSearchProviders Web 搜索插件提供方列表。
+     * @param extraTools 额外工具列表。
+     * @param webSearchProviders Web 搜索附加提供方列表。
      */
     public DefaultToolRegistry(
             AppConfig appConfig,
@@ -1122,7 +1122,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
-            List<ToolRegistration> pluginTools,
+            List<ToolRegistration> extraTools,
             List<WebSearchProvider> webSearchProviders) {
         this(
                 appConfig,
@@ -1146,7 +1146,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
-                pluginTools);
+                extraTools);
         setWebSearchProviders(webSearchProviders);
     }
 
@@ -1193,7 +1193,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param agentRunRepository Agent运行仓储依赖。
      * @param cronJobRepository 定时任务仓储依赖。
      * @param usageEventRepository 用量事件仓储依赖。
-     * @param pluginTools 插件Tools参数。
+     * @param extraTools 额外工具参数。
      */
     public DefaultToolRegistry(
             AppConfig appConfig,
@@ -1237,7 +1237,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             AgentRunRepository agentRunRepository,
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
-            List<ToolRegistration> pluginTools) {
+            List<ToolRegistration> extraTools) {
         this(
                 appConfig,
                 preferenceStore,
@@ -1280,12 +1280,12 @@ public class DefaultToolRegistry implements ToolRegistry {
                 agentRunRepository,
                 cronJobRepository,
                 usageEventRepository,
-                pluginTools,
+                extraTools,
                 null);
     }
 
     /**
-     * 创建默认工具注册表实例，并注入完整运行依赖与 Web 搜索插件提供方。
+     * 创建默认工具注册表实例，并注入完整运行依赖与 Web 搜索附加提供方。
      *
      * @param appConfig 应用运行配置。
      * @param preferenceStore 本地偏好存储依赖。
@@ -1328,8 +1328,8 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param agentRunRepository Agent运行仓储依赖。
      * @param cronJobRepository 定时任务仓储依赖。
      * @param usageEventRepository 用量事件仓储依赖。
-     * @param pluginTools 插件工具列表。
-     * @param webSearchProviders Web 搜索插件提供方列表。
+     * @param extraTools 额外工具列表。
+     * @param webSearchProviders Web 搜索附加提供方列表。
      */
     public DefaultToolRegistry(
             AppConfig appConfig,
@@ -1373,7 +1373,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             AgentRunRepository agentRunRepository,
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
-            List<ToolRegistration> pluginTools,
+            List<ToolRegistration> extraTools,
             List<WebSearchProvider> webSearchProviders) {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
@@ -1425,17 +1425,17 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.agentRunRepository = agentRunRepository;
         this.cronJobRepository = cronJobRepository;
         this.usageEventRepository = usageEventRepository;
-        this.pluginTools =
-                pluginTools == null
+        this.extraTools =
+                extraTools == null
                         ? Collections.<ToolRegistration>emptyList()
-                        : new ArrayList<ToolRegistration>(pluginTools);
+                        : new ArrayList<ToolRegistration>(extraTools);
         setWebSearchProviders(webSearchProviders);
     }
 
     /**
-     * 设置 Web 搜索插件提供方，保留插件配置中的线程安全列表引用以支持启动期动态注册。
+     * 设置 Web 搜索附加提供方。
      *
-     * @param providers Web 搜索插件提供方列表。
+     * @param providers Web 搜索附加提供方列表。
      */
     private void setWebSearchProviders(List<WebSearchProvider> providers) {
         this.webSearchProviders =
@@ -1451,7 +1451,7 @@ public class DefaultToolRegistry implements ToolRegistry {
     public List<String> listToolNames() {
         List<String> result = new ArrayList<String>(TOOL_NAMES);
         Set<String> seen = new LinkedHashSet<String>(TOOL_NAMES);
-        for (ToolRegistration registration : pluginTools) {
+        for (ToolRegistration registration : extraTools) {
             String name = registration == null ? null : registration.getName();
             if (StrUtil.isNotBlank(name) && seen.add(name)) {
                 result.add(name);
@@ -1814,7 +1814,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         occupiedToolNames.add("search_tools");
         occupiedToolNames.add("get_tool_detail");
         addUniqueDynamicTools(tools, dynamicTools, occupiedToolNames);
-        addUniqueDynamicTools(tools, resolvePluginTools(sourceKey, agentScope), occupiedToolNames);
+        addUniqueDynamicTools(tools, resolveExtraTools(sourceKey, agentScope), occupiedToolNames);
         if (isGatewayEnabled(sourceKey, agentScope)) {
             gatewayCandidates.addAll(tools);
             ToolGatewayTalent gatewaySkill = buildToolGateway(gatewayCandidates);
@@ -2089,7 +2089,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * 按声明顺序加入动态工具；名称大小写等价时保留首次注册实现并记录告警。
      *
      * @param target 最终工具对象列表。
-     * @param dynamicTools 待加入的 MCP 或插件函数工具。
+     * @param dynamicTools 待加入的 MCP 或额外函数工具。
      * @param occupiedNames 已被内置工具或先前动态工具占用的名称集合。
      */
     static void addUniqueDynamicTools(
@@ -2195,8 +2195,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 result.add(toolName);
             }
         }
-        for (String toolName : pluginToolNames()) {
-            if (isPluginToolAllowed(agentScope, sourceKey, toolName)
+        for (String toolName : extraToolNames()) {
+            if (isExtraToolAllowed(agentScope, sourceKey, toolName)
                     && isEnabled(sourceKey, toolName)) {
                 result.add(toolName);
             }
@@ -2215,7 +2215,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         for (String toolName : toolNames) {
             if (TOOL_NAMES.contains(toolName)) {
                 setToolEnabled(sourceKey, toolName, true);
-            } else if (pluginToolNames().contains(toolName)) {
+            } else if (extraToolNames().contains(toolName)) {
                 setToolEnabled(sourceKey, toolName, true);
             }
         }
@@ -2232,7 +2232,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         for (String toolName : toolNames) {
             if (TOOL_NAMES.contains(toolName)) {
                 setToolEnabled(sourceKey, toolName, false);
-            } else if (pluginToolNames().contains(toolName)) {
+            } else if (extraToolNames().contains(toolName)) {
                 setToolEnabled(sourceKey, toolName, false);
             }
         }
@@ -2340,27 +2340,27 @@ public class DefaultToolRegistry implements ToolRegistry {
     }
 
     /**
-     * 解析插件工具。
+     * 解析额外工具。
      *
      * @param sourceKey 渠道来源键。
      * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @return 返回解析后的插件工具。
+     * @return 返回解析后的额外工具。
      */
-    private List<FunctionTool> resolvePluginTools(String sourceKey, AgentRuntimeScope agentScope) {
+    private List<FunctionTool> resolveExtraTools(String sourceKey, AgentRuntimeScope agentScope) {
         List<FunctionTool> result = new ArrayList<FunctionTool>();
         Set<String> builtinNames = new LinkedHashSet<String>(TOOL_NAMES);
         Set<String> seen = new LinkedHashSet<String>();
-        for (final ToolRegistration registration : pluginTools) {
+        for (final ToolRegistration registration : extraTools) {
             String name = registration == null ? null : registration.getName();
             if (StrUtil.isBlank(name)
                     || builtinNames.contains(name)
                     || !seen.add(name)
-                    || !isPluginToolAllowed(agentScope, sourceKey, name)
+                    || !isExtraToolAllowed(agentScope, sourceKey, name)
                     || !isEnabled(sourceKey, name)) {
                 continue;
             }
             FunctionToolDesc tool = new FunctionToolDesc(name);
-            tool.description(StrUtil.blankToDefault(registration.getDescription(), "Plugin tool"));
+            tool.description(StrUtil.blankToDefault(registration.getDescription(), "Additional tool"));
             if (registration.getSchema() != null && !registration.getSchema().isEmpty()) {
                 tool.inputSchema(org.noear.snack4.ONode.serialize(registration.getSchema()));
             }
@@ -2376,15 +2376,15 @@ public class DefaultToolRegistry implements ToolRegistry {
     }
 
     /**
-     * 执行插件工具Names相关逻辑。
+     * 执行额外工具Names相关逻辑。
      *
-     * @return 返回插件工具Names结果。
+     * @return 返回额外工具Names结果。
      */
-    private List<String> pluginToolNames() {
+    private List<String> extraToolNames() {
         List<String> result = new ArrayList<String>();
         Set<String> builtinNames = new LinkedHashSet<String>(TOOL_NAMES);
         Set<String> seen = new LinkedHashSet<String>();
-        for (ToolRegistration registration : pluginTools) {
+        for (ToolRegistration registration : extraTools) {
             String name = registration == null ? null : registration.getName();
             if (StrUtil.isNotBlank(name) && !builtinNames.contains(name) && seen.add(name)) {
                 result.add(name);
@@ -2394,14 +2394,14 @@ public class DefaultToolRegistry implements ToolRegistry {
     }
 
     /**
-     * 判断是否插件工具Allowed。
+     * 判断是否额外工具Allowed。
      *
      * @param agentScope 当前运行冻结后的 Agent 范围。
      * @param sourceKey 渠道来源键。
      * @param toolName 工具名称。
-     * @return 如果插件工具Allowed满足条件则返回 true，否则返回 false。
+     * @return 如果额外工具Allowed满足条件则返回 true，否则返回 false。
      */
-    private boolean isPluginToolAllowed(
+    private boolean isExtraToolAllowed(
             AgentRuntimeScope agentScope, String sourceKey, String toolName) {
         if (isDelegateSourceKey(sourceKey) && !hasExplicitScopedToolToggle(sourceKey, toolName)) {
             return false;

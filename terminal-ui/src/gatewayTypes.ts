@@ -47,7 +47,7 @@ export interface SlashExecResponse {
 }
 
 export type CommandDispatchResponse =
-  | { output?: string; type: 'exec' | 'plugin' }
+  | { output?: string; type: 'exec' }
   | { target: string; type: 'alias' }
   | { message?: string; name: string; type: 'skill' }
   | { message: string; notice?: string; type: 'send' }

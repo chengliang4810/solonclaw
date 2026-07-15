@@ -110,9 +110,6 @@ public class AppConfig {
     /** 记录应用中的价格。 */
     private PricingConfig pricing = new PricingConfig();
 
-    /** 记录应用中的plugins。 */
-    private PluginConfig plugins = new PluginConfig();
-
     /** 审批/确认策略配置。 */
     private ApprovalsConfig approvals = new ApprovalsConfig();
 
@@ -201,7 +198,6 @@ public class AppConfig {
         copyApprovals(other.getApprovals());
         copyMcp(other.getMcp());
         copyProactive(other.getProactive());
-        copyPlugins(other.getPlugins());
         copyChannel(this.channels.getFeishu(), other.getChannels().getFeishu());
         copyChannel(this.channels.getDingtalk(), other.getChannels().getDingtalk());
         copyChannel(this.channels.getWecom(), other.getChannels().getWecom());
@@ -609,16 +605,6 @@ public class AppConfig {
      */
     private void copyPricing(PricingConfig other) {
         this.pricing.setPrices(new ArrayList<ModelPrice>(other.getPrices()));
-    }
-
-    /**
-     * 复制插件配置，保证运行时刷新后插件启停列表立即对外可见。
-     *
-     * @param other 待复制的插件配置。
-     */
-    private void copyPlugins(PluginConfig other) {
-        this.plugins.setEnabled(new ArrayList<String>(other.getEnabled()));
-        this.plugins.setDisabled(new ArrayList<String>(other.getDisabled()));
     }
 
     /**
@@ -1506,18 +1492,6 @@ public class AppConfig {
         private List<ModelPrice> prices = new ArrayList<ModelPrice>();
     }
 
-    /** 承载插件配置并集中创建运行组件。 */
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    public static class PluginConfig {
-        /** 保存启用状态集合，维持调用顺序或去重语义。 */
-        private List<String> enabled = new ArrayList<String>();
-
-        /** 保存disabled集合，维持调用顺序或去重语义。 */
-        private List<String> disabled = new ArrayList<String>();
-    }
-
     /** 承载安全配置并集中创建运行组件。 */
     @Getter
     @Setter
@@ -1586,7 +1560,7 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class WebConfig {
-        /** Websearch 后端；solon-ai 为默认内置实现，exa 走插件直连，brave-free/ddgs 为可选搜索后端。 */
+        /** Websearch 后端；当前使用 solon-ai 内置实现。 */
         private String searchBackend = "solon-ai";
 
         /** Brave Search API key；为空时也会尝试读取 BRAVE_SEARCH_API_KEY 环境变量。 */
@@ -1875,8 +1849,8 @@ public class AppConfig {
         /** 是否启用渠道处理状态表情回应，用于在原消息上标记处理中和完成状态。 */
         private boolean processingReactionsEnabled = true;
 
-        /** 是否由默认 Profile 的单个网关进程承载机器上的全部 Profile；默认关闭。 */
-        private boolean multiplexProfiles;
+        /** 是否由默认 Profile 的单个网关进程承载全部 Profile，使各 Profile 可同时运行独立机器人账号。 */
+        private boolean multiplexProfiles = true;
 
         /** 各平台工具集权限配置，键为平台名称（大写），值为该平台的工具集策略。 */
         private Map<String, PlatformConfig> platforms = new LinkedHashMap<String, PlatformConfig>();

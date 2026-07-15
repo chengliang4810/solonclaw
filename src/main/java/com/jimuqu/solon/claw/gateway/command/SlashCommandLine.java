@@ -6,7 +6,7 @@ import com.jimuqu.solon.claw.command.CommandRegistry;
 
 /** 封装消息网关 slash command 的解析结果，避免服务层重复拆分命令文本。 */
 final class SlashCommandLine {
-    /** 注册表中解析出的命令描述符；未登记命令保持为 null，便于后续走插件或兜底帮助。 */
+    /** 注册表中解析出的命令描述符；未登记命令保持为 null，便于走兜底帮助。 */
     private final CommandDescriptor descriptor;
 
     /** 规范化后的命令名，不包含斜杠前缀。 */

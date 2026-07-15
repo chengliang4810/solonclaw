@@ -18,14 +18,55 @@ public interface GatewayPolicyRepository {
         return java.util.Collections.emptyList();
     }
 
+    /** 读取当前 Profile 的主要通知渠道；轻量仓储未显式标记时回退到最近更新记录。 */
+    default HomeChannelRecord getPrimaryHomeChannel() throws Exception {
+        HomeChannelRecord latest = null;
+        for (PlatformType platform : PlatformType.values()) {
+            HomeChannelRecord record = getHomeChannel(platform);
+            if (record == null) {
+                continue;
+            }
+            if (record.isPrimary()) {
+                return record;
+            }
+            if (latest == null || record.getUpdatedAt() > latest.getUpdatedAt()) {
+                latest = record;
+            }
+        }
+        return latest;
+    }
+
     /** 保存平台 home channel。 */
     void saveHomeChannel(HomeChannelRecord record) throws Exception;
+
+    /** 把已有平台设为当前 Profile 的唯一主要通知渠道。 */
+    default HomeChannelRecord setPrimaryHomeChannel(PlatformType platform) throws Exception {
+        HomeChannelRecord record = getHomeChannel(platform);
+        if (record == null) {
+            throw new IllegalArgumentException("目标平台尚未绑定 home channel。");
+        }
+        record.setPrimary(true);
+        saveHomeChannel(record);
+        return record;
+    }
 
     /** 查询平台管理员。 */
     PlatformAdminRecord getPlatformAdmin(PlatformType platform) throws Exception;
 
     /** 在平台尚无管理员时创建管理员。 */
     boolean createPlatformAdminIfAbsent(PlatformAdminRecord record) throws Exception;
+
+    /** 使用可信控制面校验的请求首次绑定平台管理员、默认私聊并消费请求。 */
+    default boolean claimPlatformAdminIfAbsent(
+            PairingRequestRecord request, PlatformAdminRecord admin, HomeChannelRecord home)
+            throws Exception {
+        if (!createPlatformAdminIfAbsent(admin)) {
+            return false;
+        }
+        saveHomeChannel(home);
+        deletePairingRequest(request.getPlatform(), request.getCode());
+        return true;
+    }
 
     /** 由可信本机或已认证管理面设置平台管理员。 */
     default void savePlatformAdmin(PlatformAdminRecord record) throws Exception {

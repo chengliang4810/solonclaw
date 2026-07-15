@@ -65,15 +65,13 @@ public class ProactiveDiagnosticsService {
             return false;
         }
         try {
-            java.util.List<HomeChannelRecord> homes = gatewayPolicyRepository.listHomeChannels();
-            if (homes == null || homes.isEmpty()) {
+            HomeChannelRecord home = gatewayPolicyRepository.getPrimaryHomeChannel();
+            if (home == null) {
                 return false;
             }
             for (SessionRecord session : sessionRepository.listRecent(50)) {
-                for (HomeChannelRecord home : homes) {
-                    if (ProactiveReminderScheduler.matchesHome(session, home)) {
-                        return true;
-                    }
+                if (ProactiveReminderScheduler.matchesHome(session, home)) {
+                    return true;
                 }
             }
         } catch (Exception ignored) {

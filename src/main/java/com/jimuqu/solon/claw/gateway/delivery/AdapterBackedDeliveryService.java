@@ -41,11 +41,15 @@ public class AdapterBackedDeliveryService implements DeliveryService {
         }
 
         if (StrUtil.isBlank(request.getChatId())) {
-            HomeChannelRecord home = gatewayPolicyRepository.getHomeChannel(request.getPlatform());
+            HomeChannelRecord home =
+                    request.getPlatform() == null
+                            ? gatewayPolicyRepository.getPrimaryHomeChannel()
+                            : gatewayPolicyRepository.getHomeChannel(request.getPlatform());
             if (home == null) {
                 throw new IllegalStateException(
                         "No home channel configured for platform: " + request.getPlatform());
             }
+            request.setPlatform(home.getPlatform());
             request.setChatId(home.getChatId());
             request.setThreadId(StrUtil.blankToDefault(request.getThreadId(), home.getThreadId()));
         }

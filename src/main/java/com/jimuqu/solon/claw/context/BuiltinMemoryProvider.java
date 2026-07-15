@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.context;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MemorySnapshot;
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
 import com.jimuqu.solon.claw.core.service.MemoryService;
@@ -44,6 +45,9 @@ public class BuiltinMemoryProvider implements MemoryProvider {
      */
     @Override
     public String systemPromptBlock(String sourceKey) throws Exception {
+        if (GatewayMessage.isGroupGuestSourceKey(sourceKey)) {
+            return "";
+        }
         StringBuilder buffer = new StringBuilder();
         buffer.append("[Memory Guidance]\n").append(MEMORY_GUIDANCE);
 

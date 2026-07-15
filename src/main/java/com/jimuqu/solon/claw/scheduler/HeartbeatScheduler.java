@@ -98,29 +98,36 @@ public class HeartbeatScheduler {
         }
 
         log.info("Heartbeat tick started: intervalMinutes={}", intervalMinutes);
-        tryRunForPlatform(PlatformType.FEISHU, appConfig.getChannels().getFeishu().isEnabled());
-        tryRunForPlatform(PlatformType.DINGTALK, appConfig.getChannels().getDingtalk().isEnabled());
-        tryRunForPlatform(PlatformType.WECOM, appConfig.getChannels().getWecom().isEnabled());
-        tryRunForPlatform(PlatformType.WEIXIN, appConfig.getChannels().getWeixin().isEnabled());
+        HomeChannelRecord home = gatewayPolicyRepository.getPrimaryHomeChannel();
+        if (home == null || home.getPlatform() == null || StrUtil.isBlank(home.getChatId())) {
+            log.debug("Heartbeat skipped: primary home channel missing");
+            return;
+        }
+        if (!channelEnabled(home.getPlatform())) {
+            log.debug("Heartbeat skipped for {}: primary channel disabled", home.getPlatform());
+            return;
+        }
+        runOnce(home.getPlatform(), home);
     }
 
-    /**
-     * 执行try运行For平台相关逻辑。
-     *
-     * @param platform 平台参数。
-     * @param enabled 启用状态开关值。
-     */
-    private void tryRunForPlatform(PlatformType platform, boolean enabled) throws Exception {
-        if (!enabled) {
-            log.debug("Heartbeat skipped for {}: channel disabled", platform);
-            return;
+    /** 判断主要通知渠道是否已在当前 Profile 启用。 */
+    private boolean channelEnabled(PlatformType platform) {
+        switch (platform) {
+            case FEISHU:
+                return appConfig.getChannels().getFeishu().isEnabled();
+            case DINGTALK:
+                return appConfig.getChannels().getDingtalk().isEnabled();
+            case WECOM:
+                return appConfig.getChannels().getWecom().isEnabled();
+            case WEIXIN:
+                return appConfig.getChannels().getWeixin().isEnabled();
+            case QQBOT:
+                return appConfig.getChannels().getQqbot().isEnabled();
+            case YUANBAO:
+                return appConfig.getChannels().getYuanbao().isEnabled();
+            default:
+                return false;
         }
-        HomeChannelRecord home = gatewayPolicyRepository.getHomeChannel(platform);
-        if (home == null || StrUtil.isBlank(home.getChatId())) {
-            log.debug("Heartbeat skipped for {}: home channel missing", platform);
-            return;
-        }
-        runOnce(platform, home);
     }
 
     /**

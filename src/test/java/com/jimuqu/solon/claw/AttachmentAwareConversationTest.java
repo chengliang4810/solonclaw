@@ -10,7 +10,7 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.media.SpeechService;
-import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
+import com.jimuqu.solon.claw.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -107,7 +107,7 @@ public class AttachmentAwareConversationTest {
                         env.appConfig,
                         cacheService,
                         java.util.Collections
-                                .<com.jimuqu.solon.claw.plugin.provider.SpeechProvider>emptyList(),
+                                .<com.jimuqu.solon.claw.provider.SpeechProvider>emptyList(),
                         java.util.Collections.<TranscriptionProvider>singletonList(
                                 new FakeTranscriptionProvider("转写文本")));
         com.jimuqu.solon.claw.engine.DefaultConversationOrchestrator orchestrator =

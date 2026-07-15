@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
+import com.jimuqu.solon.claw.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
@@ -269,7 +269,7 @@ class ToolRegistryWebAndCodeToolsTest {
     }
 
     @Test
-    void shouldUsePluginWebSearchProviderFromRegistryWhenConfigured() throws Exception {
+    void shouldUseAdditionalWebSearchProviderWhenConfigured() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getWeb().setSearchBackend("exa");
         java.util.List<WebSearchProvider> providers =
@@ -292,7 +292,7 @@ class ToolRegistryWebAndCodeToolsTest {
                         assertThat(limit).isEqualTo(2);
                         return Arrays.asList(
                                 new SearchResult(
-                                        "Exa Result", "https://example.com/exa", "插件搜索结果"));
+                                        "Exa Result", "https://example.com/exa", "附加搜索结果"));
                     }
                 };
         DefaultToolRegistry registry =
@@ -342,7 +342,7 @@ class ToolRegistryWebAndCodeToolsTest {
     }
 
     @Test
-    void shouldFallbackToBuiltInBackendWhenMatchedPluginProviderFails() throws Exception {
+    void shouldFallbackToBuiltInBackendWhenMatchedAdditionalProviderFails() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getWeb().setSearchBackend("brave-free");
         env.appConfig.getWeb().setBraveSearchApiKey("brv-test-secret");
@@ -368,7 +368,8 @@ class ToolRegistryWebAndCodeToolsTest {
     }
 
     @Test
-    void shouldNotSendQueryToUnselectedPluginWhenConfiguredPluginIsUnavailable() throws Exception {
+    void shouldNotSendQueryToUnselectedProviderWhenConfiguredProviderIsUnavailable()
+            throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getWeb().setSearchBackend("primary-search");
         SolonClawWebTools.SafeWebsearchTool websearch =
@@ -401,7 +402,7 @@ class ToolRegistryWebAndCodeToolsTest {
 
                             @Override
                             public List<SearchResult> search(String query, int limit) {
-                                throw new AssertionError("元数据损坏的插件不应执行搜索");
+                                throw new AssertionError("元数据损坏的提供方不应执行搜索");
                             }
                         },
                         unavailableWebSearchProvider("primary-search"),
@@ -415,7 +416,7 @@ class ToolRegistryWebAndCodeToolsTest {
                 .doesNotContain("https://example.com/backup");
     }
 
-    /** 构造不可用的搜索插件，验证显式配置失败后不会把查询转发给未选择插件。 */
+    /** 构造不可用的搜索提供方，验证显式配置失败后不会把查询转发给未选择提供方。 */
     private static WebSearchProvider unavailableWebSearchProvider(String name) {
         return new WebSearchProvider() {
             @Override
@@ -430,12 +431,12 @@ class ToolRegistryWebAndCodeToolsTest {
 
             @Override
             public List<SearchResult> search(String query, int limit) {
-                throw new AssertionError("不可用插件不应执行搜索");
+                throw new AssertionError("不可用提供方不应执行搜索");
             }
         };
     }
 
-    /** 构造可用的搜索插件，返回固定公开 URL。 */
+    /** 构造可用的搜索提供方，返回固定公开 URL。 */
     private static WebSearchProvider successfulWebSearchProvider(String name) {
         return new WebSearchProvider() {
             @Override
@@ -456,7 +457,7 @@ class ToolRegistryWebAndCodeToolsTest {
         };
     }
 
-    /** 构造在可用性检查或搜索阶段失败的匹配插件，以验证后备链不会被中断。 */
+    /** 构造在可用性检查或搜索阶段失败的匹配提供方，以验证后备链不会被中断。 */
     private static WebSearchProvider failingWebSearchProvider(boolean failAvailability) {
         return new WebSearchProvider() {
             @Override

@@ -48,8 +48,6 @@ import com.jimuqu.solon.claw.goal.GoalContractDrafter;
 import com.jimuqu.solon.claw.goal.GoalContractParser;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
-import com.jimuqu.solon.claw.plugin.AgentPluginManager;
-import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
 import com.jimuqu.solon.claw.profile.ProfileView;
@@ -188,12 +186,6 @@ public class DefaultCommandService implements CommandService {
     /** 长期记忆服务，与工具和后台任务共用同一审批队列。 */
     private final MemoryService memoryService;
 
-    /** 保存插件Commands映射，便于按键快速查询。 */
-    private final Map<String, CommandHandler> pluginCommands;
-
-    /** 记录默认命令中的插件管理器。 */
-    private final AgentPluginManager pluginManager;
-
     /**
      * 创建默认命令服务实例，并注入运行所需依赖。
      *
@@ -225,8 +217,6 @@ public class DefaultCommandService implements CommandService {
      * @param cronScheduler 定时任务调度器参数。
      * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
      * @param slashConfirmService 斜杠命令Confirm服务依赖。
-     * @param pluginCommands 插件Commands参数。
-     * @param pluginManager 插件Manager参数。
      * @param dashboardCuratorService dashboardCurator服务依赖。
      * @param dashboardSkillsService dashboard技能服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
@@ -261,8 +251,6 @@ public class DefaultCommandService implements CommandService {
             DefaultCronScheduler cronScheduler,
             GatewayRestartCoordinator gatewayRestartCoordinator,
             SlashConfirmService slashConfirmService,
-            Map<String, CommandHandler> pluginCommands,
-            AgentPluginManager pluginManager,
             DashboardCuratorService dashboardCuratorService,
             DashboardSkillsService dashboardSkillsService,
             BrowserRuntimeService browserRuntimeService,
@@ -309,11 +297,6 @@ public class DefaultCommandService implements CommandService {
         this.dashboardSkillsService = dashboardSkillsService;
         this.browserRuntimeService = browserRuntimeService;
         this.memoryService = memoryService;
-        this.pluginCommands =
-                pluginCommands == null
-                        ? Collections.<String, CommandHandler>emptyMap()
-                        : new LinkedHashMap<String, CommandHandler>(pluginCommands);
-        this.pluginManager = pluginManager;
     }
 
     /** 接入后台委派生命周期；由 Bean 工厂在依赖装配完成后设置。 */
@@ -325,11 +308,9 @@ public class DefaultCommandService implements CommandService {
     @Override
     public boolean supports(String commandName) {
         CommandDescriptor descriptor = CommandRegistry.resolve(commandName);
-        return (descriptor != null
-                        && (descriptor.supportsScope(CommandRegistry.SCOPE_GATEWAY)
-                                || descriptor.supportsScope(CommandRegistry.SCOPE_TUI)))
-                || pluginCommands.containsKey(
-                        StrUtil.nullToEmpty(commandName).trim().toLowerCase());
+        return descriptor != null
+                && (descriptor.supportsScope(CommandRegistry.SCOPE_GATEWAY)
+                        || descriptor.supportsScope(CommandRegistry.SCOPE_TUI));
     }
 
     /** 执行单条斜杠命令命令相关逻辑。 */
@@ -656,10 +637,6 @@ public class DefaultCommandService implements CommandService {
             return handleCurator(args);
         }
 
-        if (GatewayCommandConstants.COMMAND_PLUGINS.equals(command)) {
-            return handlePlugins();
-        }
-
         if (GatewayCommandConstants.COMMAND_MEMORY.equals(command)) {
             return handleMemory(args);
         }
@@ -834,12 +811,6 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_HELP.equals(command)) {
             return GatewayReply.ok(helpText());
-        }
-
-        if (descriptor == null && pluginCommands.containsKey(command)) {
-            GatewayReply reply = GatewayReply.ok(pluginCommands.get(command).handle(args));
-            reply.setCommandHandled(true);
-            return reply;
         }
 
         CommandDescriptor unresolvedRegistered = CommandRegistry.get(command);
@@ -2545,15 +2516,6 @@ public class DefaultCommandService implements CommandService {
         return newSkillCommandHandler().handleCurator(args);
     }
 
-    /**
-     * 执行Plugins相关逻辑。
-     *
-     * @return 返回Plugins结果。
-     */
-    private GatewayReply handlePlugins() {
-        return newRuntimeCommandHandler().handlePlugins();
-    }
-
     /** 管理记忆写入审批开关和待审批队列，不暴露原始变更载荷。 */
     private GatewayReply handleMemory(String args) throws Exception {
         String[] tokens = StrUtil.nullToEmpty(args).trim().split("\\s+");
@@ -2654,7 +2616,7 @@ public class DefaultCommandService implements CommandService {
 
     /** 创建运行时控制面命令处理器。 */
     private DefaultRuntimeCommandHandler newRuntimeCommandHandler() {
-        return new DefaultRuntimeCommandHandler(appConfig, globalSettingRepository, pluginManager);
+        return new DefaultRuntimeCommandHandler(appConfig, globalSettingRepository);
     }
 
     /** 执行定时任务命令相关逻辑。 */

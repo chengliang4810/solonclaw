@@ -1,5 +1,0 @@
-name: openai-image
-version: 1.0.0
-description: "Image generation and editing via OpenAI Images API"
-author: jimuqu
-kind: backend

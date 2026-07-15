@@ -90,7 +90,6 @@ DEFAULT_COMMANDS = [
     "/tools",
     "/toolsets",
     "/browser",
-    "/plugins",
     "/skills",
     "/curator",
     "/reload-skills",

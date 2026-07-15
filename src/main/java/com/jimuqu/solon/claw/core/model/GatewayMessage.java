@@ -14,6 +14,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class GatewayMessage {
+    /** 群聊访客来源键标记，用于在会话、上下文、记忆与工具层执行统一隐私隔离。 */
+    private static final String GROUP_GUEST_SOURCE_MARKER = ":__group_guest__:";
+
     /** 消息归属的 Profile；default 或空值保持单 Profile 旧会话键。 */
     private String profile;
 
@@ -122,6 +125,57 @@ public class GatewayMessage {
     }
 
     /**
+     * 判断当前消息是否为群聊访客的受限会话。
+     *
+     * @return 来源键已进入群聊访客隔离空间时返回 true
+     */
+    public boolean isGroupGuest() {
+        return isGroupGuestSourceKey(sourceKeyOverride);
+    }
+
+    /**
+     * 判断来源键是否属于群聊访客隔离空间，兼容命名 Profile 前缀。
+     *
+     * @param sourceKey 待检查的来源键
+     * @return 来源键包含群聊访客保留标记时返回 true
+     */
+    public static boolean isGroupGuestSourceKey(String sourceKey) {
+        return StrUtil.isNotBlank(sourceKey) && sourceKey.contains(GROUP_GUEST_SOURCE_MARKER);
+    }
+
+    /**
+     * 构造主人私聊来源键，使主人在群聊中的对话复用其私聊历史。
+     *
+     * @param platform 消息平台
+     * @param chatId 主人私聊会话 ID
+     * @param userId 主人用户 ID
+     * @return 未附加 Profile 前缀的私聊来源键
+     */
+    public static String directSourceKey(PlatformType platform, String chatId, String userId) {
+        return String.valueOf(platform)
+                + ":"
+                + nullToEmptyStatic(chatId)
+                + ":"
+                + nullToEmptyStatic(userId);
+    }
+
+    /**
+     * 构造群聊访客独立来源键，同一群、同一访客可保留自己的连续对话。
+     *
+     * @param platform 消息平台
+     * @param chatId 群聊 ID
+     * @param userId 访客用户 ID
+     * @return 未附加 Profile 前缀的访客来源键
+     */
+    public static String groupGuestSourceKey(PlatformType platform, String chatId, String userId) {
+        return String.valueOf(platform)
+                + GROUP_GUEST_SOURCE_MARKER
+                + nullToEmptyStatic(chatId)
+                + ":"
+                + nullToEmptyStatic(userId);
+    }
+
+    /**
      * 把命名 Profile 纳入来源键，避免相同平台会话在多个 Profile 中绑定到同一会话。
      *
      * <p>default 保持原有键格式，避免单 Profile 部署的既有会话失联；命名 Profile 使用稳定前缀，且会识别已经带前缀的合成消息，防止续轮重复添加。
@@ -137,6 +191,11 @@ public class GatewayMessage {
 
     /** 将空值转为空字符串，避免来源键出现字面量 null。 */
     private String nullToEmpty(String value) {
+        return nullToEmptyStatic(value);
+    }
+
+    /** 将静态构造方法收到的空值转为空字符串。 */
+    private static String nullToEmptyStatic(String value) {
         return value == null ? "" : value;
     }
 }

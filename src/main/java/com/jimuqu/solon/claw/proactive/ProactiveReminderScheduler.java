@@ -21,7 +21,6 @@ import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
 import java.time.LocalTime;
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -203,16 +202,13 @@ public class ProactiveReminderScheduler {
 
     /** 选择最近且与显式 home channel 绑定匹配的会话作为主对话。 */
     private SessionRecord mainSession() throws Exception {
-        List<HomeChannelRecord> homes = gatewayPolicyRepository.listHomeChannels();
-        if (homes == null || homes.isEmpty()) {
+        HomeChannelRecord home = gatewayPolicyRepository.getPrimaryHomeChannel();
+        if (home == null) {
             return null;
         }
-        List<SessionRecord> sessions = sessionRepository.listRecent(50);
-        for (SessionRecord session : sessions) {
-            for (HomeChannelRecord home : homes) {
-                if (matchesHome(session, home)) {
-                    return session;
-                }
+        for (SessionRecord session : sessionRepository.listRecent(50)) {
+            if (matchesHome(session, home)) {
+                return session;
             }
         }
         return null;

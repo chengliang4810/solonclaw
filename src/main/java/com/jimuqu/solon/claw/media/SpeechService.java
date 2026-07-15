@@ -4,8 +4,8 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
-import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
-import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
+import com.jimuqu.solon.claw.provider.SpeechProvider;
+import com.jimuqu.solon.claw.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** TTS 与独立语音转写运行时服务，负责选择插件提供方并把语音结果接入附件缓存。 */
+/** TTS 与独立语音转写运行时服务，负责选择内置提供方并把语音结果接入附件缓存。 */
 public class SpeechService {
     /** 单个音频输入或输出允许处理的最大字节数。 */
     static final long MAX_AUDIO_BYTES = 32L * 1024L * 1024L;
@@ -23,10 +23,10 @@ public class SpeechService {
     /** 附件缓存服务，用于保存 TTS 输出并解析待转写的本地语音缓存。 */
     private final AttachmentCacheService attachmentCacheService;
 
-    /** TTS 提供方列表，按插件注册顺序选择第一个可用提供方。 */
+    /** TTS 提供方列表，按配置顺序选择第一个可用提供方。 */
     private final List<SpeechProvider> speechProviders;
 
-    /** 语音转写提供方列表，按插件注册顺序选择第一个可用提供方。 */
+    /** 语音转写提供方列表，按配置顺序选择第一个可用提供方。 */
     private final List<TranscriptionProvider> transcriptionProviders;
 
     /** 默认部署内置的 OpenAI 兼容 TTS Provider。 */
@@ -61,7 +61,7 @@ public class SpeechService {
     /**
      * 判断当前是否存在真实可调用的 TTS Provider。
      *
-     * @return 插件或内置 Provider 可用时返回 true。
+     * @return Provider 可用时返回 true。
      */
     public boolean isTtsAvailable() {
         return chooseSpeechProvider() != null;
@@ -70,7 +70,7 @@ public class SpeechService {
     /**
      * 判断当前是否存在真实可调用的独立 STT Provider。
      *
-     * @return 插件或内置 Provider 可用时返回 true。
+     * @return Provider 可用时返回 true。
      */
     public boolean isTranscriptionAvailable() {
         return chooseTranscriptionProvider() != null;
@@ -81,7 +81,7 @@ public class SpeechService {
      *
      * @param text 待合成的文本，不能为空。
      * @param voice 语音名称；为空时使用 provider 默认语音。
-     * @param options 插件透传选项。
+     * @param options 提供方透传选项。
      * @return 返回合成结果、缓存附件和媒体用量。
      */
     public SpeechOutcome synthesize(String text, String voice, Map<String, Object> options) {
@@ -135,7 +135,7 @@ public class SpeechService {
      * 执行语音转写请求并返回识别文本。
      *
      * @param attachment 语音附件，必须能解析到本地缓存文件。
-     * @param options 插件透传选项。
+     * @param options 提供方透传选项。
      * @return 返回转写文本和媒体用量。
      */
     public TranscriptionOutcome transcribe(
@@ -231,7 +231,7 @@ public class SpeechService {
     }
 
     /**
-     * 复制插件返回的媒体用量，确保调用方可继续追加本地统计字段。
+     * 复制提供方返回的媒体用量，确保调用方可继续追加本地统计字段。
      *
      * @param usage 用量参数。
      * @return 可变有序用量 Map。
@@ -282,7 +282,7 @@ public class SpeechService {
         /** 成功时可回填到会话或工具结果的媒体引用。 */
         private final String mediaReference;
 
-        /** 实际执行 TTS 的插件提供方名称。 */
+        /** 实际执行 TTS 的内置提供方名称。 */
         private final String provider;
 
         /** 失败时经过脱敏处理的错误。 */
@@ -371,7 +371,7 @@ public class SpeechService {
         }
 
         /**
-         * 读取实际使用的插件提供方名称。
+         * 读取实际使用的内置提供方名称。
          *
          * @return 返回读取到的提供方。
          */
@@ -406,7 +406,7 @@ public class SpeechService {
         /** 成功时识别得到的文本。 */
         private final String text;
 
-        /** 实际执行转写的插件提供方名称。 */
+        /** 实际执行转写的内置提供方名称。 */
         private final String provider;
 
         /** 失败时经过脱敏处理的错误。 */
@@ -479,7 +479,7 @@ public class SpeechService {
         }
 
         /**
-         * 读取实际使用的插件提供方名称。
+         * 读取实际使用的内置提供方名称。
          *
          * @return 返回读取到的提供方。
          */

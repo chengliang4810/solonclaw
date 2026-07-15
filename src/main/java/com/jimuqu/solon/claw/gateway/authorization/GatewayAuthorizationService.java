@@ -3,7 +3,6 @@ package com.jimuqu.solon.claw.gateway.authorization;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.ApprovedUserRecord;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -60,16 +59,8 @@ public class GatewayAuthorizationService {
             return null;
         }
 
-        if (!isDm(message)) {
-            return null;
-        }
-
-        if (!GatewayBehaviorConstants.UNAUTHORIZED_DM_BEHAVIOR_PAIR.equals(
-                getUnauthorizedDmBehavior(platform))) {
-            return null;
-        }
-
-        return createPairingPrompt(message);
+        // 平台已有主人后，其他私聊不再产生新的授权入口，保持个人助手边界。
+        return null;
     }
 
     /** 判断消息发送者是否具备对话权限。 */
@@ -79,30 +70,12 @@ public class GatewayAuthorizationService {
             return false;
         }
 
-        AppConfig.ChannelConfig channelConfig = channelConfig(platform);
-        if (channelConfig != null && channelConfig.isAllowAllUsers()) {
-            return true;
-        }
-        if (appConfig.getGateway().isAllowAllUsers()) {
-            return true;
-        }
-
         PlatformAdminRecord admin = repository.getPlatformAdmin(platform);
         if (admin != null && sameUser(admin.getUserId(), message.getUserId())) {
             return true;
         }
 
-        ApprovedUserRecord approved = repository.getApprovedUser(platform, message.getUserId());
-        if (approved != null) {
-            return true;
-        }
-
-        if (channelConfig != null
-                && contains(channelConfig.getAllowedUsers(), message.getUserId())) {
-            return true;
-        }
-
-        return contains(appConfig.getGateway().getAllowedUsers(), message.getUserId());
+        return false;
     }
 
     /** 判断消息发送者是否为该平台管理员。 */
@@ -160,30 +133,55 @@ public class GatewayAuthorizationService {
         return repository.getPlatformAdmin(platform);
     }
 
+    /** 返回平台默认通知私聊，供可信控制面展示。 */
+    public HomeChannelRecord homeChannel(PlatformType platform) throws Exception {
+        return repository.getHomeChannel(platform);
+    }
+
+    /**
+     * 由可信控制面把已绑定主人的平台私聊设为当前 Profile 的主要通知渠道。
+     *
+     * @param platform 目标平台。
+     * @return 更新后的主要通知渠道记录。
+     */
+    public HomeChannelRecord setPrimaryHomeChannel(PlatformType platform) throws Exception {
+        if (platform == null) {
+            throw new IllegalArgumentException("平台不能为空。");
+        }
+        if (repository.getPlatformAdmin(platform) == null) {
+            throw new IllegalArgumentException("该平台尚未绑定主人，不能设为主要通知渠道。");
+        }
+        HomeChannelRecord home = repository.setPrimaryHomeChannel(platform);
+        if (home == null) {
+            throw new IllegalArgumentException("该平台尚未设置默认通知私聊。");
+        }
+        return home;
+    }
+
     /** 返回未过期 pairing 请求，供可信控制面展示申请人信息。 */
     public List<PairingRequestRecord> pendingPairings(PlatformType platform) throws Exception {
         repository.deleteExpiredPairingRequests(platform, System.currentTimeMillis());
         return repository.listPairingRequests(platform);
     }
 
-    /** 返回已批准用户，供可信控制面展示。 */
-    public List<ApprovedUserRecord> approvedUsers(PlatformType platform) throws Exception {
-        return repository.listApprovedUsers(platform);
-    }
-
     /**
-     * 由可信控制面批准用户提交的 pairing code。
+     * 由可信控制面使用首次私聊 pairing code 绑定平台主人和默认通知私聊。
+     *
+     * <p>渠道内的 {@code /pairing claim-admin} 仍固定拒绝；只有已认证 Dashboard 或本机控制面可以调用此方法。
      *
      * @param platform 目标平台。
-     * @param code 用户提交的临时 code。
-     * @param approvedBy 审批来源标识。
-     * @return 被批准的用户记录。
+     * @param code 主人首次私聊生成的临时 code。
+     * @return 新创建的平台管理员记录，包含欢迎消息的私聊投递目标。
      */
-    public ApprovedUserRecord approvePairing(PlatformType platform, String code, String approvedBy)
+    public PlatformAdminRecord claimPairingOwner(PlatformType platform, String code)
             throws Exception {
         if (platform == null || StrUtil.isBlank(code)) {
             throw new IllegalArgumentException("平台和 pairing code 不能为空。");
         }
+        if (repository.getPlatformAdmin(platform) != null) {
+            throw new IllegalArgumentException("该平台已绑定主人，不能再次认领。");
+        }
+
         long now = System.currentTimeMillis();
         if (isPlatformApprovalLocked(platform, now)) {
             throw new IllegalArgumentException("pairing 审批失败次数过多，请稍后再试。");
@@ -194,31 +192,30 @@ public class GatewayAuthorizationService {
             recordPlatformApprovalFailure(platform, now);
             throw new IllegalArgumentException("pairing code 无效或已过期。");
         }
+        if (StrUtil.isBlank(request.getChatId())) {
+            throw new IllegalArgumentException("pairing 请求缺少主人私聊标识，请重新发起绑定。");
+        }
         if (!repository.clearPairingApprovalFailureIfUnlocked(
                 platform, PLATFORM_APPROVAL_RATE_LIMIT_KEY, now)) {
             throw new IllegalArgumentException("pairing 审批失败次数过多，请稍后再试。");
         }
-        ApprovedUserRecord approved = new ApprovedUserRecord();
-        approved.setPlatform(platform);
-        approved.setUserId(request.getUserId());
-        approved.setUserName(request.getUserName());
-        approved.setApprovedAt(now);
-        approved.setApprovedBy(blankToDefault(approvedBy, "trusted-control"));
-        repository.saveApprovedUser(approved);
-        repository.deletePairingRequest(platform, request.getCode());
-        return approved;
-    }
 
-    /** 由可信控制面撤销已批准用户，平台管理员不属于可撤销用户列表。 */
-    public void revokePairing(PlatformType platform, String userId) throws Exception {
-        if (platform == null || StrUtil.isBlank(userId)) {
-            throw new IllegalArgumentException("平台和用户 ID 不能为空。");
+        PlatformAdminRecord admin = new PlatformAdminRecord();
+        admin.setPlatform(platform);
+        admin.setUserId(request.getUserId());
+        admin.setUserName(request.getUserName());
+        admin.setChatId(request.getChatId());
+        admin.setCreatedAt(now);
+
+        HomeChannelRecord home = new HomeChannelRecord();
+        home.setPlatform(platform);
+        home.setChatId(request.getChatId());
+        home.setChatName(blankToDefault(request.getUserName(), request.getChatId()));
+        home.setUpdatedAt(now);
+        if (!repository.claimPlatformAdminIfAbsent(request, admin, home)) {
+            throw new IllegalArgumentException("该平台已绑定主人，不能再次认领。");
         }
-        PlatformAdminRecord admin = repository.getPlatformAdmin(platform);
-        if (admin != null && sameUser(admin.getUserId(), userId.trim())) {
-            throw new IllegalArgumentException("平台管理员不能作为普通授权用户撤销。");
-        }
-        repository.revokeApprovedUser(platform, userId.trim());
+        return admin;
     }
 
     /** 将当前聊天设置为 home channel。 */
@@ -238,158 +235,6 @@ public class GatewayAuthorizationService {
                 "已将 Home Channel 设置为 " + record.getChatName() + "（" + record.getChatId() + "）。");
     }
 
-    /** 查看待审批 pairing 请求。 */
-    public GatewayReply pairingPending(GatewayMessage message, PlatformType targetPlatform)
-            throws Exception {
-        if (!isAdminForPlatform(message, targetPlatform)) {
-            return GatewayReply.error("只有平台管理员可以查看待处理的 pairing 请求。");
-        }
-        if (!isDm(message)) {
-            return GatewayReply.error("pairing 管理命令必须在私聊中执行。");
-        }
-
-        repository.deleteExpiredPairingRequests(targetPlatform, System.currentTimeMillis());
-        List<PairingRequestRecord> records = repository.listPairingRequests(targetPlatform);
-        if (records.isEmpty()) {
-            return GatewayReply.ok(targetPlatform.name().toLowerCase() + " 平台当前没有待处理的 pairing 请求。");
-        }
-
-        StringBuilder buffer = new StringBuilder();
-        for (PairingRequestRecord record : records) {
-            if (buffer.length() > 0) {
-                buffer.append('\n');
-            }
-            buffer.append(blankToDefault(record.getUserName(), record.getUserId()))
-                    .append(" [")
-                    .append(record.getUserId())
-                    .append("]，请向用户索取其 pairing code");
-        }
-        return GatewayReply.ok(buffer.toString());
-    }
-
-    /** 查看待审批与已批准 pairing 用户汇总。 */
-    public GatewayReply pairingList(GatewayMessage message, PlatformType targetPlatform)
-            throws Exception {
-        if (!isAdminForPlatform(message, targetPlatform)) {
-            return GatewayReply.error("只有平台管理员可以查看 pairing 列表。");
-        }
-        if (!isDm(message)) {
-            return GatewayReply.error("pairing 管理命令必须在私聊中执行。");
-        }
-
-        repository.deleteExpiredPairingRequests(targetPlatform, System.currentTimeMillis());
-        List<PairingRequestRecord> pending = repository.listPairingRequests(targetPlatform);
-        List<ApprovedUserRecord> approved = repository.listApprovedUsers(targetPlatform);
-        String platformName = targetPlatform.name().toLowerCase();
-        StringBuilder buffer = new StringBuilder();
-        buffer.append(platformName).append(" 待处理 pairing：");
-        if (pending.isEmpty()) {
-            buffer.append("无");
-        } else {
-            for (PairingRequestRecord record : pending) {
-                buffer.append('\n')
-                        .append("- ")
-                        .append(blankToDefault(record.getUserName(), record.getUserId()))
-                        .append(" [")
-                        .append(record.getUserId())
-                        .append("]");
-            }
-        }
-        buffer.append('\n').append(platformName).append(" 已批准用户：");
-        if (approved.isEmpty()) {
-            buffer.append("无");
-        } else {
-            for (ApprovedUserRecord record : approved) {
-                buffer.append('\n')
-                        .append("- ")
-                        .append(blankToDefault(record.getUserName(), record.getUserId()))
-                        .append(" [")
-                        .append(record.getUserId())
-                        .append("]");
-            }
-        }
-        return GatewayReply.ok(buffer.toString());
-    }
-
-    /** 清理平台待处理 pairing 请求，不影响已批准用户。 */
-    public GatewayReply pairingClearPending(GatewayMessage message, PlatformType targetPlatform)
-            throws Exception {
-        if (!isAdminForPlatform(message, targetPlatform)) {
-            return GatewayReply.error("只有平台管理员可以清理待处理 pairing 请求。");
-        }
-        if (!isDm(message)) {
-            return GatewayReply.error("pairing 管理命令必须在私聊中执行。");
-        }
-
-        repository.deletePendingPairingRequests(targetPlatform);
-        return GatewayReply.ok(targetPlatform.name().toLowerCase() + " 平台待处理 pairing 请求已清理。");
-    }
-
-    /** 批准 pairing code。 */
-    public GatewayReply pairingApprove(
-            GatewayMessage message, PlatformType targetPlatform, String code) throws Exception {
-        if (!isAdminForPlatform(message, targetPlatform)) {
-            return GatewayReply.error("只有平台管理员可以批准 pairing code。");
-        }
-        if (!isDm(message)) {
-            return GatewayReply.error("pairing 批准必须在私聊中执行。");
-        }
-
-        ApprovedUserRecord approvedUser;
-        try {
-            approvedUser = approvePairing(targetPlatform, code, message.getUserId());
-        } catch (IllegalArgumentException e) {
-            return GatewayReply.error("pairing code 无效或已过期。");
-        }
-        return GatewayReply.ok(
-                "已批准 "
-                        + blankToDefault(approvedUser.getUserName(), approvedUser.getUserId())
-                        + " 使用 "
-                        + targetPlatform.name().toLowerCase()
-                        + " 平台。");
-    }
-
-    /** 撤销已批准用户。 */
-    public GatewayReply pairingRevoke(
-            GatewayMessage message, PlatformType targetPlatform, String userId) throws Exception {
-        if (!isAdminForPlatform(message, targetPlatform)) {
-            return GatewayReply.error("只有平台管理员可以撤销已批准用户。");
-        }
-
-        try {
-            revokePairing(targetPlatform, userId);
-        } catch (IllegalArgumentException e) {
-            return GatewayReply.error(e.getMessage());
-        }
-        return GatewayReply.ok(
-                "已撤销 " + userId + " 在 " + targetPlatform.name().toLowerCase() + " 平台的使用权限。");
-    }
-
-    /** 查看已批准用户。 */
-    public GatewayReply pairingApproved(GatewayMessage message, PlatformType targetPlatform)
-            throws Exception {
-        if (!isAdminForPlatform(message, targetPlatform)) {
-            return GatewayReply.error("只有平台管理员可以查看已批准用户。");
-        }
-
-        List<ApprovedUserRecord> records = repository.listApprovedUsers(targetPlatform);
-        if (records.isEmpty()) {
-            return GatewayReply.ok(targetPlatform.name().toLowerCase() + " 平台当前没有已批准用户。");
-        }
-
-        StringBuilder buffer = new StringBuilder();
-        for (ApprovedUserRecord record : records) {
-            if (buffer.length() > 0) {
-                buffer.append('\n');
-            }
-            buffer.append(blankToDefault(record.getUserName(), record.getUserId()))
-                    .append(" [")
-                    .append(record.getUserId())
-                    .append("]");
-        }
-        return GatewayReply.ok(buffer.toString());
-    }
-
     /** 生成平台状态文本。 */
     public String formatPlatformStatus(List<ChannelStatus> statuses) throws Exception {
         StringBuilder buffer = new StringBuilder();
@@ -399,7 +244,6 @@ public class GatewayAuthorizationService {
             }
             PlatformAdminRecord admin = repository.getPlatformAdmin(status.getPlatform());
             HomeChannelRecord home = repository.getHomeChannel(status.getPlatform());
-            int approved = repository.countApprovedUsers(status.getPlatform());
             buffer.append(status.getPlatform())
                     .append(" enabled=")
                     .append(status.isEnabled())
@@ -412,9 +256,7 @@ public class GatewayAuthorizationService {
                     .append(" home=")
                     .append(home == null ? GatewayBehaviorConstants.NONE : home.getChatId())
                     .append(" pairing=")
-                    .append(getUnauthorizedDmBehavior(status.getPlatform()))
-                    .append(" approved=")
-                    .append(approved);
+                    .append(getUnauthorizedDmBehavior(status.getPlatform()));
         }
         return buffer.toString();
     }
@@ -466,20 +308,14 @@ public class GatewayAuthorizationService {
     /** 格式化 pairing 提示文案。 */
     private GatewayReply pairingPrompt(PlatformType platform, String code) {
         return GatewayReply.ok(
-                "当前还未识别你的身份。\n\n"
+                "当前 Profile 尚未绑定你的 "
+                        + platform.name().toLowerCase()
+                        + " 私聊。\n\n"
                         + "这是你的 pairing code：`"
                         + code
                         + "`\n\n"
-                        + "请联系平台管理员在私聊中执行：\n"
-                        + "`"
-                        + GatewayCommandConstants.SLASH_PAIRING
-                        + " "
-                        + GatewayCommandConstants.ACTION_APPROVE
-                        + " "
-                        + platform.name().toLowerCase()
-                        + " "
-                        + code
-                        + "`");
+                        + "请打开 Dashboard 的消息渠道页面，在当前 Profile 下选择该渠道，"
+                        + "然后在“绑定本人”中输入此配对码。");
     }
 
     /** 判断平台是否因连续错误 pairing 审批而处于锁定期。 */
@@ -516,18 +352,6 @@ public class GatewayAuthorizationService {
         repository.savePairingRateLimit(record);
     }
 
-    /** 判断消息是否来自目标平台管理员私聊。 */
-    private boolean isAdminForPlatform(GatewayMessage message, PlatformType platform)
-            throws Exception {
-        if (!isDm(message)) {
-            return false;
-        }
-        if (message.getPlatform() != platform) {
-            return false;
-        }
-        return isAdmin(message);
-    }
-
     /** 按平台读取渠道配置。 */
     private AppConfig.ChannelConfig channelConfig(PlatformType platform) {
         if (platform == PlatformType.DINGTALK) {
@@ -549,17 +373,6 @@ public class GatewayAuthorizationService {
             return appConfig.getChannels().getYuanbao();
         }
         return null;
-    }
-
-    /** 判断允许名单是否包含指定用户。 */
-    private boolean contains(List<String> values, String userId) {
-        if (values == null || userId == null) {
-            return false;
-        }
-        if (values.contains(GatewayBehaviorConstants.ALLOW_ALL_MARKER)) {
-            return true;
-        }
-        return values.contains(userId);
     }
 
     /** 读取渠道的未授权私聊处理行为。 */

@@ -5,7 +5,7 @@ import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
-import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
+import com.jimuqu.solon.claw.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import java.util.Locale;

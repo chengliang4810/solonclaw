@@ -9,18 +9,11 @@ import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.regex.Pattern;
 
 /** Dashboard 工作区配置管理服务。 */
 public class DashboardRuntimeConfigService {
-    /** 插件配置名称只接受稳定标识，避免把控制字符或 YAML 结构写入列表。 */
-    private static final Pattern PLUGIN_NAME =
-            Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$");
-
     /** 记录控制台工作区配置中的配置Resolver。 */
     private final RuntimeConfigResolver configResolver;
 
@@ -730,77 +723,6 @@ public class DashboardRuntimeConfigService {
         } else {
             gatewayRuntimeRefreshService.refreshConfigOnly();
         }
-    }
-
-    /**
-     * 持久化单个插件的启用状态；仅在后续会话或重启时由插件管理器重新读取。
-     *
-     * @param pluginName 插件清单中的名称。
-     * @param enabled 是否加入启用列表。
-     * @param profile 可选 Profile 名。
-     * @return 已持久化的插件配置结果。
-     */
-    public Map<String, Object> setPluginEnabled(
-            String pluginName, boolean enabled, String profile) {
-        String name = requirePluginName(pluginName);
-        DashboardProfileContext.Scope scope = detachedScope(profile);
-        RuntimeConfigResolver resolver = scope == null ? configResolver : detachedResolver(scope);
-        synchronized (DashboardProfileConfigFile.lockFor(resolver.configFile().toPath())) {
-            Set<String> enabledPlugins =
-                    configuredPluginNames(resolver.getRaw("solonclaw.plugins.enabled"));
-            Set<String> disabledPlugins =
-                    configuredPluginNames(resolver.getRaw("solonclaw.plugins.disabled"));
-            if (enabled) {
-                enabledPlugins.add(name);
-                disabledPlugins.remove(name);
-            } else {
-                enabledPlugins.remove(name);
-                disabledPlugins.add(name);
-            }
-            resolver.setFileStringList(
-                    "solonclaw.plugins.enabled", new java.util.ArrayList<String>(enabledPlugins));
-            resolver.setFileStringList(
-                    "solonclaw.plugins.disabled", new java.util.ArrayList<String>(disabledPlugins));
-        }
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("ok", true);
-        result.put("plugin", name);
-        result.put("enabled", Boolean.valueOf(enabled));
-        result.put("effective_after", "next_session_or_restart");
-        return result;
-    }
-
-    /** 解析既有字符串或 YAML 列表，并按首次出现顺序去重。 */
-    private Set<String> configuredPluginNames(Object raw) {
-        Set<String> values = new LinkedHashSet<String>();
-        if (raw instanceof List) {
-            for (Object value : (List<?>) raw) {
-                addPluginName(values, value);
-            }
-            return values;
-        }
-        String text = raw == null ? "" : String.valueOf(raw);
-        for (String value : text.split(",")) {
-            addPluginName(values, value);
-        }
-        return values;
-    }
-
-    /** 仅保留既有列表中的非空字符串，避免无关配置项在写入时丢失。 */
-    private void addPluginName(Set<String> values, Object value) {
-        String name = value == null ? "" : String.valueOf(value).trim();
-        if (StrUtil.isNotBlank(name)) {
-            values.add(name);
-        }
-    }
-
-    /** 校验请求指定的插件名，保持配置列表可安全序列化。 */
-    private String requirePluginName(String pluginName) {
-        String name = StrUtil.nullToEmpty(pluginName).trim();
-        if (!PLUGIN_NAME.matcher(name).matches()) {
-            throw new IllegalArgumentException("插件名称只能包含字母、数字、点、下划线和连字符，长度为 1-128。");
-        }
-        return name;
     }
 
     /**

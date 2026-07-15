@@ -28,51 +28,47 @@ public class DashboardPairingController {
                 () -> pairingService.list(DashboardProfileContext.requestedProfile(context)));
     }
 
-    /** 批准 pairing code。 */
-    @Mapping(value = "/api/gateway/pairing/approve", method = MethodType.POST)
-    public Map<String, Object> approve(Context context) {
+    /** 可信绑定当前 Profile 的平台主人，并返回欢迎消息投递参数。 */
+    @Mapping(value = "/api/gateway/pairing/claim-owner", method = MethodType.POST)
+    public Map<String, Object> claimOwner(Context context) {
         return bodyAction(
                 context,
                 body ->
-                        pairingService.approve(
+                        pairingService.claimOwner(
                                 DashboardProfileContext.requestedProfile(context, body),
                                 text(body, "platform"),
                                 text(body, "code")));
     }
 
-    /** 撤销已批准用户。 */
-    @Mapping(value = "/api/gateway/pairing/revoke", method = MethodType.POST)
-    public Map<String, Object> revoke(Context context) {
+    /** 对已绑定主人重发欢迎语，投递目标只从服务端记录读取。 */
+    @Mapping(value = "/api/gateway/pairing/welcome/retry", method = MethodType.POST)
+    public Map<String, Object> retryWelcome(Context context) {
         return bodyAction(
                 context,
                 body ->
-                        pairingService.revoke(
+                        pairingService.retryWelcome(
                                 DashboardProfileContext.requestedProfile(context, body),
-                                text(body, "platform"),
-                                text(body, "user_id")));
+                                text(body, "platform")));
     }
 
-    /** 设置平台管理员。 */
-    @Mapping(value = "/api/gateway/pairing/admin", method = MethodType.PUT)
-    public Map<String, Object> setAdmin(Context context) {
+    /** 将已绑定主人的平台设为当前 Profile 的主要通知渠道。 */
+    @Mapping(value = "/api/gateway/pairing/primary", method = MethodType.POST)
+    public Map<String, Object> setPrimary(Context context) {
         return bodyAction(
                 context,
                 body ->
-                        pairingService.setAdmin(
+                        pairingService.setPrimary(
                                 DashboardProfileContext.requestedProfile(context, body),
-                                text(body, "platform"),
-                                text(body, "user_id"),
-                                text(body, "user_name"),
-                                text(body, "chat_id")));
+                                text(body, "platform")));
     }
 
-    /** 清除平台管理员。 */
-    @Mapping(value = "/api/gateway/pairing/admin", method = MethodType.DELETE)
-    public Map<String, Object> clearAdmin(Context context) {
+    /** 清除当前 Profile 的平台主人绑定。 */
+    @Mapping(value = "/api/gateway/pairing/owner", method = MethodType.DELETE)
+    public Map<String, Object> clearOwner(Context context) {
         return bodyAction(
                 context,
                 body ->
-                        pairingService.clearAdmin(
+                        pairingService.clearOwner(
                                 DashboardProfileContext.requestedProfile(context, body),
                                 text(body, "platform")));
     }

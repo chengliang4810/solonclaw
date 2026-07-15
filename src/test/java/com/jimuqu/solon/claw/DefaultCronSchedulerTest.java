@@ -3128,8 +3128,6 @@ public class DefaultCronSchedulerTest {
                         null,
                         null,
                         null,
-                        null,
-                        null,
                         env.memoryService);
 
         GatewayReply runReply =

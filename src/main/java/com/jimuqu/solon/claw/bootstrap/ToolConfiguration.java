@@ -33,14 +33,11 @@ import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.media.VisionAnalysisService;
-import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
-import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
-import com.jimuqu.solon.claw.plugin.ToolRegistration;
-import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
-import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
-import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
-import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
-import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
+import com.jimuqu.solon.claw.provider.BrowserProvider;
+import com.jimuqu.solon.claw.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.provider.SpeechProvider;
+import com.jimuqu.solon.claw.provider.TranscriptionProvider;
+import com.jimuqu.solon.claw.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
 import com.jimuqu.solon.claw.profile.ProfileChildRuntimeMarker;
 import com.jimuqu.solon.claw.scheduler.CronApprovalResumeObserver;
@@ -82,6 +79,7 @@ import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
 import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
+import java.util.Collections;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Condition;
@@ -337,8 +335,7 @@ public class ToolConfiguration {
      * @param agentRunRepository Agent运行仓储依赖。
      * @param cronJobRepository 定时任务仓储依赖。
      * @param usageEventRepository 用量事件仓储依赖。
-     * @param pluginTools 插件Tools参数。
-     * @param webSearchProviders Web 搜索插件提供方列表。
+     * @param webSearchProviders Web 搜索附加提供方列表。
      * @return 返回工具注册表结果。
      */
     @Bean
@@ -384,7 +381,6 @@ public class ToolConfiguration {
             AgentRunRepository agentRunRepository,
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
-            List<ToolRegistration> pluginTools,
             List<WebSearchProvider> webSearchProviders) {
         return new DefaultToolRegistry(
                 appConfig,
@@ -428,7 +424,7 @@ public class ToolConfiguration {
                 agentRunRepository,
                 cronJobRepository,
                 usageEventRepository,
-                pluginTools,
+                Collections.emptyList(),
                 webSearchProviders);
     }
 
@@ -549,7 +545,6 @@ public class ToolConfiguration {
      * @param toolResultTransformService 工具结果转换Service响应或执行结果。
      * @param toolCallLoopGuardrailService 工具CallLoop护栏服务依赖。
      * @param securityPolicyService 安全策略服务依赖。
-     * @param hookBridgeInterceptor 钩子BridgeInterceptor标识或键值。
      * @return 返回大模型消息网关结果。
      */
     @Bean
@@ -560,8 +555,7 @@ public class ToolConfiguration {
             LlmProviderService llmProviderService,
             ToolResultTransformService toolResultTransformService,
             ToolCallLoopGuardrailService toolCallLoopGuardrailService,
-            SecurityPolicyService securityPolicyService,
-            HookBridgeInterceptor hookBridgeInterceptor) {
+            SecurityPolicyService securityPolicyService) {
         SolonAiLlmGateway gateway =
                 new SolonAiLlmGateway(
                         appConfig,
@@ -571,7 +565,6 @@ public class ToolConfiguration {
                         toolResultTransformService,
                         toolCallLoopGuardrailService,
                         securityPolicyService);
-        gateway.setHookBridgeInterceptor(hookBridgeInterceptor);
         return gateway;
     }
 
@@ -630,7 +623,6 @@ public class ToolConfiguration {
      * @param agentRuntimeService Agent运行时服务依赖。
      * @param memoryManager 记忆Manager参数。
      * @param goalService 目标服务依赖。
-     * @param agentHookRegistry Agent钩子注册表依赖组件。
      * @param speechService 语音服务依赖。
      * @return 返回对话编排器结果。
      */
@@ -651,7 +643,6 @@ public class ToolConfiguration {
             AgentRuntimeService agentRuntimeService,
             MemoryManager memoryManager,
             GoalService goalService,
-            AgentHookRegistry agentHookRegistry,
             SpeechService speechService) {
         DefaultConversationOrchestrator orchestrator =
                 new DefaultConversationOrchestrator(
@@ -670,7 +661,6 @@ public class ToolConfiguration {
                         memoryManager,
                         goalService,
                         speechService);
-        orchestrator.setHookRegistry(agentHookRegistry);
         holder.set(orchestrator);
         return orchestrator;
     }
