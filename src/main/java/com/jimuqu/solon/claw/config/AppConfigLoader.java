@@ -205,7 +205,6 @@ final class AppConfigLoader {
                                         "system_and_3")));
         applyProviderConfiguration(config, props, overrides, structuredOverrides);
         applyPricingConfiguration(config, props, overrides, structuredOverrides);
-        applyPluginConfiguration(config, props, overrides, structuredOverrides);
 
         config.getScheduler()
                 .setEnabled(
@@ -2205,49 +2204,6 @@ final class AppConfigLoader {
     }
 
     /**
-     * 应用插件配置装配。
-     *
-     * @param config 当前模块使用的配置对象。
-     * @param props props 参数。
-     * @param overrides overrides标识或键值。
-     * @param structuredOverrides structuredOverrides标识或键值。
-     */
-    @SuppressWarnings("unchecked")
-    private static void applyPluginConfiguration(
-            AppConfig config,
-            Props props,
-            Map<String, Object> overrides,
-            Map<String, Object> structuredOverrides) {
-        Object enabled = readRaw(props, overrides, "solonclaw.plugins.enabled", null);
-        Object disabled = readRaw(props, overrides, "solonclaw.plugins.disabled", null);
-        Object pluginsNode = structuredOverrides.get("plugins");
-        if (pluginsNode instanceof Map) {
-            Map<String, Object> map = (Map<String, Object>) pluginsNode;
-            if (map.containsKey("enabled")) {
-                enabled = map.get("enabled");
-            }
-            if (map.containsKey("disabled")) {
-                disabled = map.get("disabled");
-            }
-        }
-        Object solonclawNode = structuredOverrides.get("solonclaw");
-        if (solonclawNode instanceof Map) {
-            Object nestedPlugins = ((Map<String, Object>) solonclawNode).get("plugins");
-            if (nestedPlugins instanceof Map) {
-                Map<String, Object> map = (Map<String, Object>) nestedPlugins;
-                if (map.containsKey("enabled")) {
-                    enabled = map.get("enabled");
-                }
-                if (map.containsKey("disabled")) {
-                    disabled = map.get("disabled");
-                }
-            }
-        }
-        config.getPlugins().setEnabled(resolveList(enabled));
-        config.getPlugins().setDisabled(resolveList(disabled));
-    }
-
-    /**
      * 解析模型Prices。
      *
      * @param raw 原始输入值。
@@ -2726,7 +2682,7 @@ final class AppConfigLoader {
      */
     private static boolean readMultiplexProfiles(Props props, Map<String, Object> overrides) {
         boolean configured =
-                readBoolean(props, overrides, "solonclaw.gateway.multiplexProfiles", false);
+                readBoolean(props, overrides, "solonclaw.gateway.multiplexProfiles", true);
         return resolveMultiplexProfiles(
                 ProfileRuntimeScope.environmentValue("SOLONCLAW_GATEWAY_MULTIPLEX_PROFILES"),
                 configured);

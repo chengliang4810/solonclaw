@@ -515,28 +515,9 @@ public class CronjobTools {
     }
 
     /**
-     * 执行cronjob相关逻辑。
+     * cronjob 便捷重载（无 limit/reason），其余参数同主入口。
      *
-     * @param action 操作参数。
-     * @param jobId job标识。
-     * @param name 名称参数。
-     * @param schedule schedule 参数。
-     * @param prompt 提示词参数。
-     * @param deliver deliver 参数。
-     * @param skill 技能参数。
-     * @param skills 技能参数。
-     * @param repeat repeat 参数。
-     * @param includeDisabled includeDisabled 参数。
-     * @param wrapResponse wrap响应响应或执行结果。
-     * @param script script 参数。
-     * @param workdir 命令执行工作目录。
-     * @param noAgent noAgent 参数。
-     * @param contextFrom 上下文From上下文。
-     * @param enabledToolsets 启用状态Toolsets开关值。
-     * @param model 模型名称。
-     * @param provider 模型或能力提供方。
-     * @param baseUrl 待校验或访问的地址参数。
-     * @return 返回cronjob结果。
+     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object, Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String, Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String, String, Integer, String)
      */
     public String cronjob(
             String action,
@@ -686,29 +667,10 @@ public class CronjobTools {
     }
 
     /**
-     * 执行cronjob相关逻辑。
+     * cronjob 便捷重载（带 limit，无 reason），其余参数同主入口。
      *
-     * @param action 操作参数。
-     * @param jobId job标识。
-     * @param name 名称参数。
-     * @param schedule schedule 参数。
-     * @param prompt 提示词参数。
-     * @param deliver deliver 参数。
-     * @param skill 技能参数。
-     * @param skills 技能参数。
-     * @param repeat repeat 参数。
-     * @param includeDisabled includeDisabled 参数。
-     * @param wrapResponse wrap响应响应或执行结果。
-     * @param script script 参数。
-     * @param workdir 命令执行工作目录。
-     * @param noAgent noAgent 参数。
-     * @param contextFrom 上下文From上下文。
-     * @param enabledToolsets 启用状态Toolsets开关值。
-     * @param model 模型名称。
-     * @param provider 模型或能力提供方。
-     * @param baseUrl 待校验或访问的地址参数。
      * @param limit 最大返回数量。
-     * @return 返回cronjob结果。
+     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object, Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String, Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String, String, Integer, String)
      */
     public String cronjob(
             String action,
@@ -757,33 +719,14 @@ public class CronjobTools {
     }
 
     /**
-     * 执行cronjob相关逻辑。
+     * cronjob 便捷重载（带 deliver 字段，无 skill-delta 和状态编辑），其余参数同主入口。
      *
-     * @param action 操作参数。
-     * @param jobId job标识。
-     * @param name 名称参数。
-     * @param schedule schedule 参数。
-     * @param prompt 提示词参数。
-     * @param deliver deliver 参数。
      * @param deliverChatId deliver聊天标识。
      * @param deliverThreadId deliverThread标识。
-     * @param skill 技能参数。
-     * @param skills 技能参数。
-     * @param repeat repeat 参数。
-     * @param includeDisabled includeDisabled 参数。
-     * @param wrapResponse wrap响应响应或执行结果。
-     * @param script script 参数。
-     * @param workdir 命令执行工作目录。
-     * @param noAgent noAgent 参数。
-     * @param contextFrom 上下文From上下文。
      * @param dependsOn dependsOn 参数。
-     * @param enabledToolsets 启用状态Toolsets开关值。
-     * @param model 模型名称。
-     * @param provider 模型或能力提供方。
-     * @param baseUrl 待校验或访问的地址参数。
      * @param limit 最大返回数量。
      * @param reason 原因参数。
-     * @return 返回cronjob结果。
+     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object, Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String, Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String, String, Integer, String)
      */
     public String cronjob(
             String action,
@@ -811,65 +754,31 @@ public class CronjobTools {
             Integer limit,
             String reason)
             throws Exception {
-        return cronjobWithStateDefaults(
-                action,
-                jobId,
-                name,
-                schedule,
-                prompt,
-                deliver,
-                deliverChatId,
-                deliverThreadId,
-                skill,
-                skills,
-                repeat,
-                includeDisabled,
-                wrapResponse,
-                script,
-                workdir,
-                noAgent,
-                contextFrom,
-                dependsOn,
-                enabledToolsets,
-                model,
-                provider,
-                baseUrl,
-                limit,
-                reason);
+        return cronjob(
+                action, jobId, name, schedule, prompt,
+                deliver, deliverChatId, deliverThreadId,
+                skill, skills,
+                repeat, includeDisabled, wrapResponse,
+                script, workdir, noAgent,
+                contextFrom, dependsOn, enabledToolsets,
+                model, provider, baseUrl,
+                null, null, null, null,
+                limit, reason);
     }
 
     /**
-     * 执行cronjob相关逻辑。
+     * cronjob 便捷重载（带 deliver 字段和状态编辑，无 skill-delta），其余参数同主入口。
      *
-     * @param action 操作参数。
-     * @param jobId job标识。
-     * @param name 名称参数。
-     * @param schedule schedule 参数。
-     * @param prompt 提示词参数。
-     * @param deliver deliver 参数。
      * @param deliverChatId deliver聊天标识。
      * @param deliverThreadId deliverThread标识。
-     * @param skill 技能参数。
-     * @param skills 技能参数。
-     * @param repeat repeat 参数。
-     * @param includeDisabled includeDisabled 参数。
-     * @param wrapResponse wrap响应响应或执行结果。
-     * @param script script 参数。
-     * @param workdir 命令执行工作目录。
-     * @param noAgent noAgent 参数。
-     * @param contextFrom 上下文From上下文。
      * @param dependsOn dependsOn 参数。
-     * @param enabledToolsets 启用状态Toolsets开关值。
-     * @param model 模型名称。
-     * @param provider 模型或能力提供方。
-     * @param baseUrl 待校验或访问的地址参数。
      * @param enabled 启用状态开关值。
      * @param status 状态参数。
      * @param state 状态参数。
      * @param pausedReason paused原因参数。
      * @param limit 最大返回数量。
      * @param reason 原因参数。
-     * @return 返回cronjob结果。
+     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object, Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String, Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String, String, Integer, String)
      */
     public String cronjob(
             String action,
@@ -901,62 +810,25 @@ public class CronjobTools {
             Integer limit,
             String reason)
             throws Exception {
-        return cronjobWithState(
-                action,
-                jobId,
-                name,
-                schedule,
-                prompt,
-                deliver,
-                deliverChatId,
-                deliverThreadId,
-                skill,
-                skills,
-                repeat,
-                includeDisabled,
-                wrapResponse,
-                script,
-                workdir,
-                noAgent,
-                contextFrom,
-                dependsOn,
-                enabledToolsets,
-                model,
-                provider,
-                baseUrl,
-                enabled,
-                status,
-                state,
-                pausedReason,
-                limit,
-                reason);
+        return cronjob(
+                action, jobId, name, schedule, prompt,
+                deliver, deliverChatId, deliverThreadId,
+                skill, skills,
+                null, null, null, null, null,
+                repeat, includeDisabled, wrapResponse,
+                script, workdir, noAgent,
+                contextFrom, dependsOn, enabledToolsets,
+                model, provider, baseUrl,
+                enabled, status, state, pausedReason,
+                null, limit, reason);
     }
 
     /**
-     * 执行cronjob相关逻辑。
+     * cronjob 便捷重载（带 limit 和 reason，无 deliver 字段和 skill-delta），其余参数同主入口。
      *
-     * @param action 操作参数。
-     * @param jobId job标识。
-     * @param name 名称参数。
-     * @param schedule schedule 参数。
-     * @param prompt 提示词参数。
-     * @param deliver deliver 参数。
-     * @param skill 技能参数。
-     * @param skills 技能参数。
-     * @param repeat repeat 参数。
-     * @param includeDisabled includeDisabled 参数。
-     * @param wrapResponse wrap响应响应或执行结果。
-     * @param script script 参数。
-     * @param workdir 命令执行工作目录。
-     * @param noAgent noAgent 参数。
-     * @param contextFrom 上下文From上下文。
-     * @param enabledToolsets 启用状态Toolsets开关值。
-     * @param model 模型名称。
-     * @param provider 模型或能力提供方。
-     * @param baseUrl 待校验或访问的地址参数。
      * @param limit 最大返回数量。
      * @param reason 原因参数。
-     * @return 返回cronjob结果。
+     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object, Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String, Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String, String, Integer, String)
      */
     public String cronjob(
             String action,
@@ -1013,132 +885,6 @@ public class CronjobTools {
                 null,
                 null,
                 null,
-                null,
-                limit,
-                reason);
-    }
-
-    /** 转发无状态编辑字段的 cronjob 重载，集中保留旧参数签名到完整工具入口的映射规则。 */
-    private String cronjobWithStateDefaults(
-            String action,
-            String jobId,
-            String name,
-            String schedule,
-            String prompt,
-            Object deliver,
-            String deliverChatId,
-            String deliverThreadId,
-            Object skill,
-            Object skills,
-            Integer repeat,
-            Boolean includeDisabled,
-            Boolean wrapResponse,
-            String script,
-            String workdir,
-            Boolean noAgent,
-            Object contextFrom,
-            Object dependsOn,
-            Object enabledToolsets,
-            Object model,
-            String provider,
-            String baseUrl,
-            Integer limit,
-            String reason)
-            throws Exception {
-        return cronjobWithState(
-                action,
-                jobId,
-                name,
-                schedule,
-                prompt,
-                deliver,
-                deliverChatId,
-                deliverThreadId,
-                skill,
-                skills,
-                repeat,
-                includeDisabled,
-                wrapResponse,
-                script,
-                workdir,
-                noAgent,
-                contextFrom,
-                dependsOn,
-                enabledToolsets,
-                model,
-                provider,
-                baseUrl,
-                null,
-                null,
-                null,
-                null,
-                limit,
-                reason);
-    }
-
-    /** 转发无技能增删字段的 cronjob 重载，避免多个公开重载重复维护同一串默认参数。 */
-    private String cronjobWithState(
-            String action,
-            String jobId,
-            String name,
-            String schedule,
-            String prompt,
-            Object deliver,
-            String deliverChatId,
-            String deliverThreadId,
-            Object skill,
-            Object skills,
-            Integer repeat,
-            Boolean includeDisabled,
-            Boolean wrapResponse,
-            String script,
-            String workdir,
-            Boolean noAgent,
-            Object contextFrom,
-            Object dependsOn,
-            Object enabledToolsets,
-            Object model,
-            String provider,
-            String baseUrl,
-            Boolean enabled,
-            String status,
-            String state,
-            String pausedReason,
-            Integer limit,
-            String reason)
-            throws Exception {
-        return cronjob(
-                action,
-                jobId,
-                name,
-                schedule,
-                prompt,
-                deliver,
-                deliverChatId,
-                deliverThreadId,
-                skill,
-                skills,
-                null,
-                null,
-                null,
-                null,
-                null,
-                repeat,
-                includeDisabled,
-                wrapResponse,
-                script,
-                workdir,
-                noAgent,
-                contextFrom,
-                dependsOn,
-                enabledToolsets,
-                model,
-                provider,
-                baseUrl,
-                enabled,
-                status,
-                state,
-                pausedReason,
                 null,
                 limit,
                 reason);

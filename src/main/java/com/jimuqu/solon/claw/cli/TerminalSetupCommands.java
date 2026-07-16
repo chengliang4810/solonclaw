@@ -4,7 +4,6 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.ApprovedUserRecord;
 import com.jimuqu.solon.claw.core.model.PairingRequestRecord;
 import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
@@ -207,9 +206,6 @@ public class TerminalSetupCommands {
         if ("send".equals(value) || value.startsWith("send ")) {
             return renderSendGuidance();
         }
-        if ("hooks".equals(value) || value.startsWith("hooks ")) {
-            return renderHooksGuidance(rawValue);
-        }
         if ("dump".equals(value) || value.startsWith("dump ")) {
             return renderDumpGuidance(rawValue);
         }
@@ -394,7 +390,7 @@ public class TerminalSetupCommands {
         return "工具初始化\n"
                 + "1. /security policy - 查看工具审批、路径、URL 与终端执行策略\n"
                 + "2. /reload-mcp now - 立即重载 MCP 工具 schema\n"
-                + "3. /tools、/toolsets、/browser、/plugins - 查看工具、浏览器自动化与插件状态\n"
+                + "3. /tools、/toolsets、/browser - 查看工具与浏览器自动化状态\n"
                 + "4. solonclaw config set <key> <value> - 写入工具相关 workspace/config.yml 覆盖项";
     }
 
@@ -1235,24 +1231,6 @@ public class TerminalSetupCommands {
     }
 
     /**
-     * 渲染 Hook 管理入口说明；当前插件 hook 由插件系统和配置文件驱动，不提供独立外部向导。
-     *
-     * @param rawValue 用户输入的 hooks 命令。
-     * @return Hook 本地说明。
-     */
-    private String renderHooksGuidance(String rawValue) {
-        String action = commandAction(rawValue, "hooks", "list");
-        return "Hooks\n"
-                + "action="
-                + action
-                + "\n插件 hook 通过插件系统注册，当前本地终端不直接安装或触发外部 hook。\n"
-                + "workspace/config.yml="
-                + configResolver().configFile().getPath()
-                + "\n可用入口：/plugins 查看插件加载状态，/security policy 查看工具审批边界，"
-                + "solonclaw config set plugins.<name>.enabled true 写入插件开关。";
-    }
-
-    /**
      * 渲染诊断导出说明；本地终端只给出可复现的诊断入口，不伪造压缩包导出结果。
      *
      * @param rawValue 用户输入的 dump 命令。
@@ -1434,27 +1412,15 @@ public class TerminalSetupCommands {
             if ("list".equals(action)) {
                 return renderPairingList(authorization, parts.length > 1 ? parts[1] : null);
             }
-            if ("approve".equals(action) && parts.length == 3) {
-                ApprovedUserRecord approved =
-                        authorization.approvePairing(
-                                requireDomesticPlatform(parts[1]), parts[2], "local-cli");
-                return "已批准 " + approved.getUserId() + " 使用 " + parts[1] + "。";
+            if ("owner".equals(action) && parts.length == 4 && "claim".equalsIgnoreCase(parts[1])) {
+                PlatformAdminRecord owner =
+                        authorization.claimPairingOwner(
+                                requireDomesticPlatform(parts[2]), parts[3]);
+                return "已绑定 " + parts[2] + " 平台主人为 " + owner.getUserId() + "。";
             }
-            if ("revoke".equals(action) && parts.length == 3) {
-                authorization.revokePairing(requireDomesticPlatform(parts[1]), parts[2]);
-                return "已撤销 " + parts[2] + " 在 " + parts[1] + " 的授权。";
-            }
-            if ("admin".equals(action) && parts.length >= 4 && "set".equalsIgnoreCase(parts[1])) {
-                authorization.setPlatformAdmin(
-                        requireDomesticPlatform(parts[2]),
-                        parts[3],
-                        parts.length > 4 ? parts[4] : null,
-                        parts.length > 5 ? parts[5] : null);
-                return "已设置 " + parts[2] + " 平台管理员为 " + parts[3] + "。";
-            }
-            if ("admin".equals(action) && parts.length == 3 && "clear".equalsIgnoreCase(parts[1])) {
+            if ("owner".equals(action) && parts.length == 3 && "clear".equalsIgnoreCase(parts[1])) {
                 authorization.clearPlatformAdmin(requireDomesticPlatform(parts[2]));
-                return "已清除 " + parts[2] + " 平台管理员。";
+                return "已清除 " + parts[2] + " 平台主人绑定。";
             }
             return pairingUsage();
         } catch (Exception e) {
@@ -1478,15 +1444,12 @@ public class TerminalSetupCommands {
         for (PlatformType platform : platforms) {
             PlatformAdminRecord admin = authorization.platformAdmin(platform);
             List<PairingRequestRecord> pending = authorization.pendingPairings(platform);
-            List<ApprovedUserRecord> approved = authorization.approvedUsers(platform);
             result.append('\n')
                     .append(platform.name().toLowerCase(java.util.Locale.ROOT))
                     .append(" admin=")
                     .append(admin == null ? "未设置" : admin.getUserId())
                     .append(" pending=")
-                    .append(pending.size())
-                    .append(" approved=")
-                    .append(approved.size());
+                    .append(pending.size());
             for (PairingRequestRecord request : pending) {
                 result.append("\n  待审批：")
                         .append(StrUtil.blankToDefault(request.getUserName(), request.getUserId()))
@@ -1509,9 +1472,8 @@ public class TerminalSetupCommands {
 
     /** 返回本机 pairing 命令用法。 */
     private String pairingUsage() {
-        return "用法：pairing list [platform] | pairing approve <platform> <code> | "
-                + "pairing revoke <platform> <userId> | pairing admin set <platform> <userId> "
-                + "[userName] [chatId] | pairing admin clear <platform>";
+        return "用法：pairing list [platform] | pairing owner claim <platform> <code> | "
+                + "pairing owner clear <platform>";
     }
 
     /**

@@ -105,7 +105,7 @@ final class SlashCommandHelpRenderer {
                 "/trajectory save [--failed] [user-query]");
         put(usages, "compact", "/compact [focus]");
         put(usages, "rollback", "/rollback [latest|checkpoint-id|number]");
-        put(usages, "pairing", "/pairing [pending|approve|revoke|approved]");
+        put(usages, "pairing", "/pairing claim-admin（渠道内不支持主人绑定）");
         put(
                 usages,
                 "approve",

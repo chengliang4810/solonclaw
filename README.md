@@ -210,9 +210,8 @@ solonclaw:
 | `solonclaw.skills.templateVars` | `true` | 是否启用 SKILL.md 模板变量替换 |
 | `solonclaw.gateway.filterSilenceNarration` | `true` | 是否过滤短静默旁白，避免渠道收到无意义状态文本 |
 | `solonclaw.mcp.enabled` | `false` | 是否启用 MCP 工具适配 |
-| `solonclaw.web.searchBackend` | `solon-ai` | Web 搜索后端：`solon-ai`、`exa`、`brave-free`、`ddgs`；`exa` 由插件读取 `EXA_API_KEY` |
+| `solonclaw.web.searchBackend` | `solon-ai` | Web 搜索后端；当前使用 Solon AI 内置实现 |
 | `solonclaw.pricing.prices` | 空 | 模型价格配置；为空时只统计 token，不计算价格 |
-| `solonclaw.plugins.enabled` / `disabled` | 空 | 插件启用/禁用列表 |
 
 ## 消息渠道
 

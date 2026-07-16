@@ -2,13 +2,10 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.jimuqu.solon.claw.bootstrap.PluginConfiguration;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.media.VisionAnalysisService;
-import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
-import com.jimuqu.solon.claw.plugin.AgentPluginManager;
-import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
-import com.jimuqu.solon.claw.plugin.provider.CdpBrowserProvider;
+import com.jimuqu.solon.claw.provider.BrowserProvider;
+import com.jimuqu.solon.claw.provider.CdpBrowserProvider;
 import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.BrowserTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -542,28 +539,6 @@ public class BrowserRuntimeServiceTests {
     }
 
     @Test
-    void shouldLoadBundledBrowserProvidersWithSharedCdpImplementation() throws Exception {
-        Path pluginRoot = tempDir.resolve("plugins");
-        copyBundledPlugin(pluginRoot, "browser-use", "BrowserUsePlugin.java");
-        copyBundledPlugin(pluginRoot, "browserbase", "BrowserbasePlugin.java");
-        AgentPluginManager manager =
-                new AgentPluginManager(
-                        new AgentHookRegistry(),
-                        Set.of("browser-use", "browserbase"),
-                        Collections.<String>emptySet(),
-                        pluginRoot);
-        PluginConfiguration sink = new PluginConfiguration();
-
-        manager.discoverAndLoad(sink);
-
-        assertThat(sink.browserProviders())
-                .extracting(BrowserProvider::name)
-                .containsExactlyInAnyOrder("browser-use", "browserbase");
-        assertThat(sink.browserProviders())
-                .allMatch(provider -> provider instanceof CdpBrowserProvider);
-    }
-
-    @Test
     void shouldRefreshLeaseAfterSuccessfulBrowserAction() throws Exception {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(true);
@@ -718,22 +693,6 @@ public class BrowserRuntimeServiceTests {
         assertThat(result.getDetails().toString()).doesNotContain("secretsecret");
         assertThat(result.getDetails().toString()).doesNotContain("user:secret");
         assertThat(result.getDetails().toString()).contains("***");
-    }
-
-    private void copyBundledPlugin(Path pluginRoot, String pluginName, String javaFile)
-            throws Exception {
-        Path target = pluginRoot.resolve(pluginName);
-        Files.createDirectories(target);
-        copyResource("plugins/" + pluginName + "/plugin.yaml", target.resolve("plugin.yaml"));
-        copyResource("plugins/" + pluginName + "/" + javaFile, target.resolve(javaFile));
-    }
-
-    private void copyResource(String resource, Path target) throws Exception {
-        try (InputStream input =
-                BrowserRuntimeServiceTests.class.getClassLoader().getResourceAsStream(resource)) {
-            assertThat(input).as(resource).isNotNull();
-            Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
-        }
     }
 
     private static class CdpTestProvider extends CdpBrowserProvider {

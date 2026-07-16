@@ -4,17 +4,11 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
-import com.jimuqu.solon.claw.plugin.AgentPluginManager;
-import com.jimuqu.solon.claw.plugin.AgentPluginManifest;
-import com.jimuqu.solon.claw.plugin.PluginLoadDiagnostic;
-import com.jimuqu.solon.claw.plugin.PluginLoadStatus;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
-/** 处理插件、人格式切换和主动协作等运行时控制面命令。 */
+/** 处理人格切换和主动协作等运行时控制面命令。 */
 final class DefaultRuntimeCommandHandler {
     /** 应用配置，用于读取人格和主动协作运行配置。 */
     private final AppConfig appConfig;
@@ -22,103 +16,16 @@ final class DefaultRuntimeCommandHandler {
     /** 全局设置仓储，用于保存人格和主动协作设置覆盖。 */
     private final GlobalSettingRepository globalSettingRepository;
 
-    /** 插件管理器，用于读取插件加载状态和诊断信息。 */
-    private final AgentPluginManager pluginManager;
-
     /**
      * 创建运行时控制面命令处理器。
      *
      * @param appConfig 应用配置。
      * @param globalSettingRepository 全局设置仓储。
-     * @param pluginManager 插件管理器。
      */
     DefaultRuntimeCommandHandler(
-            AppConfig appConfig,
-            GlobalSettingRepository globalSettingRepository,
-            AgentPluginManager pluginManager) {
+            AppConfig appConfig, GlobalSettingRepository globalSettingRepository) {
         this.appConfig = appConfig;
         this.globalSettingRepository = globalSettingRepository;
-        this.pluginManager = pluginManager;
-    }
-
-    /**
-     * 执行Plugins相关逻辑。
-     *
-     * @return 返回Plugins结果。
-     */
-    GatewayReply handlePlugins() {
-        List<AgentPluginManifest> plugins =
-                pluginManager == null
-                        ? Collections.<AgentPluginManifest>emptyList()
-                        : pluginManager.listPlugins();
-        List<PluginLoadDiagnostic> diagnostics =
-                pluginManager == null
-                        ? Collections.<PluginLoadDiagnostic>emptyList()
-                        : pluginManager.diagnostics();
-        int loaded = 0;
-        int skipped = 0;
-        int failed = 0;
-        for (PluginLoadDiagnostic diagnostic : diagnostics) {
-            if (diagnostic == null || diagnostic.getStatus() == null) {
-                continue;
-            }
-            if (PluginLoadStatus.LOADED == diagnostic.getStatus()) {
-                loaded++;
-            } else if (PluginLoadStatus.SKIPPED == diagnostic.getStatus()) {
-                skipped++;
-            } else if (PluginLoadStatus.FAILED == diagnostic.getStatus()) {
-                failed++;
-            }
-        }
-        if (loaded == 0 && !plugins.isEmpty()) {
-            loaded = plugins.size();
-        }
-
-        StringBuilder buffer = new StringBuilder();
-        buffer.append("插件状态 loaded=")
-                .append(loaded)
-                .append(" skipped=")
-                .append(skipped)
-                .append(" failed=")
-                .append(failed);
-        if (plugins.isEmpty() && diagnostics.isEmpty()) {
-            buffer.append('\n').append("未发现已加载插件。");
-        }
-        for (AgentPluginManifest manifest : plugins) {
-            buffer.append('\n')
-                    .append("- ")
-                    .append(StrUtil.blankToDefault(manifest.getName(), "-"))
-                    .append(" loaded");
-            if (StrUtil.isNotBlank(manifest.getKind())) {
-                buffer.append(" kind=").append(manifest.getKind());
-            }
-            if (StrUtil.isNotBlank(manifest.getVersion())) {
-                buffer.append(" version=").append(manifest.getVersion());
-            }
-            if (StrUtil.isNotBlank(manifest.getDescription())) {
-                buffer.append(" - ").append(manifest.getDescription());
-            }
-        }
-        for (PluginLoadDiagnostic diagnostic : diagnostics) {
-            if (diagnostic == null || PluginLoadStatus.LOADED == diagnostic.getStatus()) {
-                continue;
-            }
-            buffer.append('\n')
-                    .append("- ")
-                    .append(StrUtil.blankToDefault(diagnostic.getPluginName(), "-"))
-                    .append(' ')
-                    .append(String.valueOf(diagnostic.getStatus()).toLowerCase())
-                    .append(" reason=")
-                    .append(StrUtil.blankToDefault(diagnostic.getReason(), "-"));
-        }
-
-        GatewayReply reply = GatewayReply.ok(buffer.toString());
-        reply.getRuntimeMetadata().put("command_status", "handled");
-        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_PLUGINS);
-        reply.getRuntimeMetadata().put("plugin_loaded", Integer.valueOf(loaded));
-        reply.getRuntimeMetadata().put("plugin_skipped", Integer.valueOf(skipped));
-        reply.getRuntimeMetadata().put("plugin_failed", Integer.valueOf(failed));
-        return reply;
     }
 
     /** 执行人格命令相关逻辑。 */

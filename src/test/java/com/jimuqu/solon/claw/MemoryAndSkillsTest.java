@@ -553,31 +553,6 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldIncludePluginMemoryProvidersInConfiguredManager() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        CapturingMemoryProvider provider = new CapturingMemoryProvider();
-        ContextConfiguration configuration = new ContextConfiguration();
-        com.jimuqu.solon.claw.core.service.MemoryManager manager =
-                configuration.memoryManager(
-                        new BuiltinMemoryProvider(env.memoryService),
-                        java.util.Collections.<MemoryProvider>singletonList(provider));
-        MemoryTurnContext context =
-                MemoryTurnContext.builder()
-                        .sourceKey("MEMORY:plugin-room:plugin-user")
-                        .sessionId("plugin-session")
-                        .userMessage("plugin user")
-                        .assistantMessage("plugin assistant")
-                        .build();
-
-        manager.syncTurn(context);
-
-        assertThat(env.memoryService.read("today")).isBlank();
-        assertThat(provider.context).isNotNull();
-        assertThat(provider.context.getSessionId()).isEqualTo("plugin-session");
-        assertThat(provider.directCalls).isZero();
-    }
-
-    @Test
     void shouldKeepBuiltinFirstAndRejectSecondExternalMemoryProvider() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.memoryService.add("memory", "内建记忆优先");

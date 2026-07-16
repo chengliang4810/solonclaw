@@ -105,6 +105,37 @@ public class HeartbeatSchedulerTest {
         assertThat(deliveryService.requests.get(0).getText()).isEqualTo("今天需要提醒用户处理一件事");
     }
 
+    /** 多个平台都有 home channel 时只运行显式选择的主要通知渠道。 */
+    @Test
+    void shouldRunOnlyPrimaryHomeChannel() throws Exception {
+        AppConfig config = config();
+        config.getChannels().getDingtalk().setEnabled(true);
+        InMemoryGatewayPolicyRepository repository = new InMemoryGatewayPolicyRepository();
+        repository.saveHomeChannel(home(PlatformType.FEISHU, "feishu-home"));
+        HomeChannelRecord primary = home(PlatformType.DINGTALK, "dingtalk-primary");
+        primary.setPrimary(true);
+        repository.saveHomeChannel(primary);
+        CapturingOrchestrator orchestrator = new CapturingOrchestrator();
+        orchestrator.reply = GatewayReply.ok("只发送一次");
+        CapturingDeliveryService deliveryService = new CapturingDeliveryService();
+
+        HeartbeatScheduler scheduler =
+                new HeartbeatScheduler(
+                        config,
+                        repository,
+                        orchestrator,
+                        deliveryService,
+                        workspace(config, "- 检查今天是否有需要提醒的事项"));
+
+        scheduler.tick();
+
+        assertThat(orchestrator.calls).isEqualTo(1);
+        assertThat(deliveryService.requests).hasSize(1);
+        assertThat(deliveryService.requests.get(0).getPlatform())
+                .isEqualTo(PlatformType.DINGTALK);
+        assertThat(deliveryService.requests.get(0).getChatId()).isEqualTo("dingtalk-primary");
+    }
+
     @Test
     void shouldPreserveHomeChannelThreadForSyntheticMessageAndDelivery() throws Exception {
         AppConfig config = config();

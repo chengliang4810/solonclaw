@@ -22,6 +22,9 @@ public class HomeChannelRecord {
     /** 会话名称。 */
     private String chatName;
 
+    /** 是否为当前 Profile 唯一的主要通知渠道。 */
+    private boolean primary;
+
     /** 更新时间。 */
     private long updatedAt;
 }

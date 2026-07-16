@@ -157,8 +157,20 @@ public class SubprocessEnvironmentSanitizerTest {
         config.getTerminal().getEnvPassthrough().add("TENOR_API_KEY");
         config.getTerminal().getEnvPassthrough().add("OPENAI_API_KEY");
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config, null, null, null, null, null, null, null, null, null, null, null);
+                                        DashboardDiagnosticsService.builder()
+                        .appConfig(config)
+                        .deliveryService(null)
+                        .llmProviderService(null)
+                        .toolRegistry(null)
+                        .sessionRepository(null)
+                        .conversationOrchestrator(null)
+                        .approvalAuditRepository(null)
+                        .slashConfirmService(null)
+                        .commandService(null)
+                        .approvalService(null)
+                        .securityPolicyService(null)
+                        .tirithSecurityService(null)
+                        .build();
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put(
                 "names",

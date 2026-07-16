@@ -15,30 +15,42 @@ import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
 public class DashboardSecurityProbeDiagnosticTest {
-    @Test
-    @SuppressWarnings("unchecked")
-    void shouldSkipWebsitePolicyProbeWhenWebsiteBlocklistHasNoRules() {
+
+    /** 创建带工作区目录的 AppConfig。 */
+    private static AppConfig securityProbeConfig(String homeName) {
         AppConfig config = new AppConfig();
-        File workspaceHome = new File("target/dashboard-security-probes-skip").getAbsoluteFile();
+        File workspaceHome = new File("target/" + homeName).getAbsoluteFile();
         config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getRuntime().setStateDb(new File(workspaceHome, "state.db").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
-        DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        null);
+        return config;
+    }
+
+    /** 使用最少依赖构建安全探测专用的 DashboardDiagnosticsService。 */
+    private static DashboardDiagnosticsService securityProbeDiagnosticsService(AppConfig config) {
+        return DashboardDiagnosticsService.builder()
+                .appConfig(config)
+                .deliveryService(FixedDeliveryService.empty())
+                .llmProviderService(new LlmProviderService(config))
+                .toolRegistry(new FixedToolRegistry())
+                .sessionRepository(null)
+                .conversationOrchestrator(null)
+                .approvalAuditRepository(null)
+                .slashConfirmService(null)
+                .commandService(null)
+                .approvalService(null)
+                .securityPolicyService(new SecurityPolicyService(config))
+                .tirithSecurityService(null)
+                .toolResultStorageService(null)
+                .build();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldSkipWebsitePolicyProbeWhenWebsiteBlocklistHasNoRules() {
+        AppConfig config = securityProbeConfig("dashboard-security-probes-skip");
+        DashboardDiagnosticsService diagnosticsService = securityProbeDiagnosticsService(config);
 
         Map<String, Object> diagnostics = diagnosticsService.diagnostics();
 
@@ -54,28 +66,9 @@ public class DashboardSecurityProbeDiagnosticTest {
     @Test
     @SuppressWarnings("unchecked")
     void shouldSkipPrivateUrlProbeWhenPrivateUrlsAreAllowed() {
-        AppConfig config = new AppConfig();
-        File workspaceHome = new File("target/dashboard-private-url-probes-skip").getAbsoluteFile();
-        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
-        config.getRuntime().setStateDb(new File(workspaceHome, "state.db").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
+        AppConfig config = securityProbeConfig("dashboard-private-url-probes-skip");
         config.getSecurity().setAllowPrivateUrls(true);
-        DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        null);
+        DashboardDiagnosticsService diagnosticsService = securityProbeDiagnosticsService(config);
 
         Map<String, Object> diagnostics = diagnosticsService.diagnostics();
 
@@ -109,28 +102,8 @@ public class DashboardSecurityProbeDiagnosticTest {
     @Test
     @SuppressWarnings("unchecked")
     void shouldRunCodeExecutionSandboxProbeWithDefaultPythonCommand() {
-        AppConfig config = new AppConfig();
-        File workspaceHome =
-                new File("target/dashboard-code-sandbox-default-python").getAbsoluteFile();
-        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
-        config.getRuntime().setStateDb(new File(workspaceHome, "state.db").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
-        DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        null);
+        AppConfig config = securityProbeConfig("dashboard-code-sandbox-default-python");
+        DashboardDiagnosticsService diagnosticsService = securityProbeDiagnosticsService(config);
 
         Map<String, Object> diagnostics = diagnosticsService.diagnostics();
 
@@ -152,21 +125,7 @@ public class DashboardSecurityProbeDiagnosticTest {
     void shouldMatchSudoRewriteDiagnosticsForExplicitEmptyPassword() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("");
-        DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        null);
+        DashboardDiagnosticsService diagnosticsService = securityProbeDiagnosticsService(config);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("action", "policy");
 

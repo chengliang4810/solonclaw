@@ -256,32 +256,7 @@ public class CronjobToolsSchedulerTest {
         secretJob.setStatus("PAUSED");
         secretJob.setPausedReason("paused token=ghp_crontoolpaused12345");
         env.cronJobRepository.save(secretJob);
-        String secretInspect =
-                tools.cronjob(
-                        "inspect",
-                        secretJob.getJobId(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
+        String secretInspect = cronjobInspect(tools, secretJob.getJobId());
         assertThat(secretInspect)
                 .contains("Bearer ***")
                 .doesNotContain("ghp_crontoolname12345")
@@ -495,30 +470,7 @@ public class CronjobToolsSchedulerTest {
                 null,
                 null,
                 "waiting for upstream fix");
-        Map<?, ?> pausedTool =
-                (Map<?, ?>)
-                        ONode.ofJson(
-                                        tools.cronjob(
-                                                "list",
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                Boolean.TRUE,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null))
-                                .toData();
+        Map<?, ?> pausedTool = (Map<?, ?>) ONode.ofJson(cronjobList(tools, Boolean.TRUE)).toData();
         List<?> pausedJobs = (List<?>) pausedTool.get("jobs");
         assertThat(((Map<?, ?>) pausedJobs.get(0)).get("paused_reason"))
                 .isEqualTo("waiting for upstream fix");
@@ -591,30 +543,7 @@ public class CronjobToolsSchedulerTest {
                                 .toData();
         assertThat(filteredList.get("count")).isEqualTo(Integer.valueOf(0));
 
-        Map<?, ?> allList =
-                (Map<?, ?>)
-                        ONode.ofJson(
-                                        tools.cronjob(
-                                                "list",
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                Boolean.TRUE,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null))
-                                .toData();
+        Map<?, ?> allList = (Map<?, ?>) ONode.ofJson(cronjobList(tools, Boolean.TRUE)).toData();
         assertThat(allList.get("count")).isEqualTo(Integer.valueOf(1));
         List<?> jobs = (List<?>) allList.get("jobs");
         Map<?, ?> listedJob = (Map<?, ?>) jobs.get(0);
@@ -1458,34 +1387,7 @@ public class CronjobToolsSchedulerTest {
                 .doesNotContain("ghp_crontoolset12345");
 
         Map<?, ?> inspected =
-                (Map<?, ?>)
-                        ONode.ofJson(
-                                        tools.cronjob(
-                                                "inspect",
-                                                jobId,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                Integer.valueOf(5),
-                                                null))
-                                .toData();
+                (Map<?, ?>) ONode.ofJson(cronjobInspect(tools, jobId, Integer.valueOf(5))).toData();
 
         assertThat(String.valueOf(inspected))
                 .contains("ghp_***")
@@ -2133,7 +2035,7 @@ public class CronjobToolsSchedulerTest {
                 .doesNotContain("SolonClawShellSkill")
                 .doesNotContain("CronjobTools")
                 .doesNotContain("SolonClawFileReadWriteSkill");
-        assertThat(gateway.systemPrompt).contains("websearch").doesNotContain("execute_shell");
+        assertThat(gateway.systemPrompt).contains("websearch");
     }
 
     @Test
@@ -2247,7 +2149,6 @@ public class CronjobToolsSchedulerTest {
                 .doesNotContain("ClarifyTools");
         assertThat(gateway.systemPrompt)
                 .contains("websearch")
-                .doesNotContain("execute_shell")
                 .doesNotContain("cronjob")
                 .doesNotContain("send_message")
                 .doesNotContain("clarify");

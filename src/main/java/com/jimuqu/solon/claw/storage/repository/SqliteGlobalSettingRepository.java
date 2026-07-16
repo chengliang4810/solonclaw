@@ -4,13 +4,19 @@ import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import lombok.RequiredArgsConstructor;
 
 /** SQLite 全局设置仓储。 */
 @RequiredArgsConstructor
-public class SqliteGlobalSettingRepository implements GlobalSettingRepository {
+public class SqliteGlobalSettingRepository extends SqliteRepositorySupport implements GlobalSettingRepository {
     /** 记录SQLiteGlobal设置中的数据库。 */
     private final SqliteDatabase database;
+
+    @Override
+    protected Connection getConnection() throws SQLException {
+        return database.openConnection();
+    }
 
     /**
      * 获取当前注册项或配置项。
@@ -19,23 +25,12 @@ public class SqliteGlobalSettingRepository implements GlobalSettingRepository {
      * @return 返回get结果。
      */
     @Override
-    public String get(String key) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "select setting_value from global_settings where setting_key = ?");
-            statement.setString(1, key);
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                return resultSet.next() ? resultSet.getString(1) : null;
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
-        } finally {
-            connection.close();
-        }
+    public String get(String key) throws SQLException {
+        return queryOne(
+                "select setting_value from global_settings where setting_key = ?",
+                stmt -> stmt.setString(1, key),
+                rs -> rs.getString(1)
+        );
     }
 
     /**
@@ -45,20 +40,15 @@ public class SqliteGlobalSettingRepository implements GlobalSettingRepository {
      * @param value 待规范化或校验的原始值。
      */
     @Override
-    public void set(String key, String value) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "insert or replace into global_settings (setting_key, setting_value, updated_at) values (?, ?, ?)");
-            statement.setString(1, key);
-            statement.setString(2, value == null ? "" : value);
-            statement.setLong(3, System.currentTimeMillis());
-            statement.executeUpdate();
-            statement.close();
-        } finally {
-            connection.close();
-        }
+    public void set(String key, String value) throws SQLException {
+        executeUpdate(
+                "insert or replace into global_settings (setting_key, setting_value, updated_at) values (?, ?, ?)",
+                stmt -> {
+                    stmt.setString(1, key);
+                    stmt.setString(2, safeValue(value));
+                    stmt.setLong(3, System.currentTimeMillis());
+                }
+        );
     }
 
     /**
@@ -67,17 +57,10 @@ public class SqliteGlobalSettingRepository implements GlobalSettingRepository {
      * @param key 配置键或映射键。
      */
     @Override
-    public void remove(String key) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "delete from global_settings where setting_key = ?");
-            statement.setString(1, key);
-            statement.executeUpdate();
-            statement.close();
-        } finally {
-            connection.close();
-        }
+    public void remove(String key) throws SQLException {
+        executeUpdate(
+                "delete from global_settings where setting_key = ?",
+                stmt -> stmt.setString(1, key)
+        );
     }
 }

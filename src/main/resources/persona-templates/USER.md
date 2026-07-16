@@ -1,7 +1,5 @@
 ---
 summary: "Agent 自画像与用户档案"
-read_when:
-  - 手动引导工作区
 ---
 
 ## 关于我（Agent 自画像）

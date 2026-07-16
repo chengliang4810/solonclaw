@@ -5,13 +5,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.web.DashboardChatController;
+import com.jimuqu.solon.claw.web.DashboardRunController;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.ContextEmpty;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Map;
 
 /** 验证 Dashboard Chat 按请求 Profile 选择独立网关并保留稳定错误语义。 */
 public class DashboardProfileChatScopeTest {
@@ -43,6 +46,23 @@ public class DashboardProfileChatScopeTest {
         Map<String, Object> missing = controller.startRun(unknown);
         assertThat(unknown.status()).isEqualTo(404);
         assertThat(missing)
+                .containsEntry("success", false)
+                .containsEntry("code", "PROFILE_NOT_FOUND");
+
+        DashboardRunController runController =
+                new DashboardRunController(
+                        null, new DashboardProfileContext(manager, currentConfig));
+        Context stoppedRun = request("worker");
+        Map<String, Object> unavailableRun = runController.control("run-1", stoppedRun);
+        assertThat(stoppedRun.status()).isEqualTo(409);
+        assertThat(unavailableRun)
+                .containsEntry("success", false)
+                .containsEntry("code", "PROFILE_GATEWAY_NOT_RUNNING");
+
+        Context unknownRun = request("missing");
+        Map<String, Object> missingRun = runController.control("run-1", unknownRun);
+        assertThat(unknownRun.status()).isEqualTo(404);
+        assertThat(missingRun)
                 .containsEntry("success", false)
                 .containsEntry("code", "PROFILE_NOT_FOUND");
     }

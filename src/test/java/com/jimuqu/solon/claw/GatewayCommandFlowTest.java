@@ -126,7 +126,6 @@ public class GatewayCommandFlowTest {
         assertThat(helpReply.getContent()).contains("/new - 创建并切换到新会话");
         assertThat(helpReply.getContent()).contains("/help - 显示帮助信息");
         assertThat(helpReply.getContent()).contains("/insights - 查看使用洞察与运行摘要");
-        assertThat(helpReply.getContent()).contains("/plugins - 查看插件加载状态");
         assertThat(helpReply.getContent()).contains("/reload-skills - 重新扫描本地技能目录");
         assertThat(Arrays.asList(helpReply.getContent().split("\\R")))
                 .isNotEmpty()

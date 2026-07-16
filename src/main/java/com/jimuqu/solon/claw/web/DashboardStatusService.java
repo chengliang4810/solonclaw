@@ -9,8 +9,10 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
 import com.jimuqu.solon.claw.media.SpeechService;
-import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.profile.ProfileGatewayStatus;
@@ -83,6 +85,9 @@ public class DashboardStatusService {
 
     /** 解析 Dashboard 显式选择的 Profile；为空时保持当前状态聚合行为。 */
     private final DashboardProfileContext profileContext;
+
+    /** 命名 Profile multiplex 子运行时管理器，用于读取真实渠道连接状态。 */
+    private final ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager;
 
     /**
      * 创建控制台状态服务实例，并兼容未接入运行控制服务的测试或轻量调用路径。
@@ -259,6 +264,7 @@ public class DashboardStatusService {
                 proactiveDiagnosticsService,
                 speechService,
                 null,
+                null,
                 null);
     }
 
@@ -292,6 +298,54 @@ public class DashboardStatusService {
             SpeechService speechService,
             List<ImageGenProvider> imageGenProviders,
             DashboardProfileContext profileContext) {
+        this(
+                appConfig,
+                sessionRepository,
+                deliveryService,
+                agentRunControlService,
+                gatewayRuntimeRefreshService,
+                appVersionService,
+                appUpdateService,
+                llmProviderService,
+                proactiveDiagnosticsService,
+                speechService,
+                imageGenProviders,
+                profileContext,
+                null);
+    }
+
+    /**
+     * 创建支持 multiplex Profile 实时渠道状态的 Dashboard 状态服务。
+     *
+     * @param appConfig 当前 JVM 配置。
+     * @param sessionRepository 当前 JVM 会话仓储。
+     * @param deliveryService 当前 JVM 渠道投递服务。
+     * @param agentRunControlService 当前 JVM Agent 运行控制服务。
+     * @param gatewayRuntimeRefreshService 当前 JVM 网关刷新服务。
+     * @param appVersionService 应用版本服务。
+     * @param appUpdateService 应用更新服务。
+     * @param llmProviderService 当前 JVM Provider 服务。
+     * @param proactiveDiagnosticsService 主动协作诊断服务。
+     * @param speechService 语音运行时服务。
+     * @param imageGenProviders 图像生成 Provider 列表。
+     * @param profileContext Dashboard Profile 请求上下文。
+     * @param profileMultiplexRuntimeManager 命名 Profile multiplex 子运行时管理器。
+     */
+    public DashboardStatusService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DeliveryService deliveryService,
+            AgentRunControlService agentRunControlService,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            AppVersionService appVersionService,
+            AppUpdateService appUpdateService,
+            LlmProviderService llmProviderService,
+            ProactiveDiagnosticsService proactiveDiagnosticsService,
+            SpeechService speechService,
+            List<ImageGenProvider> imageGenProviders,
+            DashboardProfileContext profileContext,
+            ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
         this.deliveryService = deliveryService;
@@ -304,6 +358,7 @@ public class DashboardStatusService {
         this.speechService = speechService;
         this.imageGenProviders = imageGenProviders;
         this.profileContext = profileContext;
+        this.profileMultiplexRuntimeManager = profileMultiplexRuntimeManager;
     }
 
     /**
@@ -456,9 +511,24 @@ public class DashboardStatusService {
         if (scope.isCurrent()) {
             return getStatus(detailed);
         }
+        List<ChannelStatus> multiplexStatuses =
+                multiplexRuntimeManager() == null
+                        ? null
+                        : multiplexRuntimeManager().deliveryStatuses(scope.getName());
+        if (multiplexStatuses != null) {
+            return detachedService(scope.getConfig())
+                    .multiplexStatus(scope.getName(), multiplexStatuses, detailed);
+        }
         ProfileGatewayStatus gateway = profileContext.gatewayStatus(scope);
         return detachedService(scope.getConfig())
                 .detachedStatus(scope.getName(), gateway, detailed);
+    }
+
+    /** 延迟解析 Profile 子运行时管理器，避免 Dashboard 状态服务与工具注册表形成启动循环。 */
+    private ProfileMultiplexRuntimeManager multiplexRuntimeManager() {
+        return profileMultiplexRuntimeManager == null
+                ? ProfileBeanResolver.getBean(ProfileMultiplexRuntimeManager.class)
+                : profileMultiplexRuntimeManager;
     }
 
     /**
@@ -571,13 +641,35 @@ public class DashboardStatusService {
                 null,
                 null,
                 null,
+                null,
                 null);
+    }
+
+    /** 构造由 default 进程内 multiplex 子运行时承载的命名 Profile 状态。 */
+    private Map<String, Object> multiplexStatus(
+            String profile, List<ChannelStatus> statuses, boolean detailed) {
+        RuntimeStatusSnapshot snapshot = channelRuntimeSnapshot(statuses, detailed);
+        Map<String, Object> result = detachedStatusFields(profile, snapshot, detailed);
+        result.put("gateway_running", Boolean.valueOf(snapshot.anyConnected));
+        return result;
     }
 
     /** 构造非当前 Profile 的机器可观测状态。 */
     private Map<String, Object> detachedStatus(
             String profile, ProfileGatewayStatus gateway, boolean detailed) {
         RuntimeStatusSnapshot snapshot = detachedRuntimeSnapshot(gateway, detailed);
+        Map<String, Object> result = detachedStatusFields(profile, snapshot, detailed);
+        if (detailed) {
+            result.put("gateway_pid", gateway.getPid());
+            result.put("gateway_port", gateway.getPort());
+        }
+        result.put("gateway_running", Boolean.valueOf(gateway.isRunning()));
+        return result;
+    }
+
+    /** 填充非当前 Profile 共用状态字段；进程字段由独立网关路径按需追加。 */
+    private Map<String, Object> detachedStatusFields(
+            String profile, RuntimeStatusSnapshot snapshot, boolean detailed) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("profile", profile);
         result.put("active_sessions", Integer.valueOf(0));
@@ -587,12 +679,7 @@ public class DashboardStatusService {
         }
         result.put("config_version", configVersion());
         result.put("gateway_exit_reason", snapshot.firstFatalDetail);
-        if (detailed) {
-            result.put("gateway_pid", gateway.getPid());
-            result.put("gateway_port", gateway.getPort());
-        }
         result.put("gateway_platforms", snapshot.platformStates);
-        result.put("gateway_running", Boolean.valueOf(gateway.isRunning()));
         result.put("gateway_state", snapshot.gatewayState);
         result.put("gateway_updated_at", snapshot.updatedAt);
         if (detailed) {
@@ -720,6 +807,15 @@ public class DashboardStatusService {
             }
         }
 
+        RuntimeStatusSnapshot snapshot = channelRuntimeSnapshot(statuses, detailed);
+        snapshot.activeSessions = activeSessions;
+        snapshot.runningAgentRuns = runningAgentRuns();
+        return snapshot;
+    }
+
+    /** 将指定 DeliveryService 的渠道状态统一转换为 Dashboard 网关快照。 */
+    private RuntimeStatusSnapshot channelRuntimeSnapshot(
+            List<ChannelStatus> statuses, boolean detailed) {
         boolean anyEnabled = false;
         boolean anyConnected = false;
         boolean anyFatal = false;
@@ -782,8 +878,8 @@ public class DashboardStatusService {
         }
 
         RuntimeStatusSnapshot snapshot = new RuntimeStatusSnapshot();
-        snapshot.activeSessions = activeSessions;
-        snapshot.runningAgentRuns = runningAgentRuns();
+        snapshot.activeSessions = 0;
+        snapshot.runningAgentRuns = 0;
         snapshot.anyConnected = anyConnected;
         snapshot.anyFatal = anyFatal;
         snapshot.firstFatalDetail = anyFatal ? redact(firstFatalDetail(statuses), 1000) : null;
@@ -1222,13 +1318,13 @@ public class DashboardStatusService {
                     return true;
                 }
             } catch (RuntimeException ignored) {
-                // 单个插件异常不能中断 Dashboard 状态接口。
+                // 单个提供方异常不能中断 Dashboard 状态接口。
             }
         }
         return false;
     }
 
-    /** 读取 TTS Provider 真实可用性，插件异常时按不可用处理，避免健康接口失败。 */
+    /** 读取 TTS Provider 真实可用性，提供方异常时按不可用处理，避免健康接口失败。 */
     private boolean ttsAvailable() {
         try {
             return speechService != null && speechService.isTtsAvailable();
@@ -1237,7 +1333,7 @@ public class DashboardStatusService {
         }
     }
 
-    /** 读取独立 STT Provider 真实可用性，插件异常时按不可用处理。 */
+    /** 读取独立 STT Provider 真实可用性，提供方异常时按不可用处理。 */
     private boolean transcriptionAvailable() {
         try {
             return speechService != null && speechService.isTranscriptionAvailable();

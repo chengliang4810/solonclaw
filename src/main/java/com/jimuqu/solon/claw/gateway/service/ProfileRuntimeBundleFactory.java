@@ -2,7 +2,7 @@ package com.jimuqu.solon.claw.gateway.service;
 
 import com.jimuqu.solon.claw.bootstrap.ContextConfiguration;
 import com.jimuqu.solon.claw.bootstrap.GatewayConfiguration;
-import com.jimuqu.solon.claw.bootstrap.PluginConfiguration;
+import com.jimuqu.solon.claw.bootstrap.ProviderConfiguration;
 import com.jimuqu.solon.claw.bootstrap.PricingConfiguration;
 import com.jimuqu.solon.claw.bootstrap.ProfileRuntimeSupportConfiguration;
 import com.jimuqu.solon.claw.bootstrap.SchedulerConfiguration;
@@ -33,7 +33,7 @@ public class ProfileRuntimeBundleFactory {
     /**
      * 创建一个完全独立的命名 Profile 运行时。
      *
-     * <p>子容器只装配存储、上下文、插件、工具、调度和网关运行图；不扫描 Controller，不启动 HTTP，不注册 JVM shutdown hook，也不替换
+     * <p>子容器只装配存储、上下文、内置提供方、工具、调度和网关运行图；不扫描 Controller，不启动 HTTP，不注册 JVM shutdown hook，也不替换
      * Solon.context()。
      */
     public ProfileRuntimeBundle create(
@@ -90,7 +90,7 @@ public class ProfileRuntimeBundleFactory {
         child.beanMake(StorageConfiguration.class);
         child.beanMake(ContextConfiguration.class);
         child.beanMake(PricingConfiguration.class);
-        child.beanMake(PluginConfiguration.class);
+        child.beanMake(ProviderConfiguration.class);
         child.beanMake(ToolConfiguration.class);
         child.beanMake(ProfileRuntimeSupportConfiguration.class);
         child.beanMake(GatewayConfiguration.class);

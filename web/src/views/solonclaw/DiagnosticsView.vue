@@ -13,7 +13,6 @@ import {
   fetchPendingApprovals,
   fetchPendingSlashConfirms,
   fetchDiagnostics,
-  fetchPluginStatus,
   fetchPlatformToolsets,
   probeSubprocessEnvironment,
   resolveApproval,
@@ -35,8 +34,6 @@ import {
   type PlatformDoctor,
   type PlatformToolsetConfig,
   type PlatformToolsetsOverview,
-  type PluginDiagnosticItem,
-  type PluginStatusOverview,
   type SecurityPolicyProbe,
   type SecurityAuditFinding,
   type SecurityAuditResult,
@@ -68,7 +65,6 @@ const auditResult = ref<SecurityAuditResult | null>(null)
 const policyAuditResult = ref<SecurityAuditResult | null>(null)
 const subprocessEnvProbeResult = ref<SubprocessEnvironmentProbeResult | null>(null)
 const subprocessEnvProbeLoading = ref(false)
-const pluginStatus = ref<PluginStatusOverview | null>(null)
 const platformToolsets = ref<PlatformToolsetsOverview | null>(null)
 const platformToolsetForms = ref<Record<string, {
   enabledToolsetsText: string
@@ -512,11 +508,6 @@ const pendingApprovalScanText = computed(() => {
 const historyCount = computed(() => approvalHistory.value.length)
 const alwaysCount = computed(() => alwaysApprovals.value.length)
 const slashConfirmCount = computed(() => pendingSlashConfirms.value.length)
-const pluginLoadedCount = computed(() => pluginStatus.value?.loaded_count ?? 0)
-const pluginSkippedCount = computed(() => pluginStatus.value?.skipped_count ?? 0)
-const pluginFailedCount = computed(() => pluginStatus.value?.failed_count ?? 0)
-const pluginRows = computed(() => pluginStatus.value?.plugins || [])
-const pluginDiagnostics = computed<PluginDiagnosticItem[]>(() => pluginStatus.value?.diagnostics || [])
 const proactiveDiagnostics = computed<Record<string, unknown>>(() => objectValue(diagnostics.value?.proactive))
 const hasProactiveDiagnostics = computed(() => Object.keys(proactiveDiagnostics.value).length > 0)
 const proactiveBlocked = computed(() => !proactiveDiagnostics.value.main_conversation_ready)
@@ -644,13 +635,6 @@ function metricTagType(item: SecurityMetric) {
   return item.value === undefined || item.value === null || item.value === '' ? 'default' : 'success'
 }
 
-function pluginStatusTagType(status?: string) {
-  if (status === 'loaded') return 'success'
-  if (status === 'failed') return 'error'
-  if (status === 'skipped') return 'warning'
-  return 'default'
-}
-
 function decisionType(decision: unknown) {
   if (decision === 'allow') return 'success'
   if (decision === 'warn') return 'warning'
@@ -737,10 +721,9 @@ async function savePlatformToolsets(row: PlatformToolsetConfig) {
 async function load() {
   loading.value = true
   try {
-    const [diagnosticsData, runtimeStatusData, pluginStatusData, insightsData, skillInsightData] = await Promise.all([
+    const [diagnosticsData, runtimeStatusData, insightsData, skillInsightData] = await Promise.all([
       fetchDiagnostics(),
       fetchRuntimeStatus(),
-      fetchPluginStatus(),
       fetchInsightsOverview(),
       fetchSkillInsights(),
       loadPolicyAudit(),
@@ -752,7 +735,6 @@ async function load() {
     ])
     diagnostics.value = diagnosticsData
     runtimeStatus.value = runtimeStatusData
-    pluginStatus.value = pluginStatusData
     doctor.value = await fetchDiagnosticsDoctor()
     await loadPlatformToolsets()
     insightsOverview.value = insightsData
@@ -1100,56 +1082,6 @@ onMounted(load)
             </div>
           </div>
           <div v-if="!hasProactiveDiagnostics" class="empty-state">{{ t('diagnostics.noProactiveDiagnostics') }}</div>
-        </section>
-        <section class="panel">
-          <div class="panel-title-row">
-            <h3>{{ t('diagnostics.pluginStatus') }}</h3>
-            <Tag size="small" :color="pluginFailedCount ? 'error' : 'success'" :bordered="false">
-              {{ pluginLoadedCount }}
-            </Tag>
-          </div>
-          <div class="metric-grid">
-            <div class="metric-item">
-              <span>{{ t('diagnostics.pluginLoaded') }}</span>
-              <Tag size="small" color="success" :bordered="false">{{ pluginLoadedCount }}</Tag>
-            </div>
-            <div class="metric-item">
-              <span>{{ t('diagnostics.pluginSkipped') }}</span>
-              <Tag size="small" color="warning" :bordered="false">{{ pluginSkippedCount }}</Tag>
-            </div>
-            <div class="metric-item">
-              <span>{{ t('diagnostics.pluginFailed') }}</span>
-              <Tag size="small" :color="pluginFailedCount ? 'error' : 'default'" :bordered="false">{{ pluginFailedCount }}</Tag>
-            </div>
-            <div class="metric-item">
-              <span>{{ t('diagnostics.pluginDiagnostics') }}</span>
-              <Tag size="small" :bordered="false">{{ pluginStatus?.diagnostic_count ?? 0 }}</Tag>
-            </div>
-          </div>
-          <div v-if="pluginRows.length" class="plugin-list">
-            <article v-for="plugin in pluginRows.slice(0, 4)" :key="plugin.name" class="plugin-item">
-              <div class="plugin-head">
-                <strong>{{ plugin.name || '-' }}</strong>
-                <Tag size="small" :bordered="false">{{ plugin.kind || '-' }}</Tag>
-              </div>
-              <p>{{ plugin.description || plugin.directory_ref || '-' }}</p>
-              <div class="plugin-meta">
-                <span>{{ t('diagnostics.pluginVersion') }}: {{ plugin.version || '-' }}</span>
-                <span>{{ t('diagnostics.pluginAuthor') }}: {{ plugin.author || '-' }}</span>
-                <span>{{ t('diagnostics.pluginSource') }}: {{ plugin.source || '-' }}</span>
-                <span>{{ t('diagnostics.pluginEnabled') }}: {{ plugin.enabled ? t('common.enabled') : t('common.disabled') }}</span>
-                <span>{{ t('diagnostics.pluginAutoLoad') }}: {{ plugin.auto_load ? t('common.enabled') : t('common.disabled') }}</span>
-                <span>{{ t('diagnostics.pluginProvidesTools') }}: {{ plugin.provides_tools?.join(', ') || '-' }}</span>
-              </div>
-            </article>
-          </div>
-          <div v-else class="empty-state">{{ t('diagnostics.noPlugins') }}</div>
-          <div v-if="pluginDiagnostics.length" class="plugin-diagnostics">
-            <div v-for="item in pluginDiagnostics.slice(0, 5)" :key="`${item.plugin_name}:${item.reason}`" class="doctor-item">
-              <Tag size="small" :color="pluginStatusTagType(item.status)" :bordered="false">{{ item.status || '-' }}</Tag>
-              <span>{{ item.plugin_name || '-' }} · {{ item.reason || item.message || '-' }}</span>
-            </div>
-          </div>
         </section>
         <section class="panel">
           <h3>{{ t('diagnostics.platformToolsets') }}</h3>
@@ -2037,53 +1969,6 @@ onMounted(load)
 .toolset-list {
   display: grid;
   gap: 8px;
-}
-
-.plugin-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.plugin-item {
-  border: 1px solid $border-light;
-  border-radius: $radius-sm;
-  background: $bg-secondary;
-  padding: 10px;
-}
-
-.plugin-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: center;
-}
-
-.plugin-head strong {
-  color: $text-primary;
-  font-size: 13px;
-}
-
-.plugin-item p {
-  margin: 6px 0 0;
-  color: $text-secondary;
-  font-size: 12px;
-  word-break: break-word;
-}
-
-.plugin-meta {
-  display: grid;
-  gap: 4px;
-  margin-top: 8px;
-  color: $text-muted;
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
-.plugin-diagnostics {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
 }
 
 .toolset-row {

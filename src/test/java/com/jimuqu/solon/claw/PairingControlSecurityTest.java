@@ -5,10 +5,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.ChannelStatus;
+import com.jimuqu.solon.claw.core.model.DeliveryRequest;
+import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.PairingRequestRecord;
+import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
+import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
+import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.web.DashboardPairingService;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -18,17 +27,21 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 /** 验证可信 pairing 控制面不会把临时凭据明文落库。 */
 public class PairingControlSecurityTest {
-    /** pairing code 必须盐化存储，并只能由正确明文完成审批。 */
+    /** pairing code 必须盐化存储，并只能由正确明文绑定唯一主人。 */
     @Test
     void shouldHashPairingCodeAndApproveThroughTrustedControl() throws Exception {
         AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-control"));
@@ -46,18 +59,262 @@ public class PairingControlSecurityTest {
             assertThat(repository.getPairingRequest(PlatformType.WEIXIN, "WRONG234")).isNull();
 
             assertThat(
-                            authorization
-                                    .approvePairing(PlatformType.WEIXIN, "ABCD2345", "dashboard")
+                            authorization.claimPairingOwner(PlatformType.WEIXIN, "ABCD2345")
                                     .getUserId())
                     .isEqualTo("wx-user");
             assertThat(repository.listPairingRequests(PlatformType.WEIXIN)).isEmpty();
-            assertThat(repository.getApprovedUser(PlatformType.WEIXIN, "wx-user")).isNotNull();
+            assertThat(repository.getPlatformAdmin(PlatformType.WEIXIN).getUserId())
+                    .isEqualTo("wx-user");
         } finally {
             database.shutdown();
         }
     }
 
-    /** Dashboard、CLI 和渠道审批必须共享平台级失败锁定，锁定期间正确 code 也不能通过。 */
+    /** 首次可信绑定必须原子创建主人、默认私聊并消费 pairing 请求。 */
+    @Test
+    void shouldClaimFirstPairingUserAsOwnerAndHomeChannel() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-owner"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            GatewayAuthorizationService authorization =
+                    new GatewayAuthorizationService(repository, config);
+            repository.savePairingRequest(request("OWNER234"));
+
+            assertThat(authorization.claimPairingOwner(PlatformType.WEIXIN, "OWNER234").getUserId())
+                    .isEqualTo("wx-user");
+            assertThat(repository.getPlatformAdmin(PlatformType.WEIXIN).getChatId())
+                    .isEqualTo("wx-chat");
+            assertThat(repository.getHomeChannel(PlatformType.WEIXIN).getChatId())
+                    .isEqualTo("wx-chat");
+            assertThat(repository.getHomeChannel(PlatformType.WEIXIN).isPrimary()).isTrue();
+            assertThat(repository.listPairingRequests(PlatformType.WEIXIN)).isEmpty();
+            assertThat(repository.getApprovedUser(PlatformType.WEIXIN, "wx-user")).isNull();
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** 清除主人时必须删除旧私聊，且不得自动改选其他通知渠道。 */
+    @Test
+    void shouldRemoveOwnerHomeWithoutPromotingAnotherChannel() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-owner-clear"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            GatewayAuthorizationService authorization =
+                    new GatewayAuthorizationService(repository, config);
+            repository.savePairingRequest(request("WEIXIN23"));
+            repository.savePairingRequest(
+                    request(PlatformType.FEISHU, "FEISHU23", "fs-user", "fs-chat"));
+            authorization.claimPairingOwner(PlatformType.WEIXIN, "WEIXIN23");
+            authorization.claimPairingOwner(PlatformType.FEISHU, "FEISHU23");
+
+            authorization.clearPlatformAdmin(PlatformType.WEIXIN);
+
+            assertThat(repository.getPlatformAdmin(PlatformType.WEIXIN)).isNull();
+            assertThat(repository.getHomeChannel(PlatformType.WEIXIN)).isNull();
+            assertThat(repository.getPrimaryHomeChannel()).isNull();
+            assertThat(repository.getHomeChannel(PlatformType.FEISHU).isPrimary()).isFalse();
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** 未绑定平台管理员的孤立渠道不得成为任何通知策略的投递目标。 */
+    @Test
+    void shouldHideHomeChannelWithoutPlatformAdmin() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-orphan-home"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            HomeChannelRecord orphan = new HomeChannelRecord();
+            orphan.setPlatform(PlatformType.FEISHU);
+            orphan.setChatId("orphan-chat");
+            orphan.setPrimary(true);
+            orphan.setUpdatedAt(System.currentTimeMillis());
+            repository.saveHomeChannel(orphan);
+
+            assertThat(repository.getHomeChannel(PlatformType.FEISHU)).isNull();
+            assertThat(repository.getPrimaryHomeChannel()).isNull();
+            assertThat(repository.listHomeChannels()).isEmpty();
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** pairing 请求并不存在时必须回滚同一事务内已尝试写入的主人和默认私聊。 */
+    @Test
+    void shouldRollbackOwnerAndHomeWhenPairingConsumptionFails() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-owner-rollback"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            PairingRequestRecord missing = request("MISSING2");
+            PlatformAdminRecord admin = new PlatformAdminRecord();
+            admin.setPlatform(PlatformType.WEIXIN);
+            admin.setUserId(missing.getUserId());
+            admin.setChatId(missing.getChatId());
+            admin.setCreatedAt(System.currentTimeMillis());
+            HomeChannelRecord home = new HomeChannelRecord();
+            home.setPlatform(PlatformType.WEIXIN);
+            home.setChatId(missing.getChatId());
+            home.setUpdatedAt(System.currentTimeMillis());
+
+            assertThatThrownBy(() -> repository.claimPlatformAdminIfAbsent(missing, admin, home))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("已被消费");
+            assertThat(repository.getPlatformAdmin(PlatformType.WEIXIN)).isNull();
+            assertThat(repository.getHomeChannel(PlatformType.WEIXIN)).isNull();
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** 已有主人时可信控制面也不得抢占，原主人与默认私聊必须保持不变。 */
+    @Test
+    void shouldRejectOwnerTakeoverWhenPlatformAlreadyClaimed() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-owner-takeover"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            GatewayAuthorizationService authorization =
+                    new GatewayAuthorizationService(repository, config);
+            repository.savePairingRequest(request("FIRST234", "first-owner"));
+            authorization.claimPairingOwner(PlatformType.WEIXIN, "FIRST234");
+            repository.savePairingRequest(request("SECOND23", "second-owner"));
+
+            assertThatThrownBy(
+                            () ->
+                                    authorization.claimPairingOwner(
+                                            PlatformType.WEIXIN, "SECOND23"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("已绑定主人");
+            assertThat(repository.getPlatformAdmin(PlatformType.WEIXIN).getUserId())
+                    .isEqualTo("first-owner");
+            assertThat(repository.getHomeChannel(PlatformType.WEIXIN).getChatId())
+                    .isEqualTo("wx-chat");
+            assertThat(repository.getPairingRequest(PlatformType.WEIXIN, "SECOND23")).isNotNull();
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** Dashboard 首次绑定成功后必须立即使用当前 Profile 的渠道投递欢迎语。 */
+    @Test
+    void shouldDeliverWelcomeAfterDashboardOwnerClaim() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-owner-welcome"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            GatewayAuthorizationService authorization =
+                    new GatewayAuthorizationService(repository, config);
+            repository.savePairingRequest(request("HELLO234"));
+            AtomicReference<DeliveryRequest> delivered = new AtomicReference<DeliveryRequest>();
+            DashboardPairingService service =
+                    new DashboardPairingService(
+                            authorization,
+                            new DashboardProfileContext(ProfileManager.current(), config),
+                            new DeliveryService() {
+                                /** 记录欢迎消息投递请求。 */
+                                @Override
+                                public void deliver(DeliveryRequest request) {
+                                    delivered.set(request);
+                                }
+
+                                /** 测试投递器不连接真实渠道。 */
+                                @Override
+                                public List<ChannelStatus> statuses() {
+                                    return Collections.emptyList();
+                                }
+                            },
+                            null);
+
+            Map<String, Object> result = service.claimOwner(null, "weixin", "HELLO234");
+
+            assertThat(delivered.get().getPlatform()).isEqualTo(PlatformType.WEIXIN);
+            assertThat(delivered.get().getChatId()).isEqualTo("wx-chat");
+            assertThat(delivered.get().getChatType())
+                    .isEqualTo(GatewayBehaviorConstants.CHAT_TYPE_DM);
+            assertThat(delivered.get().getText()).contains("准备好了");
+            assertThat(welcome(result).get("status")).isEqualTo("sent");
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** 首次欢迎语失败后只能按已绑定主人记录重发，不能信任客户端投递目标。 */
+    @Test
+    void shouldReportWelcomeFailureAndRetryBoundOwnerDm() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-owner-welcome-retry"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            GatewayAuthorizationService authorization =
+                    new GatewayAuthorizationService(repository, config);
+            repository.savePairingRequest(request("RETRY234"));
+            AtomicInteger attempts = new AtomicInteger();
+            AtomicReference<DeliveryRequest> delivered = new AtomicReference<DeliveryRequest>();
+            DashboardPairingService service =
+                    new DashboardPairingService(
+                            authorization,
+                            new DashboardProfileContext(ProfileManager.current(), config),
+                            new DeliveryService() {
+                                /** 首次模拟渠道失败，第二次记录服务端构造的欢迎语请求。 */
+                                @Override
+                                public void deliver(DeliveryRequest request) throws Exception {
+                                    if (attempts.getAndIncrement() == 0) {
+                                        throw new IllegalStateException("channel unavailable");
+                                    }
+                                    delivered.set(request);
+                                }
+
+                                /** 测试投递器不连接真实渠道。 */
+                                @Override
+                                public List<ChannelStatus> statuses() {
+                                    return Collections.emptyList();
+                                }
+                            },
+                            null);
+
+            Map<String, Object> claim = service.claimOwner(null, "weixin", "RETRY234");
+            Map<String, Object> retried = service.retryWelcome(null, "weixin");
+
+            assertThat(welcome(claim).get("status")).isEqualTo("failed");
+            assertThat(welcome(retried).get("status")).isEqualTo("sent");
+            assertThat(delivered.get().getChatId()).isEqualTo("wx-chat");
+            assertThat(delivered.get().getUserId()).isEqualTo("wx-user");
+            assertThat(delivered.get().getChatType())
+                    .isEqualTo(GatewayBehaviorConstants.CHAT_TYPE_DM);
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** 可信控制面只能把已经绑定主人的平台设为主要通知渠道。 */
+    @Test
+    void shouldRequireBoundOwnerBeforeSettingPrimaryChannel() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-primary-owner"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            GatewayAuthorizationService authorization =
+                    new GatewayAuthorizationService(repository, config);
+
+            assertThatThrownBy(() -> authorization.setPrimaryHomeChannel(PlatformType.WEIXIN))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("尚未绑定主人");
+
+            repository.savePairingRequest(request("PRIMARY2"));
+            authorization.claimPairingOwner(PlatformType.WEIXIN, "PRIMARY2");
+            assertThat(authorization.setPrimaryHomeChannel(PlatformType.WEIXIN).isPrimary())
+                    .isTrue();
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** 主人绑定失败必须共享平台级失败锁定，锁定期间正确 code 也不能通过。 */
     @Test
     void shouldEnforcePlatformApprovalLockoutAcrossTrustedControls() throws Exception {
         AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-lockout"));
@@ -69,22 +326,21 @@ public class PairingControlSecurityTest {
             repository.savePairingRequest(request("LOCK2345"));
 
             for (int i = 0; i < 5; i++) {
-                String approvedBy = i % 2 == 0 ? "dashboard" : "local-cli";
                 assertThatThrownBy(
                                 () ->
-                                        authorization.approvePairing(
-                                                PlatformType.WEIXIN, "WRONG234", approvedBy))
+                                        authorization.claimPairingOwner(
+                                                PlatformType.WEIXIN, "WRONG234"))
                         .isInstanceOf(IllegalArgumentException.class)
                         .hasMessageContaining("无效或已过期");
             }
 
             assertThatThrownBy(
                             () ->
-                                    authorization.approvePairing(
-                                            PlatformType.WEIXIN, "LOCK2345", "dashboard"))
+                                    authorization.claimPairingOwner(
+                                            PlatformType.WEIXIN, "LOCK2345"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("失败次数过多");
-            assertThat(repository.getApprovedUser(PlatformType.WEIXIN, "wx-user")).isNull();
+            assertThat(repository.getPlatformAdmin(PlatformType.WEIXIN)).isNull();
             assertThat(repository.getPairingRequest(PlatformType.WEIXIN, "LOCK2345")).isNotNull();
         } finally {
             database.shutdown();
@@ -162,9 +418,9 @@ public class PairingControlSecurityTest {
                     executor.submit(
                             () -> {
                                 try {
-                                    authorization.approvePairing(
-                                            PlatformType.WEIXIN, "RACE2345", "dashboard");
-                                    return "approved";
+                                    authorization.claimPairingOwner(
+                                            PlatformType.WEIXIN, "RACE2345");
+                                    return "claimed";
                                 } catch (IllegalArgumentException e) {
                                     return e.getMessage();
                                 }
@@ -191,8 +447,7 @@ public class PairingControlSecurityTest {
                                             "solonclaw:pairing-platform-approval")
                                     .getLockoutUntil())
                     .isGreaterThan(System.currentTimeMillis());
-            assertThat(concurrentRepository.getApprovedUser(PlatformType.WEIXIN, "wx-user"))
-                    .isNull();
+            assertThat(concurrentRepository.getPlatformAdmin(PlatformType.WEIXIN)).isNull();
             assertThat(concurrentRepository.getPairingRequest(PlatformType.WEIXIN, "RACE2345"))
                     .isNotNull();
         } finally {
@@ -246,6 +501,53 @@ public class PairingControlSecurityTest {
         }
     }
 
+    /** 同一用户再次申请时只保留最新请求。 */
+    @Test
+    void shouldReplaceExistingPairingRequestForSameUser() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-replace"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            long now = System.currentTimeMillis();
+
+            assertThat(repository.trySavePairingRequest(request("FIRST234"), now, 3)).isTrue();
+            assertThat(repository.trySavePairingRequest(request("SECOND23"), now, 3)).isTrue();
+
+            assertThat(repository.listPairingRequests(PlatformType.WEIXIN)).hasSize(1);
+            assertThat(repository.getPairingRequest(PlatformType.WEIXIN, "FIRST234")).isNull();
+            assertThat(repository.getPairingRequest(PlatformType.WEIXIN, "SECOND23")).isNotNull();
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** 已存在的摘要冲突不得被另一用户静默覆盖。 */
+    @Test
+    void shouldNotOverwriteAnotherUserWhenPairingCodeHashCollides() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-code-collision"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            PairingRequestRecord owner = request("OWNER234", "first-user");
+            repository.savePairingRequest(owner);
+            String storedHash = repository.listPairingRequests(PlatformType.WEIXIN).get(0).getCode();
+            PairingRequestRecord collision = request(storedHash, "second-user");
+
+            assertThatThrownBy(
+                            () ->
+                                    repository.trySavePairingRequest(
+                                            collision, System.currentTimeMillis(), 3))
+                    .isInstanceOf(java.sql.SQLException.class);
+
+            assertThat(repository.listPairingRequests(PlatformType.WEIXIN))
+                    .singleElement()
+                    .extracting(PairingRequestRecord::getUserId)
+                    .isEqualTo("first-user");
+        } finally {
+            database.shutdown();
+        }
+    }
+
     /** 管理员设置和清除只能走可信控制服务，且 SQLite 主文件权限必须 owner-only。 */
     @Test
     void shouldManageAdminAndRestrictDatabasePermissions() throws Exception {
@@ -258,8 +560,6 @@ public class PairingControlSecurityTest {
             authorization.setPlatformAdmin(PlatformType.WEIXIN, "wx-admin", "管理员", "wx-admin-chat");
             assertThat(authorization.platformAdmin(PlatformType.WEIXIN).getUserId())
                     .isEqualTo("wx-admin");
-            assertThatThrownBy(() -> authorization.revokePairing(PlatformType.WEIXIN, "wx-admin"))
-                    .isInstanceOf(IllegalArgumentException.class);
             authorization.clearPlatformAdmin(PlatformType.WEIXIN);
             assertThat(authorization.platformAdmin(PlatformType.WEIXIN)).isNull();
 
@@ -291,15 +591,27 @@ public class PairingControlSecurityTest {
 
     /** 创建指定用户的待审批微信 pairing 请求。 */
     private PairingRequestRecord request(String code, String userId) {
+        return request(PlatformType.WEIXIN, code, userId, "wx-chat");
+    }
+
+    /** 创建指定平台和私聊的待绑定请求。 */
+    private PairingRequestRecord request(
+            PlatformType platform, String code, String userId, String chatId) {
         PairingRequestRecord request = new PairingRequestRecord();
-        request.setPlatform(PlatformType.WEIXIN);
+        request.setPlatform(platform);
         request.setCode(code);
         request.setUserId(userId);
         request.setUserName("微信用户");
-        request.setChatId("wx-chat");
+        request.setChatId(chatId);
         request.setCreatedAt(System.currentTimeMillis());
         request.setExpiresAt(System.currentTimeMillis() + 60_000L);
         return request;
+    }
+
+    /** 读取 Dashboard 返回的欢迎投递状态。 */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> welcome(Map<String, Object> result) {
+        return (Map<String, Object>) result.get("welcome_delivery");
     }
 
     /** 创建多个独立数据库组件实例，共同指向同一状态库文件。 */

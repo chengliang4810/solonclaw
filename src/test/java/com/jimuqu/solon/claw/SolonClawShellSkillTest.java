@@ -1484,9 +1484,9 @@ public class SolonClawShellSkillTest {
         SolonClawShellSkill skill = new SolonClawShellSkill(workdir, config);
         skill.addOutputTransformer(
                 context ->
-                        "PLUGIN-HEAD\n"
+                        "OUTPUT-HEAD\n"
                                 + repeat("A", 600)
-                                + "\napi_key=sk-test-secret \u001B[31mPLUGIN-TAIL\u001B[0m");
+                                + "\napi_key=sk-test-secret \u001B[31mOUTPUT-TAIL\u001B[0m");
 
         ONode result =
                 ONode.ofJson(
@@ -1499,8 +1499,8 @@ public class SolonClawShellSkillTest {
 
         String output = result.get("output").getString();
         assertThat(output)
-                .contains("PLUGIN-HEAD")
-                .contains("PLUGIN-TAIL")
+                .contains("OUTPUT-HEAD")
+                .contains("OUTPUT-TAIL")
                 .contains("OUTPUT TRUNCATED")
                 .contains("api_key=***")
                 .doesNotContain("sk-test-secret")

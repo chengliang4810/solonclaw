@@ -12,7 +12,7 @@ import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.VisionAnalysisService;
-import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.TestEnvironment;

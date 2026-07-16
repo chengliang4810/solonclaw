@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Button, Drawer, Input, Spin, Tag, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
+import { useProfilesStore } from '@/stores/solonclaw/profiles'
 import { downloadMedia, fetchMedia, fetchMediaDetail, indexMedia, referenceMedia, refreshMedia, type ChannelMedia } from '@/api/solonclaw/media'
 import PlatformSettings from '@/components/solonclaw/settings/PlatformSettings.vue'
 import PairingControl from '@/components/solonclaw/channels/PairingControl.vue'
+import { normalizePlatformSettingsItems } from '@/components/solonclaw/settings/platformDefinitions'
 import { formatFileSize } from '@/shared/fileSizeFormat'
 import { formatTimestampText } from '@/shared/timeFormat'
 
 const settingsStore = useSettingsStore()
+const profilesStore = useProfilesStore()
 const { t } = useI18n()
 const mediaItems = ref<ChannelMedia[]>([])
 const mediaLoading = ref(false)
@@ -21,9 +24,13 @@ const mediaReferenceLoading = ref(false)
 const mediaIndexPath = ref('')
 const selectedMediaDetail = ref<ChannelMedia | null>(null)
 const mediaDetailOpen = ref(false)
+const platformLabels = computed(() => Object.fromEntries(
+  normalizePlatformSettingsItems(settingsStore.platformCatalog).map(item => [item.key, item.name]),
+))
 
 onMounted(() => {
   settingsStore.fetchSettings()
+  void profilesStore.initialize(false).catch(() => {})
   loadMedia()
 })
 
@@ -124,7 +131,11 @@ async function referenceSelectedMedia() {
         <PlatformSettings v-if="!settingsStore.loading" />
       </Spin>
 
-      <PairingControl />
+      <PairingControl
+        :profile-name="profilesStore.managedProfileName"
+        :platform-settings="settingsStore.platforms"
+        :platform-labels="platformLabels"
+      />
 
       <section class="media-cache">
         <div class="section-head">

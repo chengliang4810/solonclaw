@@ -137,7 +137,7 @@ export function createSlashHandler(ctx: SlashHandlerContext): (cmd: string) => b
         return sys('error: invalid response: command.dispatch')
       }
 
-      if (d.type === 'exec' || d.type === 'plugin') {
+      if (d.type === 'exec') {
         return sys(d.output || '(no output)')
       }
 

@@ -25,6 +25,7 @@ import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsController;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
+import com.jimuqu.solon.claw.web.DashboardDiagnosticsServiceBuilder;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import java.io.File;
 import java.nio.file.Files;
@@ -40,6 +41,11 @@ import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
 public class DashboardDiagnosticOutputTest {
+    /** 创建已绑定当前用例配置的诊断服务构建器，其余字段仅由用例按差异设置。 */
+    private static DashboardDiagnosticsServiceBuilder diagnosticsBuilder(AppConfig config) {
+        return DashboardDiagnosticsService.builder().appConfig(config);
+    }
+
     @Test
     @SuppressWarnings("unchecked")
     void shouldExposeManagedProcessRuntimeDiagnosticsWithoutDrainingEvents() throws Exception {
@@ -71,24 +77,13 @@ public class DashboardDiagnosticOutputTest {
             }
 
             DashboardDiagnosticsService diagnosticsService =
-                    new DashboardDiagnosticsService(
-                            config,
-                            FixedDeliveryService.empty(),
-                            new LlmProviderService(config),
-                            new FixedToolRegistry(),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new SecurityPolicyService(config),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            processRegistry);
+                    diagnosticsBuilder(config)
+                            .deliveryService(FixedDeliveryService.empty())
+                            .llmProviderService(new LlmProviderService(config))
+                            .toolRegistry(new FixedToolRegistry())
+                            .securityPolicyService(new SecurityPolicyService(config))
+                            .processRegistry(processRegistry)
+                            .build();
 
             Map<String, Object> diagnostics = diagnosticsService.diagnostics();
 
@@ -220,25 +215,13 @@ public class DashboardDiagnosticOutputTest {
                 .contains("\"next_reconnect_at\":6000");
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        deliveryService,
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        refreshService);
+                diagnosticsBuilder(config)
+                        .deliveryService(deliveryService)
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .gatewayRuntimeRefreshService(refreshService)
+                        .build();
         Map<String, Object> diagnostics = diagnosticsService.diagnostics();
         Map<String, Object> streamHealth = (Map<String, Object>) diagnostics.get("stream_health");
         assertThat(streamHealth).isNotNull();
@@ -479,19 +462,12 @@ public class DashboardDiagnosticOutputTest {
                                 config, new ChannelConnectionManager(Collections.emptyMap())));
         DashboardDiagnosticsController controller =
                 new DashboardDiagnosticsController(
-                        new DashboardDiagnosticsService(
-                                config,
-                                FixedDeliveryService.empty(),
-                                new LlmProviderService(config),
-                                new FixedToolRegistry(),
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                null,
-                                new SecurityPolicyService(config),
-                                null),
+                        diagnosticsBuilder(config)
+                                .deliveryService(FixedDeliveryService.empty())
+                                .llmProviderService(new LlmProviderService(config))
+                                .toolRegistry(new FixedToolRegistry())
+                                .securityPolicyService(new SecurityPolicyService(config))
+                                .build(),
                         doctorService);
 
         Map<String, Object> response = controller.doctor();
@@ -577,21 +553,13 @@ public class DashboardDiagnosticOutputTest {
                         refreshService,
                         forensicsService);
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        deliveryService,
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        null,
-                        forensicsService);
+                diagnosticsBuilder(config)
+                        .deliveryService(deliveryService)
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .shutdownForensicsService(forensicsService)
+                        .build();
 
         Map<String, Object> doctor = doctorService.doctor();
         Map<String, Object> shutdown = (Map<String, Object>) doctor.get("last_shutdown");
@@ -715,19 +683,12 @@ public class DashboardDiagnosticOutputTest {
         channelStatus.setLastErrorMessage("Bearer ghp_streamhealth123 password=stream-pass");
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        new FixedDeliveryService(channelStatus),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(new FixedDeliveryService(channelStatus))
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> diagnostics = diagnosticsService.diagnostics();
         Map<String, Object> streamHealth = (Map<String, Object>) diagnostics.get("stream_health");
@@ -763,22 +724,13 @@ public class DashboardDiagnosticOutputTest {
         monitorService.captureSnapshot("periodic");
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        null,
-                        null,
-                        monitorService);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .runtimeMemoryMonitorService(monitorService)
+                        .build();
 
         Map<String, Object> diagnostics = diagnosticsService.diagnostics();
         Map<String, Object> runtime = (Map<String, Object>) diagnostics.get("runtime");
@@ -842,23 +794,13 @@ public class DashboardDiagnosticOutputTest {
         }
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        null,
-                        null,
-                        null,
-                        repository);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .agentRunRepository(repository)
+                        .build();
 
         Map<String, Object> diagnostics = diagnosticsService.diagnostics();
 
@@ -910,20 +852,13 @@ public class DashboardDiagnosticOutputTest {
         config.getSecurity().setTirithFailOpen(true);
         config.getSecurity().setTirithTimeoutSeconds(9);
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        new TirithSecurityService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .tirithSecurityService(new TirithSecurityService(config))
+                        .build();
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("action", "policy");
 
@@ -970,20 +905,13 @@ public class DashboardDiagnosticOutputTest {
                         768,
                         300);
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        toolResultStorageService);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .toolResultStorageService(toolResultStorageService)
+                        .build();
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("action", "policy");
 
@@ -1024,20 +952,12 @@ public class DashboardDiagnosticOutputTest {
     void shouldExposeStatusActionAsReadOnlyPolicyAuditAlias() throws Exception {
         AppConfig config = new AppConfig();
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("action", "status");
         body.put("command", "echo token=ghp_statusaliassecret123");
@@ -1076,20 +996,12 @@ public class DashboardDiagnosticOutputTest {
         AppConfig config = new AppConfig();
         config.getTerminal().getEnvPassthrough().add("TENOR_API_KEY");
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put(
                 "names",
@@ -1149,19 +1061,14 @@ public class DashboardDiagnosticOutputTest {
         records.add(pending);
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        new FixedSessionRepository(records),
-                        null,
-                        null,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .sessionRepository(new FixedSessionRepository(records))
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.pendingApprovals(1);
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
@@ -1198,19 +1105,14 @@ public class DashboardDiagnosticOutputTest {
         }
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        new FixedSessionRepository(records),
-                        null,
-                        null,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .sessionRepository(new FixedSessionRepository(records))
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.pendingApprovals(1);
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
@@ -1239,19 +1141,14 @@ public class DashboardDiagnosticOutputTest {
         }
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        new FixedSessionRepository(records),
-                        null,
-                        null,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .sessionRepository(new FixedSessionRepository(records))
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.pendingApprovals(1);
 
@@ -1273,39 +1170,29 @@ public class DashboardDiagnosticOutputTest {
         body.put("action", "deny");
 
         DashboardDiagnosticsService missingSessionRepository =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new DangerousCommandApprovalService(
-                                null, config, new SecurityPolicyService(config)),
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .approvalService(
+                                new DangerousCommandApprovalService(
+                                        null, config, new SecurityPolicyService(config)))
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
         Map<String, Object> missingSessionResult = missingSessionRepository.resolveApproval(body);
         assertThat(missingSessionResult.get("success")).isEqualTo(Boolean.FALSE);
         assertThat(missingSessionResult.get("code")).isEqualTo("approval_unavailable");
         assertThat(String.valueOf(missingSessionResult.get("message"))).contains("审批服务");
 
         DashboardDiagnosticsService missingApprovalService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        new FixedSessionRepository(Collections.<SessionRecord>emptyList()),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .sessionRepository(
+                                new FixedSessionRepository(Collections.<SessionRecord>emptyList()))
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
         Map<String, Object> missingApprovalResult = missingApprovalService.resolveApproval(body);
         assertThat(missingApprovalResult.get("success")).isEqualTo(Boolean.FALSE);
         assertThat(missingApprovalResult.get("code")).isEqualTo("approval_unavailable");
@@ -1333,20 +1220,15 @@ public class DashboardDiagnosticOutputTest {
     void shouldReturnStructuredApprovalHistoryFailureWhenRepositoryUnavailable() throws Exception {
         AppConfig config = new AppConfig();
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new DangerousCommandApprovalService(
-                                null, config, new SecurityPolicyService(config)),
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .approvalService(
+                                new DangerousCommandApprovalService(
+                                        null, config, new SecurityPolicyService(config)))
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.approvalHistory(10);
 
@@ -1360,19 +1242,12 @@ public class DashboardDiagnosticOutputTest {
     void shouldReturnStructuredSlashConfirmFailureWhenServiceUnavailable() throws Exception {
         AppConfig config = new AppConfig();
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> list = diagnosticsService.pendingSlashConfirms(10);
         assertThat(list.get("count")).isEqualTo(Integer.valueOf(0));
@@ -1400,19 +1275,14 @@ public class DashboardDiagnosticOutputTest {
                         "confirm token=ghp_slashprompt12345");
         pending.setConfirmId("confirm-ghp_slashconfirm12345");
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        slashConfirmService,
-                        new RedactingCommandService(),
-                        null,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .slashConfirmService(slashConfirmService)
+                        .commandService(new RedactingCommandService())
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("confirmId", pending.getConfirmId());
@@ -1442,19 +1312,14 @@ public class DashboardDiagnosticOutputTest {
         second.setEventId("history-truncated-2");
         second.setCreatedAt(1700000000002L);
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        new FixedApprovalAuditRepository(Arrays.asList(first, second)),
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .approvalAuditRepository(
+                                new FixedApprovalAuditRepository(Arrays.asList(first, second)))
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.approvalHistory(1);
 
@@ -1473,19 +1338,13 @@ public class DashboardDiagnosticOutputTest {
                 new DangerousCommandApprovalService(
                         globalSettings, config, new SecurityPolicyService(config));
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.alwaysApprovals(1);
 
@@ -1500,19 +1359,13 @@ public class DashboardDiagnosticOutputTest {
         slashConfirmService.register("source-slash-1", "/reload-mcp one", "确认一", false);
         slashConfirmService.register("source-slash-2", "/reload-mcp two", "确认二", false);
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        slashConfirmService,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .slashConfirmService(slashConfirmService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.pendingSlashConfirms(1);
 
@@ -1541,19 +1394,15 @@ public class DashboardDiagnosticOutputTest {
                 "rm -rf workspace/cache --token ghp_pendingcommand123\u202E");
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        new FixedSessionRepository(Collections.singletonList(record)),
-                        null,
-                        null,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .sessionRepository(
+                                new FixedSessionRepository(Collections.singletonList(record)))
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.pendingApprovals(10);
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
@@ -1595,19 +1444,15 @@ public class DashboardDiagnosticOutputTest {
                 "curl https://example.test/callback?api%255Fkey=diagnostic-secret");
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        new FixedSessionRepository(Collections.singletonList(record)),
-                        null,
-                        null,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .sessionRepository(
+                                new FixedSessionRepository(Collections.singletonList(record)))
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.pendingApprovals(10);
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
@@ -1634,19 +1479,13 @@ public class DashboardDiagnosticOutputTest {
                 "确认执行 https://example.test/callback?api%255Fkey=slash-secret",
                 true);
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        slashConfirmService,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .slashConfirmService(slashConfirmService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.pendingSlashConfirms(10);
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
@@ -1699,19 +1538,15 @@ public class DashboardDiagnosticOutputTest {
         session.updateSnapshot();
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        new FixedSessionRepository(Collections.singletonList(record)),
-                        null,
-                        null,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .sessionRepository(
+                                new FixedSessionRepository(Collections.singletonList(record)))
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.pendingApprovals(10);
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
@@ -1754,19 +1589,16 @@ public class DashboardDiagnosticOutputTest {
                 "rm -rf workspace/cache");
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        new FixedSessionRepository(Collections.singletonList(record)),
-                        new RedactingResumeOrchestrator(),
-                        null,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .sessionRepository(
+                                new FixedSessionRepository(Collections.singletonList(record)))
+                        .conversationOrchestrator(new RedactingResumeOrchestrator())
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> pending = diagnosticsService.pendingApprovals(10);
         List<Map<String, Object>> items = (List<Map<String, Object>>) pending.get("items");
@@ -1813,19 +1645,14 @@ public class DashboardDiagnosticOutputTest {
         event.setCreatedAt(1700000000002L);
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        new FixedApprovalAuditRepository(Collections.singletonList(event)),
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .approvalAuditRepository(
+                                new FixedApprovalAuditRepository(Collections.singletonList(event)))
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.approvalHistory(10);
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
@@ -1876,19 +1703,14 @@ public class DashboardDiagnosticOutputTest {
                                 "setup"))
                 .isTrue();
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        auditRepository,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .approvalAuditRepository(auditRepository)
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
         Map<String, Object> list = diagnosticsService.alwaysApprovals(10);
         List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
         Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -1920,19 +1742,14 @@ public class DashboardDiagnosticOutputTest {
                 new DangerousCommandApprovalService(
                         globalSettings, config, new SecurityPolicyService(config));
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        auditRepository,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .approvalAuditRepository(auditRepository)
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
         Map<String, Object> list = diagnosticsService.alwaysApprovals(10);
         List<Map<String, Object>> items = (List<Map<String, Object>>) list.get("items");
         Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -1978,19 +1795,13 @@ public class DashboardDiagnosticOutputTest {
                                 "setup"))
                 .isTrue();
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
         Map<String, Object> body = new LinkedHashMap<String, Object>();
         body.put("approval", "execute_shell:recursive_delete");
 
@@ -2017,19 +1828,13 @@ public class DashboardDiagnosticOutputTest {
                         globalSettings, config, new SecurityPolicyService(config));
 
         DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        approvalService,
-                        new SecurityPolicyService(config),
-                        null);
+                diagnosticsBuilder(config)
+                        .deliveryService(FixedDeliveryService.empty())
+                        .llmProviderService(new LlmProviderService(config))
+                        .toolRegistry(new FixedToolRegistry())
+                        .approvalService(approvalService)
+                        .securityPolicyService(new SecurityPolicyService(config))
+                        .build();
 
         Map<String, Object> result = diagnosticsService.alwaysApprovals(10);
         List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");

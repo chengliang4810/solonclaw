@@ -2,8 +2,11 @@ package com.jimuqu.solon.claw.media;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.bootstrap.ProviderConfiguration;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
-import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
+import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -21,6 +24,33 @@ class ImageProviderRequestTest {
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=";
 
     @TempDir Path tempDir;
+
+    @Test
+    void providerConfigurationKeepsCredentialsWithinItsProfileScope() throws Exception {
+        Path defaultProfile = tempDir.resolve("default-profile");
+        Path namedProfile = tempDir.resolve("named-profile");
+        Files.createDirectories(defaultProfile);
+        Files.createDirectories(namedProfile);
+        Files.writeString(
+                defaultProfile.resolve("config.yml"),
+                "providers:\n  openai:\n    apiKey: default-openai-key\n");
+        Files.writeString(namedProfile.resolve("config.yml"), "providers: {}\n");
+        RuntimeConfigResolver.initialize(defaultProfile.toString());
+        AppConfig namedConfig = new AppConfig();
+        namedConfig.getRuntime().setHome(namedProfile.toString());
+        ImageGenProvider provider = new ProviderConfiguration().imageGenProviders(namedConfig).get(0);
+
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        "named", namedProfile, Collections.<String, String>emptyMap(), null)) {
+            assertThat(provider.isAvailable()).isFalse();
+        }
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        "named", namedProfile, Collections.singletonMap("OPENAI_API_KEY", "named-key"), null)) {
+            assertThat(provider.isAvailable()).isTrue();
+        }
+    }
 
     @Test
     void providersReadCurrentProfileCredentialForEveryCall() throws Exception {

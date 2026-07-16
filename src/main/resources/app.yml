@@ -175,7 +175,8 @@ solonclaw.agent.personalities.technical.style: 优先用清晰术语描述系统
 solonclaw.channels.feishu.enabled: false
 solonclaw.channels.feishu.allowedUsers:
 solonclaw.channels.feishu.dmPolicy: open
-solonclaw.channels.feishu.groupPolicy: allowlist
+# 群聊仅在 @ 机器人后进入网关；主人复用私聊上下文，其他成员进入无工具的访客隔离会话。
+solonclaw.channels.feishu.groupPolicy: open
 solonclaw.channels.feishu.groupAllowedUsers:
 solonclaw.channels.feishu.allowAllUsers: false
 solonclaw.channels.feishu.unauthorizedDmBehavior: pair
@@ -234,8 +235,8 @@ solonclaw.gateway.allowedUsers:
 solonclaw.gateway.allowAllUsers: false
 # 是否在支持的渠道原消息上显示处理中/完成表情回应
 solonclaw.gateway.processingReactionsEnabled: true
-# 是否由 default Profile 的单个网关进程承载全部 Profile；默认关闭。
-solonclaw.gateway.multiplexProfiles: false
+# 是否由 default Profile 的单个网关进程承载全部 Profile，使每个 Profile 可同时运行独立机器人账号。
+solonclaw.gateway.multiplexProfiles: true
 
 # 版本检查与更新
 solonclaw.update.repo:

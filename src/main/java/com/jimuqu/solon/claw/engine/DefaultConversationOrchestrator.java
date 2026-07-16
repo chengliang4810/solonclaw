@@ -27,8 +27,6 @@ import com.jimuqu.solon.claw.gateway.feedback.GatewayConversationFeedbackSink;
 import com.jimuqu.solon.claw.goal.GoalDecision;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.media.SpeechService;
-import com.jimuqu.solon.claw.plugin.AgentHookName;
-import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
@@ -57,6 +55,9 @@ import org.slf4j.LoggerFactory;
 
 /** DefaultConversationOrchestrator 实现。 */
 public class DefaultConversationOrchestrator implements ConversationOrchestrator {
+    /** 非真实工具选择器，使访客会话的工具白名单保持非空但无法命中任何工具。 */
+    private static final String GROUP_GUEST_NO_TOOLS_SELECTOR = "__group_guest_no_tools__";
+
     /** 日志的统一常量值。 */
     private static final Logger log =
             LoggerFactory.getLogger(DefaultConversationOrchestrator.class);
@@ -109,9 +110,6 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     /** 保存来源Locks映射，便于按键快速查询。 */
     private final ConcurrentMap<String, Object> sourceLocks =
             new ConcurrentHashMap<String, Object>();
-
-    /** 记录默认对话编排器中的钩子注册表。 */
-    private AgentHookRegistry hookRegistry;
 
     /**
      * 创建默认对话编排器实例，并注入运行所需依赖。
@@ -666,34 +664,6 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     }
 
     /**
-     * 写入钩子注册表。
-     *
-     * @param hookRegistry 钩子注册表依赖组件。
-     */
-    public void setHookRegistry(AgentHookRegistry hookRegistry) {
-        this.hookRegistry = hookRegistry;
-    }
-
-    /**
-     * 调用钩子。
-     *
-     * @param hookName 钩子名称参数。
-     * @param sessionId 当前会话标识。
-     * @param message 平台消息或错误消息。
-     */
-    private void invokeHook(String hookName, String sessionId, String message) {
-        if (hookRegistry == null) {
-            return;
-        }
-        java.util.Map<String, Object> args = new java.util.HashMap<>();
-        args.put("session_id", sessionId);
-        if (message != null) {
-            args.put("message", message);
-        }
-        hookRegistry.invoke(hookName, args);
-    }
-
-    /**
      * 执行lockFor相关逻辑。
      *
      * @param sourceKey 渠道来源键。
@@ -779,11 +749,14 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                     toolRegistry.resolveEnabledToolNames(message.sourceKey(), agentScope);
             List<Object> enabledTools =
                     toolRegistry.resolveEnabledTools(message.sourceKey(), agentScope);
-            String systemPrompt =
-                    contextService.buildSystemPrompt(message.sourceKey(), agentScope)
-                            + "\n\n"
-                            + runtimeSettingsService.buildAgentRuntimePrompt(
-                                    message.sourceKey(), session, enabledToolNames, agentScope);
+            boolean groupGuest = message.isGroupGuest();
+            String systemPrompt = contextService.buildSystemPrompt(message.sourceKey(), agentScope);
+            if (!groupGuest) {
+                systemPrompt +=
+                        "\n\n"
+                                + runtimeSettingsService.buildAgentRuntimePrompt(
+                                        message.sourceKey(), session, enabledToolNames, agentScope);
+            }
             systemPrompt =
                     appendToolPolicySystemNote(
                             systemPrompt,
@@ -792,8 +765,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             session.setSystemPromptSnapshot(systemPrompt);
 
             ConversationFeedbackSink feedbackSink = feedbackSinkFor(message);
-            invokeHook(AgentHookName.PRE_LLM_CALL, session.getSessionId(), effectiveUserText);
-            String memoryPrefetchContext = prefetchMemory(message.sourceKey(), effectiveUserText);
+            String memoryPrefetchContext =
+                    groupGuest ? "" : prefetchMemory(message.sourceKey(), effectiveUserText);
             MessageDeliveryTracker.clearDirectDelivery(message.sourceKey());
             AgentRunOutcome outcome =
                     agentRunSupervisor.run(
@@ -819,19 +792,23 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             if (MessageDeliveryTracker.consumeDirectDelivery(message.sourceKey())) {
                 finalReply = "";
             } else {
-                finalReply = decorateFinalReply(finalReply, message.getPlatform(), outcome);
+                if (!groupGuest) {
+                    finalReply = decorateFinalReply(finalReply, message.getPlatform(), outcome);
+                }
             }
             feedbackSink.onFinalReply(finalReply);
             eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
-            invokeHook(AgentHookName.POST_LLM_CALL, session.getSessionId(), finalReply);
-            invokeHook(AgentHookName.ON_SESSION_END, session.getSessionId(), null);
-            syncMemory(message.sourceKey(), effectiveUserText, finalReply, session, outcome);
+            if (!groupGuest) {
+                syncMemory(message.sourceKey(), effectiveUserText, finalReply, session, outcome);
+            }
             GatewayReply reply = GatewayReply.ok(finalReply);
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
-            applyRuntimeMetadata(reply, outcome);
-            applyApprovalCardIfNeeded(reply, message.getPlatform(), session);
-            applyGoalDecision(reply, session, finalReply, message);
+            if (!groupGuest) {
+                applyRuntimeMetadata(reply, outcome);
+                applyApprovalCardIfNeeded(reply, message.getPlatform(), session);
+                applyGoalDecision(reply, session, finalReply, message);
+            }
             return reply;
         } finally {
             session.setTransientProviderOverride(previousTransientProvider);
@@ -984,6 +961,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      */
     private void applyToolsetOverride(AgentRuntimeScope agentScope, GatewayMessage message) {
         if (agentScope == null || message == null) {
+            return;
+        }
+        if (message.isGroupGuest()) {
+            agentScope.setAllowedToolsJson(
+                    org.noear.snack4.ONode.serialize(
+                            Collections.singletonList(GROUP_GUEST_NO_TOOLS_SELECTOR)));
             return;
         }
         List<String> enabled = message.getEnabledToolsetsOverride();

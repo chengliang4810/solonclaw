@@ -396,7 +396,9 @@ public class DashboardRunServiceTest {
         private final List<RunControlCommand> commands = new ArrayList<RunControlCommand>();
 
         @Override
-        public void saveRun(AgentRunRecord record) {}
+        public void saveRun(AgentRunRecord record) {
+            // 测试直接填充内存列表，不经保存入口。
+        }
 
         @Override
         public AgentRunRecord findRun(String runId) {
@@ -429,7 +431,9 @@ public class DashboardRunServiceTest {
         }
 
         @Override
-        public void markStaleRuns(long beforeEpochMillis, long now) {}
+        public void markStaleRuns(long beforeEpochMillis, long now) {
+            return;
+        }
 
         @Override
         public List<AgentRunRecord> listActiveBySource(String sourceKey, int limit) {
@@ -471,7 +475,9 @@ public class DashboardRunServiceTest {
         }
 
         @Override
-        public void saveRunControlCommand(RunControlCommand command) {}
+        public void saveRunControlCommand(RunControlCommand command) {
+            // 测试直接填充内存列表，不经保存入口。
+        }
 
         @Override
         public List<RunControlCommand> listRunControlCommands(String runId) {
@@ -484,10 +490,14 @@ public class DashboardRunServiceTest {
         }
 
         @Override
-        public void markRunControlCommandHandled(String commandId, String status, long handledAt) {}
+        public void markRunControlCommandHandled(String commandId, String status, long handledAt) {
+            return;
+        }
 
         @Override
-        public void saveQueuedMessage(QueuedRunMessage message) {}
+        public void saveQueuedMessage(QueuedRunMessage message) {
+            return;
+        }
 
         @Override
         public QueuedRunMessage findNextQueuedMessage(String sourceKey, String sessionId) {
@@ -501,7 +511,9 @@ public class DashboardRunServiceTest {
 
         @Override
         public void markQueuedMessage(
-                String queueId, String status, long timestamp, String error) {}
+                String queueId, String status, long timestamp, String error) {
+            return;
+        }
 
         @Override
         public boolean markQueuedMessage(

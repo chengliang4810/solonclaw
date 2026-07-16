@@ -328,18 +328,12 @@ public class ContextConfiguration {
      * 执行记忆管理器相关逻辑。
      *
      * @param builtinMemoryProvider builtin记忆提供方标识或键值。
-     * @param pluginMemoryProviders 插件记忆Providers标识或键值。
      * @return 返回记忆管理器结果。
      */
     @Bean
-    public MemoryManager memoryManager(
-            MemoryProvider builtinMemoryProvider,
-            java.util.List<MemoryProvider> pluginMemoryProviders) {
+    public MemoryManager memoryManager(MemoryProvider builtinMemoryProvider) {
         java.util.List<MemoryProvider> providers = new java.util.ArrayList<MemoryProvider>();
         providers.add(builtinMemoryProvider);
-        if (pluginMemoryProviders != null) {
-            providers.addAll(pluginMemoryProviders);
-        }
         return new DefaultMemoryManager(providers);
     }
 

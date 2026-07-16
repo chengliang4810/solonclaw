@@ -1,5 +1,0 @@
-name: fal-video
-version: 1.0.0
-description: "Video generation via FAL.ai LTX-Video API"
-author: jimuqu
-kind: backend

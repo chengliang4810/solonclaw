@@ -923,7 +923,6 @@ describe('createSlashHandler', () => {
         catalog: {
           canon: {
             '/profile': '/profile',
-            '/plugins': '/plugins'
           }
         }
       }

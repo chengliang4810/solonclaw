@@ -863,7 +863,6 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.browser",
                     "solonclaw.security",
                     "solonclaw.mcp",
-                    "solonclaw.plugins",
                     "solonclaw.channels",
                     "solonclaw.channels.feishu",
                     "solonclaw.channels.dingtalk",
@@ -984,8 +983,6 @@ public class GatewayRuntimeRefreshService {
                     "security.website_blocklist.domains",
                     "security.website_blocklist.shared_files",
                     "security.hardline_allowlist",
-                    "solonclaw.plugins.enabled",
-                    "solonclaw.plugins.disabled",
                     "solonclaw.terminal.credentialFiles");
 
     /** 整型后缀列表的统一常量值。 */

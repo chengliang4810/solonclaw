@@ -1,5 +1,0 @@
-name: xai-video
-version: 1.0.0
-description: "Video generation via xAI Grok-2 Video API"
-author: jimuqu
-kind: backend

@@ -6,7 +6,7 @@ import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
-import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
+import com.jimuqu.solon.claw.provider.SpeechProvider;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import java.util.LinkedHashMap;
@@ -58,27 +58,29 @@ final class OpenAiTtsProvider implements SpeechProvider {
         AppConfig.TtsConfig config = config();
         String format =
                 normalizeFormat(
-                        optionText(options, "responseFormat", "format"),
+                        MediaOptionHelper.optionText(options, "responseFormat", "format"),
                         config.getResponseFormat());
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put(
-                "model", StrUtil.blankToDefault(optionText(options, "model"), config.getModel()));
+                "model",
+                StrUtil.blankToDefault(
+                        MediaOptionHelper.optionText(options, "model"), config.getModel()));
         payload.put("input", text);
         payload.put("voice", resolveVoice(voice, config.getVoice()));
         payload.put("response_format", format);
-        Double requestedSpeed = optionNumber(options, "speed");
+        Double requestedSpeed = MediaOptionHelper.optionNumber(options, "speed");
         double speed = requestedSpeed == null ? config.getSpeed() : requestedSpeed.doubleValue();
         if (Double.isFinite(speed) && speed >= 0.25d && speed <= 4.0d) {
             payload.put("speed", Double.valueOf(speed));
         }
-        String instructions = optionText(options, "instructions");
+        String instructions = MediaOptionHelper.optionText(options, "instructions");
         if (StrUtil.isNotBlank(instructions)) {
             payload.put("instructions", instructions);
         }
 
         HttpRequest request =
                 HttpRequest.post(config.getEndpoint())
-                        .timeout(timeoutMillis(config.getTimeoutSeconds()))
+                        .timeout(MediaOptionHelper.timeoutMillis(config.getTimeoutSeconds()))
                         .setFollowRedirects(false)
                         .contentType(ContentType.JSON.toString())
                         .body(ONode.serialize(payload));
@@ -148,41 +150,5 @@ final class OpenAiTtsProvider implements SpeechProvider {
             return "audio/flac";
         }
         return "audio/wav";
-    }
-
-    /** 从工具选项读取首个非空字符串。 */
-    private String optionText(Map<String, Object> options, String... keys) {
-        if (options == null) {
-            return "";
-        }
-        for (String key : keys) {
-            Object value = options.get(key);
-            if (value != null && StrUtil.isNotBlank(String.valueOf(value))) {
-                return String.valueOf(value).trim();
-            }
-        }
-        return "";
-    }
-
-    /** 从工具选项读取有限数值，无法解析时忽略该选项。 */
-    private Double optionNumber(Map<String, Object> options, String key) {
-        if (options == null || options.get(key) == null) {
-            return null;
-        }
-        Object value = options.get(key);
-        if (value instanceof Number) {
-            return Double.valueOf(((Number) value).doubleValue());
-        }
-        try {
-            return Double.valueOf(String.valueOf(value).trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    /** 把秒级配置转换为 Hutool 使用的毫秒超时。 */
-    private int timeoutMillis(int seconds) {
-        long millis = Math.max(1L, seconds) * 1000L;
-        return (int) Math.min(Integer.MAX_VALUE, millis);
     }
 }

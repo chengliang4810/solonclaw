@@ -38,6 +38,40 @@ import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.ToolMessage;
 
 class TerminalUiRpcServiceTest {
+
+    /** 创建仅注入压缩服务的 TerminalUiRpcService。 */
+    private static TerminalUiRpcService compressionRpcService(
+            AppConfig config,
+            SqliteSessionRepository sessions,
+            RecordingCompressionService compression) {
+        return new TerminalUiRpcService(
+                config, sessions, null, null, null, null, null, null, compression, null, null, null,
+                null, null, null, null, null, null);
+    }
+
+    /** 使用 TestEnvironment 全部服务创建 TerminalUiRpcService。 */
+    private static TerminalUiRpcService envRpcService(TestEnvironment env) {
+        return new TerminalUiRpcService(
+                env.appConfig,
+                env.sessionRepository,
+                env.localSkillService,
+                env.skillHubService,
+                env.checkpointService,
+                null,
+                null,
+                null,
+                env.contextCompressionService,
+                null,
+                env.processRegistry,
+                null,
+                env.gatewayRuntimeRefreshService,
+                env.delegationService,
+                env.agentRunControlService,
+                env.agentRunRepository,
+                env.runtimeSettingsService,
+                env.globalSettingRepository);
+    }
+
     /** 验证恢复不存在的会话会明确失败，不伪造空会话响应。 */
     @Test
     void sessionResumeRejectsMissingSession() throws Exception {
@@ -402,26 +436,7 @@ class TerminalUiRpcServiceTest {
                 MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("需要压缩的发布流程上下文"))));
         sessions.save(session);
         RecordingCompressionService compression = new RecordingCompressionService();
-        TerminalUiRpcService service =
-                new TerminalUiRpcService(
-                        config,
-                        sessions,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        compression,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
+        TerminalUiRpcService service = compressionRpcService(config, sessions, compression);
 
         service.sessionCompress(session.getSessionId(), "发布流程");
 
@@ -437,26 +452,7 @@ class TerminalUiRpcServiceTest {
                 session("session-compress-empty", "MEMORY:terminal-ui:session-compress-empty");
         sessions.save(session);
         RecordingCompressionService compression = new RecordingCompressionService();
-        TerminalUiRpcService service =
-                new TerminalUiRpcService(
-                        config,
-                        sessions,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        compression,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
+        TerminalUiRpcService service = compressionRpcService(config, sessions, compression);
 
         Map<String, Object> response = service.sessionCompress(session.getSessionId(), "");
 
@@ -475,26 +471,7 @@ class TerminalUiRpcServiceTest {
         session.setSessionId(sessionId);
         session.setSourceKey(sourceKey);
         env.sessionRepository.save(session);
-        TerminalUiRpcService service =
-                new TerminalUiRpcService(
-                        env.appConfig,
-                        env.sessionRepository,
-                        env.localSkillService,
-                        env.skillHubService,
-                        env.checkpointService,
-                        null,
-                        null,
-                        null,
-                        env.contextCompressionService,
-                        null,
-                        env.processRegistry,
-                        null,
-                        env.gatewayRuntimeRefreshService,
-                        env.delegationService,
-                        env.agentRunControlService,
-                        env.agentRunRepository,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiRpcService service = envRpcService(env);
         AgentRunSupervisor supervisor = (AgentRunSupervisor) env.agentRunControlService;
         supervisor.coordinateIncoming(
                 sourceKey, sessionId, env.message("terminal-ui", sessionId, "run"));
@@ -533,26 +510,7 @@ class TerminalUiRpcServiceTest {
                                 sourceKey, session.getSessionId(), Collections.singletonList(file))
                         .getCheckpointId();
         FileUtil.writeUtf8String("v2", file);
-        TerminalUiRpcService service =
-                new TerminalUiRpcService(
-                        env.appConfig,
-                        env.sessionRepository,
-                        env.localSkillService,
-                        env.skillHubService,
-                        env.checkpointService,
-                        null,
-                        null,
-                        null,
-                        env.contextCompressionService,
-                        null,
-                        env.processRegistry,
-                        null,
-                        env.gatewayRuntimeRefreshService,
-                        env.delegationService,
-                        env.agentRunControlService,
-                        env.agentRunRepository,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiRpcService service = envRpcService(env);
 
         Map<String, Object> response =
                 service.rollbackRestore(session.getSessionId(), checkpointId, "");

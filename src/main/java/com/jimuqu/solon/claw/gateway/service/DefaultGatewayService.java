@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.enums.ProcessingOutcome;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunCancelledException;
@@ -22,6 +23,7 @@ import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.GatewayMediaDeliverySupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import java.util.Collections;
 import java.util.Map;
@@ -276,7 +278,9 @@ public class DefaultGatewayService {
             }
 
             String text = message.getText() == null ? "" : message.getText().trim();
-            authorized = gatewayAuthorizationService.isAuthorized(message);
+            routeGroupConversation(message);
+            authorized =
+                    message.isGroupGuest() || gatewayAuthorizationService.isAuthorized(message);
             if (!authorized) {
                 return null;
             }
@@ -285,7 +289,8 @@ public class DefaultGatewayService {
             processingStarted = true;
 
             GatewayReply reply;
-            if (text.startsWith(GatewayCommandConstants.COMMAND_PREFIX)) {
+            if (!message.isGroupGuest()
+                    && text.startsWith(GatewayCommandConstants.COMMAND_PREFIX)) {
                 reply = commandService.handle(message, text);
                 if (reply != null) {
                     reply.setCommandHandled(true);
@@ -649,7 +654,9 @@ public class DefaultGatewayService {
 
     /** 安全触发后台学习，不让后台线程调度问题影响当前回复。 */
     private void safeScheduleLearning(GatewayMessage message, GatewayReply reply) {
-        if (reply == null
+        if (message == null
+                || message.isGroupGuest()
+                || reply == null
                 || reply.isCommandHandled()
                 || reply.isError()
                 || reply.getSessionId() == null) {
@@ -667,6 +674,36 @@ public class DefaultGatewayService {
                     errorType(e),
                     safeMessage(e));
         }
+    }
+
+    /**
+     * 把群聊消息路由到主人私聊会话或访客隔离会话，回复目标仍保留原群聊。
+     *
+     * @param message 已通过渠道群聊与提及门禁的统一入站消息
+     */
+    private void routeGroupConversation(GatewayMessage message) throws Exception {
+        if (message == null
+                || message.getPlatform() == null
+                || !GatewayBehaviorConstants.CHAT_TYPE_GROUP.equalsIgnoreCase(
+                        StrUtil.nullToEmpty(message.getChatType()))) {
+            return;
+        }
+        PlatformAdminRecord admin =
+                gatewayAuthorizationService.platformAdmin(message.getPlatform());
+        if (admin == null) {
+            return;
+        }
+        if (StrUtil.equals(admin.getUserId(), message.getUserId())) {
+            if (StrUtil.isNotBlank(admin.getChatId())) {
+                message.setSourceKeyOverride(
+                        GatewayMessage.directSourceKey(
+                                message.getPlatform(), admin.getChatId(), admin.getUserId()));
+            }
+            return;
+        }
+        message.setSourceKeyOverride(
+                GatewayMessage.groupGuestSourceKey(
+                        message.getPlatform(), message.getChatId(), message.getUserId()));
     }
 
     /** 生成用于重复消息抑制的键。 */

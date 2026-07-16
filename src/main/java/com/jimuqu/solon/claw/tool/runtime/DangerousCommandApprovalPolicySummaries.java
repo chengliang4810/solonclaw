@@ -137,7 +137,7 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put("terminalGuardrailCount", Integer.valueOf(terminalGuardrailKeys().size()));
         summary.put("terminalGuardrails", terminalGuardrailKeys());
-        summary.put("sudoRewriteConfigured", Boolean.valueOf(isSudoPasswordConfigured()));
+        summary.put("sudoRewriteConfigured", Boolean.valueOf(service.isSudoPasswordConfigured()));
         summary.put("backgroundProcessGuard", Boolean.TRUE);
         summary.put("terminalGuardrailPolicy", terminalGuardrailPolicySummary());
         summary.put("approvalTimeoutSeconds", Integer.valueOf(service.approvalTimeoutSeconds()));
@@ -603,44 +603,19 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("hostsAndResolverPathPrechecked", Boolean.TRUE);
         summary.put("managedBackgroundProcessRequired", Boolean.TRUE);
         summary.put("processRegistryBacked", Boolean.TRUE);
-        summary.put("sudoRewriteConfigured", Boolean.valueOf(isSudoPasswordConfigured()));
+        summary.put("sudoRewriteConfigured", Boolean.valueOf(service.isSudoPasswordConfigured()));
         summary.put("sudoPasswordRedacted", Boolean.TRUE);
-        summary.put("foregroundMaxTimeoutSeconds", Integer.valueOf(maxForegroundTimeoutSeconds()));
-        summary.put("foregroundMaxRetries", Integer.valueOf(foregroundMaxRetries()));
+        summary.put(
+                "foregroundMaxTimeoutSeconds",
+                Integer.valueOf(service.maxForegroundTimeoutSeconds()));
+        summary.put("foregroundMaxRetries", Integer.valueOf(service.foregroundMaxRetries()));
         summary.put(
                 "foregroundRetryBaseDelaySeconds",
-                Integer.valueOf(foregroundRetryBaseDelaySeconds()));
+                Integer.valueOf(service.foregroundRetryBaseDelaySeconds()));
         summary.put(
                 "description",
                 "Foreground terminal guardrails block unmanaged background wrappers, inline background operators, credential path access, unsafe proxy/preproxy URLs, system DNS/proxy changes, hosts/resolver writes, download output or network upload source credential paths, and common long-running dev/server commands, with managed background process guidance and redacted sudo support.");
         return summary;
     }
 
-    /** 判断是否配置了 sudo 密码。 */
-    private boolean isSudoPasswordConfigured() {
-        return appConfig != null
-                && appConfig.getTerminal() != null
-                && StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword());
-    }
-
-    /** 返回前台命令最大超时时间。 */
-    private int maxForegroundTimeoutSeconds() {
-        return appConfig == null || appConfig.getTerminal() == null
-                ? 0
-                : appConfig.getTerminal().getMaxForegroundTimeoutSeconds();
-    }
-
-    /** 返回前台命令最大重试次数。 */
-    private int foregroundMaxRetries() {
-        return appConfig == null || appConfig.getTerminal() == null
-                ? 0
-                : appConfig.getTerminal().getForegroundMaxRetries();
-    }
-
-    /** 返回前台命令重试基础延迟。 */
-    private int foregroundRetryBaseDelaySeconds() {
-        return appConfig == null || appConfig.getTerminal() == null
-                ? 0
-                : appConfig.getTerminal().getForegroundRetryBaseDelaySeconds();
-    }
 }

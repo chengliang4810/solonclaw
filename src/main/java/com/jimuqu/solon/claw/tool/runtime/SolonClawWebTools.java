@@ -655,7 +655,7 @@ public class SolonClawWebTools {
         private final AppConfig appConfig;
 
         /** 保存Web搜索Providers集合，维持调用顺序或去重语义。 */
-        private List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider> webSearchProviders;
+        private List<com.jimuqu.solon.claw.provider.WebSearchProvider> webSearchProviders;
 
         /**
          * 创建Safe Websearch工具实例，并注入运行所需依赖。
@@ -699,17 +699,17 @@ public class SolonClawWebTools {
          * @param providers 能力提供方列表。
          */
         public void setWebSearchProviders(
-                List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider> providers) {
+                List<com.jimuqu.solon.claw.provider.WebSearchProvider> providers) {
             this.webSearchProviders =
                     providers == null
                             ? Collections
-                                    .<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider>
+                                    .<com.jimuqu.solon.claw.provider.WebSearchProvider>
                                             emptyList()
                             : providers;
         }
 
         /**
-         * 创建 Solon AI websearch 委托，集中封装延迟初始化边界，便于插件后端绕过 MCP/Jackson 初始化。
+         * 创建 Solon AI websearch 委托，集中封装延迟初始化边界，便于附加后端绕过 MCP/Jackson 初始化。
          *
          * @return 返回 Solon AI websearch 委托。
          */
@@ -779,10 +779,10 @@ public class SolonClawWebTools {
             check(securityPolicyService, ToolNameConstants.WEBSEARCH, args);
             int limit = Math.max(1, Math.min(numResults == null ? 8 : numResults.intValue(), 20));
             String backend = normalizedSearchBackend();
-            Document pluginResult = tryPluginProvider(backend, query, limit);
-            if (pluginResult != null) {
-                checkReturnedUrls(securityPolicyService, pluginResult);
-                return safeDocument(pluginResult);
+            Document providerResult = tryAdditionalProvider(backend, query, limit);
+            if (providerResult != null) {
+                checkReturnedUrls(securityPolicyService, providerResult);
+                return safeDocument(providerResult);
             }
             if (BRAVE_FREE_BACKEND.equals(backend)) {
                 Document document = braveSearch(query, numResults);
@@ -819,20 +819,20 @@ public class SolonClawWebTools {
         }
 
         /**
-         * 执行try插件提供方相关逻辑。
+         * 执行try附加提供方相关逻辑。
          *
          * @param backend backend 参数。
          * @param query 查询参数。
          * @param limit 最大返回数量。
-         * @return 返回try插件提供方结果。
+         * @return 返回try附加提供方结果。
          */
-        private Document tryPluginProvider(String backend, String query, int limit) {
+        private Document tryAdditionalProvider(String backend, String query, int limit) {
             if (webSearchProviders == null
                     || webSearchProviders.isEmpty()
                     || StrUtil.isBlank(backend)) {
                 return null;
             }
-            for (com.jimuqu.solon.claw.plugin.provider.WebSearchProvider provider :
+            for (com.jimuqu.solon.claw.provider.WebSearchProvider provider :
                     webSearchProviders) {
                 if (provider == null || !backend.equals(normalizedProviderName(provider))) {
                     continue;
@@ -851,7 +851,7 @@ public class SolonClawWebTools {
         }
 
         /**
-         * 尝试调用单个插件搜索提供方；不可用或调用失败时返回空，由调用方继续后备链。
+         * 尝试调用单个附加搜索提供方；不可用或调用失败时返回空，由调用方继续后备链。
          *
          * @param provider 搜索提供方。
          * @param query 查询文本。
@@ -859,32 +859,32 @@ public class SolonClawWebTools {
          * @return 成功时返回搜索文档，否则返回空。
          */
         private Document tryProvider(
-                com.jimuqu.solon.claw.plugin.provider.WebSearchProvider provider,
+                com.jimuqu.solon.claw.provider.WebSearchProvider provider,
                 String query,
                 int limit) {
             try {
                 if (!provider.isAvailable()) {
                     return null;
                 }
-                List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider.SearchResult> results =
+                List<com.jimuqu.solon.claw.provider.WebSearchProvider.SearchResult> results =
                         provider.search(query, limit);
                 return toProviderDocument(results, query, normalizedProviderName(provider));
             } catch (RuntimeException e) {
-                log.warn("Web 搜索插件调用失败，继续使用后备后端: {}", e.getClass().getSimpleName());
+                log.warn("Web 搜索附加调用失败，继续使用后备后端: {}", e.getClass().getSimpleName());
                 return null;
             }
         }
 
-        /** 将插件提供方名称统一为配置使用的后端格式。 */
+        /** 将附加提供方名称统一为配置使用的后端格式。 */
         private String normalizedProviderName(
-                com.jimuqu.solon.claw.plugin.provider.WebSearchProvider provider) {
+                com.jimuqu.solon.claw.provider.WebSearchProvider provider) {
             try {
                 return StrUtil.nullToEmpty(provider == null ? null : provider.name())
                         .trim()
                         .replace('_', '-')
                         .toLowerCase(Locale.ROOT);
             } catch (RuntimeException e) {
-                log.warn("Web 搜索插件名称读取失败，继续使用后备后端: {}", e.getClass().getSimpleName());
+                log.warn("Web 搜索附加名称读取失败，继续使用后备后端: {}", e.getClass().getSimpleName());
                 return "";
             }
         }
@@ -898,12 +898,12 @@ public class SolonClawWebTools {
          * @return 返回转换后的提供方Document。
          */
         private Document toProviderDocument(
-                List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider.SearchResult> results,
+                List<com.jimuqu.solon.claw.provider.WebSearchProvider.SearchResult> results,
                 String query,
                 String backend) {
             List<Map<String, Object>> web = new ArrayList<Map<String, Object>>();
             int pos = 1;
-            for (com.jimuqu.solon.claw.plugin.provider.WebSearchProvider.SearchResult r : results) {
+            for (com.jimuqu.solon.claw.provider.WebSearchProvider.SearchResult r : results) {
                 Map<String, Object> item = new LinkedHashMap<String, Object>();
                 item.put("title", r.getTitle());
                 item.put("url", r.getUrl());

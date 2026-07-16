@@ -179,9 +179,6 @@ public interface GatewayCommandConstants {
     /** 命令技能维护的统一常量值。 */
     String COMMAND_CURATOR = "curator";
 
-    /** 命令PLUGINS的统一常量值。 */
-    String COMMAND_PLUGINS = "plugins";
-
     /** 命令MEMORY的统一常量值。 */
     String COMMAND_MEMORY = "memory";
 
@@ -340,9 +337,6 @@ public interface GatewayCommandConstants {
 
     /** 斜杠命令技能维护的统一常量值。 */
     String SLASH_CURATOR = COMMAND_PREFIX + COMMAND_CURATOR;
-
-    /** 斜杠命令PLUGINS的统一常量值。 */
-    String SLASH_PLUGINS = COMMAND_PREFIX + COMMAND_PLUGINS;
 
     /** 斜杠命令RELOAD技能的统一常量值。 */
     String SLASH_RELOAD_SKILLS = COMMAND_PREFIX + COMMAND_RELOAD_SKILLS;

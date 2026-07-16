@@ -12,17 +12,20 @@ import org.junit.jupiter.api.Test;
 
 public class GatewayAuthorizationServiceTest {
     @Test
-    void shouldHonorQqbotChannelAllowAllUsers() throws Exception {
+    void shouldNotLetAllowAllUsersBypassPersonalOwnerBoundary() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getChannels().getQqbot().setAllowAllUsers(true);
+        env.appConfig.getGateway().setAllowAllUsers(true);
+        createAdmin(env, PlatformType.QQBOT);
 
         GatewayMessage message = new GatewayMessage(PlatformType.QQBOT, "chat", "qq-user", "hello");
 
-        assertThat(env.gatewayAuthorizationService.isAuthorized(message)).isTrue();
+        assertThat(env.gatewayAuthorizationService.isAuthorized(message)).isFalse();
+        assertThat(env.gatewayAuthorizationService.preAuthorize(message)).isNull();
     }
 
     @Test
-    void shouldHonorYuanbaoChannelAllowlistAndUnauthorizedBehavior() throws Exception {
+    void shouldNotGrantPersonalContextThroughChannelAllowlist() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getChannels().getYuanbao().getAllowedUsers().add("allowed-user");
         env.appConfig
@@ -37,7 +40,7 @@ public class GatewayAuthorizationServiceTest {
         GatewayMessage stranger =
                 new GatewayMessage(PlatformType.YUANBAO, "chat", "stranger", "hello");
 
-        assertThat(env.gatewayAuthorizationService.isAuthorized(allowed)).isTrue();
+        assertThat(env.gatewayAuthorizationService.isAuthorized(allowed)).isFalse();
         GatewayReply preAuth = env.gatewayAuthorizationService.preAuthorize(stranger);
         assertThat(preAuth).isNull();
     }
@@ -53,9 +56,24 @@ public class GatewayAuthorizationServiceTest {
         GatewayReply limited = env.gatewayAuthorizationService.preAuthorize(message);
 
         assertThat(first).isNotNull();
-        assertThat(first.getContent()).contains("pairing code");
+        assertThat(first.getContent())
+                .contains("pairing code", "Dashboard", "绑定本人")
+                .doesNotContain("联系平台管理员", "/pairing approve");
         assertThat(limited).isNotNull();
         assertThat(limited.getContent()).contains("请求过于频繁").contains("10 分钟后再试");
+    }
+
+    /** 平台已有主人后，陌生私聊必须静默忽略且不能再创建 pairing 请求。 */
+    @Test
+    void shouldIgnoreUnknownDmAfterOwnerClaim() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        createAdmin(env, PlatformType.WEIXIN);
+        GatewayMessage stranger =
+                new GatewayMessage(PlatformType.WEIXIN, "stranger-chat", "stranger", "hello");
+
+        assertThat(env.gatewayAuthorizationService.isAuthorized(stranger)).isFalse();
+        assertThat(env.gatewayAuthorizationService.preAuthorize(stranger)).isNull();
+        assertThat(env.gatewayPolicyRepository.listPairingRequests(PlatformType.WEIXIN)).isEmpty();
     }
 
     private void createAdmin(TestEnvironment env, PlatformType platform) throws Exception {

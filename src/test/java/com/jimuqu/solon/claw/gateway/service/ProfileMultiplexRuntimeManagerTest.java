@@ -5,14 +5,26 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.ChannelStatus;
+import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.PairingRequestRecord;
+import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
+import com.jimuqu.solon.claw.web.DashboardPairingService;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.core.AppContext;
@@ -101,6 +113,75 @@ class ProfileMultiplexRuntimeManagerTest {
         assertThat(manager.servedProfiles()).containsExactly("default", "alpha");
         assertThat(factory.configs).containsOnlyKeys("alpha");
         manager.close();
+    }
+
+    /** Dashboard 为命名 Profile 绑定主人后必须使用该子运行时的渠道投递欢迎语。 */
+    @Test
+    void deliversPairingWelcomeThroughNamedProfileRuntime() throws Exception {
+        writeProfile("alpha", "alpha-app", "alpha-secret");
+        AppConfig defaultConfig = defaultConfig();
+        DashboardProfileContext profileContext =
+                new DashboardProfileContext(
+                        new ProfileManager(root, root.resolve("bin"), "solonclaw"), defaultConfig);
+        AppConfig alphaConfig = profileContext.resolve("alpha").getConfig();
+        SqliteDatabase defaultDatabase = new SqliteDatabase(defaultConfig);
+        SqliteDatabase alphaDatabase = new SqliteDatabase(alphaConfig);
+        CapturingDeliveryService currentDelivery = new CapturingDeliveryService();
+        ChannelStatus alphaStatus =
+                new ChannelStatus(PlatformType.FEISHU, true, true, "connected");
+        CapturingDeliveryService alphaDelivery = new CapturingDeliveryService(alphaStatus);
+        ProfileRuntimeBundleFactory factory =
+                new ProfileRuntimeBundleFactory(detachedContext()) {
+                    /** 创建仅包含命名 Profile 投递服务的轻量子运行时。 */
+                    @Override
+                    public ProfileRuntimeBundle create(
+                            String profile,
+                            Path home,
+                            Map<String, String> environment,
+                            AppConfig appConfig) {
+                        AppContext child = detachedContext();
+                        child.wrapAndPut(DeliveryService.class, alphaDelivery);
+                        return new ProfileRuntimeBundle(
+                                profile,
+                                home,
+                                environment,
+                                appConfig,
+                                child,
+                                gateway(appConfig));
+                    }
+                };
+        ProfileMultiplexRuntimeManager manager =
+                new ProfileMultiplexRuntimeManager(
+                        defaultConfig,
+                        defaultGateway(defaultConfig),
+                        Collections.emptyMap(),
+                        factory);
+        try {
+            SqliteGatewayPolicyRepository alphaRepository =
+                    new SqliteGatewayPolicyRepository(alphaDatabase);
+            alphaRepository.savePairingRequest(pairingRequest("ALPHA234"));
+            DashboardPairingService service =
+                    new DashboardPairingService(
+                            new GatewayAuthorizationService(
+                                    new SqliteGatewayPolicyRepository(defaultDatabase),
+                                    defaultConfig),
+                            profileContext,
+                            currentDelivery,
+                            manager);
+
+            Map<String, Object> result = service.claimOwner("alpha", "weixin", "ALPHA234");
+
+            assertThat(currentDelivery.request.get()).isNull();
+            assertThat(alphaDelivery.request.get().getProfile()).isEqualTo("alpha");
+            assertThat(alphaDelivery.request.get().getChatId()).isEqualTo("alpha-chat");
+            assertThat(manager.deliveryStatuses("alpha")).containsExactly(alphaStatus);
+            assertThat(manager.deliveryStatuses("missing")).isNull();
+            assertThat(welcomeStatus(result)).isEqualTo("sent");
+        } finally {
+            manager.close();
+            alphaDatabase.shutdown();
+            defaultDatabase.shutdown();
+        }
     }
 
     /** 删除 Profile 前可先从 multiplexer 关闭并移除对应子运行时。 */
@@ -270,6 +351,59 @@ class ProfileMultiplexRuntimeManagerTest {
     private DefaultGatewayService defaultGateway(AppConfig config) {
         return new DefaultGatewayService(
                 null, null, null, null, null, null, null, Collections.emptyMap(), config);
+    }
+
+    /** 创建命名 Profile 主人首次私聊产生的 pairing 请求。 */
+    private PairingRequestRecord pairingRequest(String code) {
+        PairingRequestRecord request = new PairingRequestRecord();
+        request.setPlatform(PlatformType.WEIXIN);
+        request.setCode(code);
+        request.setUserId("alpha-owner");
+        request.setUserName("Alpha owner");
+        request.setChatId("alpha-chat");
+        request.setCreatedAt(System.currentTimeMillis());
+        request.setExpiresAt(System.currentTimeMillis() + 60_000L);
+        return request;
+    }
+
+    /** 读取欢迎消息投递状态。 */
+    @SuppressWarnings("unchecked")
+    private String welcomeStatus(Map<String, Object> result) {
+        Map<String, Object> welcome =
+                (Map<String, Object>) result.get("welcome_delivery");
+        return String.valueOf(welcome.get("status"));
+    }
+
+    /** 记录单个 Profile 实际收到的投递请求。 */
+    private static final class CapturingDeliveryService implements DeliveryService {
+        /** 最近一次投递请求。 */
+        private final AtomicReference<DeliveryRequest> request =
+                new AtomicReference<DeliveryRequest>();
+
+        /** 子运行时对外报告的渠道状态。 */
+        private final List<ChannelStatus> statuses;
+
+        /** 创建无渠道状态的轻量投递器。 */
+        private CapturingDeliveryService() {
+            this.statuses = Collections.emptyList();
+        }
+
+        /** 创建携带指定渠道状态的轻量投递器。 */
+        private CapturingDeliveryService(ChannelStatus status) {
+            this.statuses = Collections.singletonList(status);
+        }
+
+        /** 捕获投递而不连接真实渠道。 */
+        @Override
+        public void deliver(DeliveryRequest deliveryRequest) {
+            request.set(deliveryRequest);
+        }
+
+        /** 轻量测试投递器没有渠道状态。 */
+        @Override
+        public List<ChannelStatus> statuses() {
+            return statuses;
+        }
     }
 
     /** 捕获已解析 Profile 配置，并可按名称模拟子容器启动失败。 */

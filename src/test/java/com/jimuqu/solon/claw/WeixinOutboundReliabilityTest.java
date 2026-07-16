@@ -41,26 +41,7 @@ public class WeixinOutboundReliabilityTest {
         AtomicInteger sendRequests = new AtomicInteger();
         server.setExecutor(serverExecutor);
         String uploadUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/upload";
-        server.createContext(
-                "/ilink/bot/getuploadurl",
-                exchange -> {
-                    byte[] response =
-                            new ONode()
-                                    .set("upload_full_url", uploadUrl)
-                                    .toJson()
-                                    .getBytes(StandardCharsets.UTF_8);
-                    exchange.sendResponseHeaders(200, response.length);
-                    exchange.getResponseBody().write(response);
-                    exchange.close();
-                });
-        server.createContext(
-                "/upload",
-                exchange -> {
-                    exchange.getRequestBody().readAllBytes();
-                    exchange.getResponseHeaders().set("x-encrypted-param", "uploaded-file");
-                    exchange.sendResponseHeaders(200, 0L);
-                    exchange.close();
-                });
+        registerUploadEndpoints(server, uploadUrl);
         server.createContext(
                 "/ilink/bot/sendmessage",
                 exchange -> {
@@ -170,26 +151,7 @@ public class WeixinOutboundReliabilityTest {
         List<String> bodies = Collections.synchronizedList(new ArrayList<String>());
         AtomicInteger sendRequests = new AtomicInteger();
         String uploadUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/upload";
-        server.createContext(
-                "/ilink/bot/getuploadurl",
-                exchange -> {
-                    byte[] response =
-                            new ONode()
-                                    .set("upload_full_url", uploadUrl)
-                                    .toJson()
-                                    .getBytes(StandardCharsets.UTF_8);
-                    exchange.sendResponseHeaders(200, response.length);
-                    exchange.getResponseBody().write(response);
-                    exchange.close();
-                });
-        server.createContext(
-                "/upload",
-                exchange -> {
-                    exchange.getRequestBody().readAllBytes();
-                    exchange.getResponseHeaders().set("x-encrypted-param", "uploaded-file");
-                    exchange.sendResponseHeaders(200, 0L);
-                    exchange.close();
-                });
+        registerUploadEndpoints(server, uploadUrl);
         server.createContext(
                 "/ilink/bot/sendmessage",
                 exchange -> {
@@ -244,6 +206,30 @@ public class WeixinOutboundReliabilityTest {
                 .getWeixin()
                 .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
         return config;
+    }
+
+    /** 注册附件上传地址申请与上传两个固定测试端点。 */
+    private static void registerUploadEndpoints(HttpServer server, String uploadUrl) {
+        server.createContext(
+                "/ilink/bot/getuploadurl",
+                exchange -> {
+                    byte[] response =
+                            new ONode()
+                                    .set("upload_full_url", uploadUrl)
+                                    .toJson()
+                                    .getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.createContext(
+                "/upload",
+                exchange -> {
+                    exchange.getRequestBody().readAllBytes();
+                    exchange.getResponseHeaders().set("x-encrypted-param", "uploaded-file");
+                    exchange.sendResponseHeaders(200, 0L);
+                    exchange.close();
+                });
     }
 
     /** 创建带内存状态仓储的微信适配器。 */

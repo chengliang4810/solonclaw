@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw;
 import static com.jimuqu.solon.claw.DangerousCommandApprovalTestSupport.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -579,6 +580,30 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("foregroundMaxRetries")).isEqualTo(Integer.valueOf(4));
         assertThat(summary.get("foregroundRetryBaseDelaySeconds")).isEqualTo(Integer.valueOf(5));
         assertThat(summary.toString()).doesNotContain("secret-sudo");
+    }
+
+    @Test
+    void shouldExposeProfileScopedSudoConfigurationInPolicySummaries() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTerminal().setSudoPassword(null);
+
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        "worker",
+                        new File(env.appConfig.getRuntime().getHome()).toPath(),
+                        Collections.singletonMap("SOLONCLAW_SUDO_PASSWORD", "profile-secret"),
+                        null)) {
+            assertThat(
+                            env.dangerousCommandApprovalService
+                                    .approvalPolicySummary()
+                                    .get("sudoRewriteConfigured"))
+                    .isEqualTo(Boolean.TRUE);
+            assertThat(
+                            env.dangerousCommandApprovalService
+                                    .terminalGuardrailPolicySummary()
+                                    .get("sudoRewriteConfigured"))
+                    .isEqualTo(Boolean.TRUE);
+        }
     }
 
     @Test

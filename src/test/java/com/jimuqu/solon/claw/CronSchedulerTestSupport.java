@@ -63,6 +63,28 @@ final class CronSchedulerTestSupport {
                 null, null, null, null, null, null);
     }
 
+    /** cronjob list 调用，支持 includeDisabled 参数（使用 19 参数重载）。 */
+    static String cronjobList(CronjobTools tools, Boolean includeDisabled) throws Exception {
+        return tools.cronjob(
+                "list", null, null, null, null, null, null, null, null, includeDisabled, null, null,
+                null, null, null, null, null, null, null);
+    }
+
+    /** cronjob inspect 调用，jobId + 全部可选参数为 null。 */
+    static String cronjobInspect(CronjobTools tools, String jobId) throws Exception {
+        return tools.cronjob(
+                "inspect", jobId, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null);
+    }
+
+    /** cronjob inspect 调用，支持 limit 参数。 */
+    static String cronjobInspect(CronjobTools tools, String jobId, Integer limit)
+            throws Exception {
+        return tools.cronjob(
+                "inspect", jobId, null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, limit, null);
+    }
+
     static String paramDescription(Method method, String name) {
         for (Parameter parameter : method.getParameters()) {
             Param annotation = parameter.getAnnotation(Param.class);

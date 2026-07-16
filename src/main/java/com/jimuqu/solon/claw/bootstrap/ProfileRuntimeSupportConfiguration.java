@@ -18,8 +18,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
-import com.jimuqu.solon.claw.plugin.ToolRegistration;
-import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
+import com.jimuqu.solon.claw.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.profile.ProfileChildRuntimeMarker;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
@@ -44,6 +43,7 @@ import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import com.jimuqu.solon.claw.web.McpPackageSecurityService;
+import java.util.Collections;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Condition;
@@ -160,51 +160,27 @@ public class ProfileRuntimeSupportConfiguration {
             AgentRunRepository agentRunRepository,
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
-            List<ToolRegistration> pluginTools,
             List<WebSearchProvider> webSearchProviders) {
-        return new DefaultToolRegistry(
-                appConfig,
-                preferenceStore,
-                sessionRepository,
-                agentProfileService,
-                cronJobService,
-                deliveryService,
-                memoryService,
-                sessionSearchService,
-                localSkillService,
-                skillHubService,
-                checkpointService,
-                delegationService,
-                attachmentCacheService,
-                runtimeSettingsService,
-                gatewayRuntimeRefreshService,
-                securityPolicyService,
-                dangerousCommandApprovalService,
-                processRegistry,
-                mcpRuntimeService,
-                dashboardMcpService,
-                dashboardCuratorService,
-                null,
-                dashboardProviderService,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                dashboardConfigService,
-                dashboardRuntimeConfigService,
-                null,
-                null,
-                browserRuntimeService,
-                imageGenerationService,
-                speechService,
-                null,
-                sqliteDatabase,
-                agentRunRepository,
-                cronJobRepository,
-                usageEventRepository,
-                pluginTools,
-                webSearchProviders);
+        return ToolConfiguration.applyCommonToolRegistrySettings(
+                        DefaultToolRegistry.builder(),
+                        appConfig, preferenceStore, sessionRepository, agentProfileService,
+                        cronJobService, deliveryService, memoryService, sessionSearchService,
+                        localSkillService, skillHubService, checkpointService, delegationService,
+                        attachmentCacheService, runtimeSettingsService, gatewayRuntimeRefreshService,
+                        securityPolicyService, dangerousCommandApprovalService, processRegistry,
+                        mcpRuntimeService, dashboardMcpService, dashboardCuratorService)
+                .dashboardProviderService(dashboardProviderService)
+                .dashboardConfigService(dashboardConfigService)
+                .dashboardRuntimeConfigService(dashboardRuntimeConfigService)
+                .browserRuntimeService(browserRuntimeService)
+                .imageGenerationService(imageGenerationService)
+                .speechService(speechService)
+                .sqliteDatabase(sqliteDatabase)
+                .agentRunRepository(agentRunRepository)
+                .cronJobRepository(cronJobRepository)
+                .usageEventRepository(usageEventRepository)
+                .pluginTools(Collections.emptyList())
+                .webSearchProviders(webSearchProviders)
+                .build();
     }
 }

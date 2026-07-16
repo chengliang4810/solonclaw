@@ -48,8 +48,6 @@ import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
 import com.jimuqu.solon.claw.goal.GoalContractDrafter;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.LlmGoalJudge;
-import com.jimuqu.solon.claw.plugin.AgentPluginManager;
-import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
@@ -327,12 +325,10 @@ public class GatewayConfiguration {
      * @param defaultCronScheduler 默认定时任务调度器参数。
      * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
      * @param slashConfirmService 斜杠命令Confirm服务依赖。
-     * @param pluginManager 插件Manager参数。
      * @param dashboardCuratorService dashboardCurator服务依赖。
      * @param dashboardSkillsService dashboard技能服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param memoryService 长期记忆服务，供 /memory 与工具共用审批队列。
-     * @param pluginCommands 插件Commands参数。
      * @return 返回命令服务结果。
      */
     @Bean
@@ -365,13 +361,11 @@ public class GatewayConfiguration {
             DefaultCronScheduler defaultCronScheduler,
             GatewayRestartCoordinator gatewayRestartCoordinator,
             SlashConfirmService slashConfirmService,
-            AgentPluginManager pluginManager,
             DashboardCuratorService dashboardCuratorService,
             DashboardSkillsService dashboardSkillsService,
             BrowserRuntimeService browserRuntimeService,
             MemoryService memoryService,
-            DelegationService delegationService,
-            Map<String, CommandHandler> pluginCommands) {
+            DelegationService delegationService) {
         DefaultCommandService service =
                 new DefaultCommandService(
                         sessionRepository,
@@ -402,8 +396,6 @@ public class GatewayConfiguration {
                         defaultCronScheduler,
                         gatewayRestartCoordinator,
                         slashConfirmService,
-                        pluginCommands,
-                        pluginManager,
                         dashboardCuratorService,
                         dashboardSkillsService,
                         browserRuntimeService,

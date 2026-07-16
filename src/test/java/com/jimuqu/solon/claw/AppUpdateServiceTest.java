@@ -5,14 +5,37 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.crypto.digest.DigestUtil;
+
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-import java.io.File;
+
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
+
+import java.io.File;
 
 public class AppUpdateServiceTest {
+    /** Snack4 序列化必须保留从发布资产基类继承的字段。 */
+    @Test
+    void shouldSerializeInheritedReleaseAssetFields() {
+        AppUpdateService.VersionStatus status = new AppUpdateService.VersionStatus();
+        status.setPublishedAt("2026-07-16T00:00:00Z");
+        status.setJarAssetUrl("https://example.test/solonclaw.jar");
+        status.setJarAssetName("solonclaw.jar");
+        status.setSha256AssetUrl("https://example.test/SHA256SUMS");
+
+        ONode serialized = ONode.ofJson(ONode.serialize(status));
+
+        assertThat(serialized.get("publishedAt").getString()).isEqualTo("2026-07-16T00:00:00Z");
+        assertThat(serialized.get("jarAssetUrl").getString())
+                .isEqualTo("https://example.test/solonclaw.jar");
+        assertThat(serialized.get("jarAssetName").getString()).isEqualTo("solonclaw.jar");
+        assertThat(serialized.get("sha256AssetUrl").getString())
+                .isEqualTo("https://example.test/SHA256SUMS");
+    }
+
     @Test
     void shouldFallbackToTagsWhenReleaseApiReturns404() {
         AppConfig config = new AppConfig();
@@ -145,7 +168,8 @@ public class AppUpdateServiceTest {
     @Test
     void shouldRecognizePublishedJarAndChecksumAssets() {
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(new File("target/update-release-assets-test").getAbsolutePath());
+        config.getRuntime()
+                .setHome(new File("target/update-release-assets-test").getAbsolutePath());
         FakeUpdateService service = new FakeUpdateService(config, new FakeVersionService(config));
 
         AppUpdateService.VersionStatus status =
@@ -160,7 +184,8 @@ public class AppUpdateServiceTest {
     @Test
     void shouldRefuseJarUpdateWithoutChecksumAsset() {
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(new File("target/update-missing-checksum-test").getAbsolutePath());
+        config.getRuntime()
+                .setHome(new File("target/update-missing-checksum-test").getAbsolutePath());
         FakeVersionService versionService = new FakeVersionService(config);
         versionService.setDeploymentMode("jar");
         versionService.setCurrentVersion("0.0.1");

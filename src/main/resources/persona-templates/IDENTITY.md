@@ -1,8 +1,5 @@
 ---
 summary: "Agent 身份认同 — 名字、物种、性格、emoji 与头像"
-read_when:
-  - 手动引导工作区
-  - 智能体需要确认自身身份
 ---
 
 # IDENTITY.md - 我是谁？

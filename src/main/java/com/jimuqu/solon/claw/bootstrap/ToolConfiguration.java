@@ -33,14 +33,11 @@ import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.media.VisionAnalysisService;
-import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
-import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
-import com.jimuqu.solon.claw.plugin.ToolRegistration;
-import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
-import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
-import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
-import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
-import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
+import com.jimuqu.solon.claw.provider.BrowserProvider;
+import com.jimuqu.solon.claw.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.provider.SpeechProvider;
+import com.jimuqu.solon.claw.provider.TranscriptionProvider;
+import com.jimuqu.solon.claw.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
 import com.jimuqu.solon.claw.profile.ProfileChildRuntimeMarker;
 import com.jimuqu.solon.claw.scheduler.CronApprovalResumeObserver;
@@ -61,6 +58,7 @@ import com.jimuqu.solon.claw.tool.runtime.ApprovalAuditObserver;
 import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
+import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistryBuilder;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
@@ -82,6 +80,7 @@ import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
 import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
+import java.util.Collections;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Condition;
@@ -337,8 +336,7 @@ public class ToolConfiguration {
      * @param agentRunRepository Agent运行仓储依赖。
      * @param cronJobRepository 定时任务仓储依赖。
      * @param usageEventRepository 用量事件仓储依赖。
-     * @param pluginTools 插件Tools参数。
-     * @param webSearchProviders Web 搜索插件提供方列表。
+     * @param webSearchProviders Web 搜索附加提供方列表。
      * @return 返回工具注册表结果。
      */
     @Bean
@@ -384,52 +382,102 @@ public class ToolConfiguration {
             AgentRunRepository agentRunRepository,
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
-            List<ToolRegistration> pluginTools,
             List<WebSearchProvider> webSearchProviders) {
-        return new DefaultToolRegistry(
-                appConfig,
-                preferenceStore,
-                sessionRepository,
-                agentProfileService,
-                cronJobService,
-                deliveryService,
-                memoryService,
-                sessionSearchService,
-                localSkillService,
-                skillHubService,
-                checkpointService,
-                delegationService,
-                attachmentCacheService,
-                runtimeSettingsService,
-                gatewayRuntimeRefreshService,
-                securityPolicyService,
-                dangerousCommandApprovalService,
-                processRegistry,
-                mcpRuntimeService,
-                dashboardMcpService,
-                dashboardCuratorService,
-                dashboardPlatformToolsetsService,
-                dashboardProviderService,
-                dashboardStatusService,
-                dashboardGatewayDoctorService,
-                dashboardInsightsService,
-                dashboardApprovalEventsService,
-                null,
-                dashboardWorkspaceService,
-                dashboardConfigService,
-                dashboardRuntimeConfigService,
-                weixinQrSetupService,
-                domesticQrSetupService,
-                browserRuntimeService,
-                imageGenerationService,
-                speechService,
-                dashboardRunService,
-                sqliteDatabase,
-                agentRunRepository,
-                cronJobRepository,
-                usageEventRepository,
-                pluginTools,
-                webSearchProviders);
+        return applyCommonToolRegistrySettings(
+                        DefaultToolRegistry.builder(),
+                        appConfig,
+                        preferenceStore,
+                        sessionRepository,
+                        agentProfileService,
+                        cronJobService,
+                        deliveryService,
+                        memoryService,
+                        sessionSearchService,
+                        localSkillService,
+                        skillHubService,
+                        checkpointService,
+                        delegationService,
+                        attachmentCacheService,
+                        runtimeSettingsService,
+                        gatewayRuntimeRefreshService,
+                        securityPolicyService,
+                        dangerousCommandApprovalService,
+                        processRegistry,
+                        mcpRuntimeService,
+                        dashboardMcpService,
+                        dashboardCuratorService)
+                .dashboardPlatformToolsetsService(dashboardPlatformToolsetsService)
+                .dashboardProviderService(dashboardProviderService)
+                .dashboardStatusService(dashboardStatusService)
+                .dashboardGatewayDoctorService(dashboardGatewayDoctorService)
+                .dashboardInsightsService(dashboardInsightsService)
+                .dashboardApprovalEventsService(dashboardApprovalEventsService)
+                .dashboardWorkspaceService(dashboardWorkspaceService)
+                .dashboardConfigService(dashboardConfigService)
+                .dashboardRuntimeConfigService(dashboardRuntimeConfigService)
+                .weixinQrSetupService(weixinQrSetupService)
+                .domesticQrSetupService(domesticQrSetupService)
+                .browserRuntimeService(browserRuntimeService)
+                .imageGenerationService(imageGenerationService)
+                .speechService(speechService)
+                .dashboardRunService(dashboardRunService)
+                .sqliteDatabase(sqliteDatabase)
+                .agentRunRepository(agentRunRepository)
+                .cronJobRepository(cronJobRepository)
+                .usageEventRepository(usageEventRepository)
+                .pluginTools(Collections.emptyList())
+                .webSearchProviders(webSearchProviders)
+                .build();
+    }
+
+    /**
+     * 将公共的工具注册表 Builder 设置应用到传入的 builder 上，供主机级和 Profile 子运行时复用。
+     */
+    static DefaultToolRegistryBuilder applyCommonToolRegistrySettings(
+            DefaultToolRegistryBuilder builder,
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            DashboardMcpService dashboardMcpService,
+            DashboardCuratorService dashboardCuratorService) {
+        return builder
+                .appConfig(appConfig)
+                .preferenceStore(preferenceStore)
+                .sessionRepository(sessionRepository)
+                .agentProfileService(agentProfileService)
+                .cronJobService(cronJobService)
+                .deliveryService(deliveryService)
+                .memoryService(memoryService)
+                .sessionSearchService(sessionSearchService)
+                .localSkillService(localSkillService)
+                .skillHubService(skillHubService)
+                .checkpointService(checkpointService)
+                .delegationService(delegationService)
+                .attachmentCacheService(attachmentCacheService)
+                .runtimeSettingsService(runtimeSettingsService)
+                .gatewayRuntimeRefreshService(gatewayRuntimeRefreshService)
+                .securityPolicyService(securityPolicyService)
+                .approvalService(dangerousCommandApprovalService)
+                .processRegistry(processRegistry)
+                .mcpRuntimeService(mcpRuntimeService)
+                .dashboardMcpService(dashboardMcpService)
+                .dashboardCuratorService(dashboardCuratorService);
     }
 
     /**
@@ -549,7 +597,6 @@ public class ToolConfiguration {
      * @param toolResultTransformService 工具结果转换Service响应或执行结果。
      * @param toolCallLoopGuardrailService 工具CallLoop护栏服务依赖。
      * @param securityPolicyService 安全策略服务依赖。
-     * @param hookBridgeInterceptor 钩子BridgeInterceptor标识或键值。
      * @return 返回大模型消息网关结果。
      */
     @Bean
@@ -560,8 +607,7 @@ public class ToolConfiguration {
             LlmProviderService llmProviderService,
             ToolResultTransformService toolResultTransformService,
             ToolCallLoopGuardrailService toolCallLoopGuardrailService,
-            SecurityPolicyService securityPolicyService,
-            HookBridgeInterceptor hookBridgeInterceptor) {
+            SecurityPolicyService securityPolicyService) {
         SolonAiLlmGateway gateway =
                 new SolonAiLlmGateway(
                         appConfig,
@@ -571,7 +617,6 @@ public class ToolConfiguration {
                         toolResultTransformService,
                         toolCallLoopGuardrailService,
                         securityPolicyService);
-        gateway.setHookBridgeInterceptor(hookBridgeInterceptor);
         return gateway;
     }
 
@@ -630,7 +675,6 @@ public class ToolConfiguration {
      * @param agentRuntimeService Agent运行时服务依赖。
      * @param memoryManager 记忆Manager参数。
      * @param goalService 目标服务依赖。
-     * @param agentHookRegistry Agent钩子注册表依赖组件。
      * @param speechService 语音服务依赖。
      * @return 返回对话编排器结果。
      */
@@ -651,7 +695,6 @@ public class ToolConfiguration {
             AgentRuntimeService agentRuntimeService,
             MemoryManager memoryManager,
             GoalService goalService,
-            AgentHookRegistry agentHookRegistry,
             SpeechService speechService) {
         DefaultConversationOrchestrator orchestrator =
                 new DefaultConversationOrchestrator(
@@ -670,7 +713,6 @@ public class ToolConfiguration {
                         memoryManager,
                         goalService,
                         speechService);
-        orchestrator.setHookRegistry(agentHookRegistry);
         holder.set(orchestrator);
         return orchestrator;
     }

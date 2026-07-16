@@ -24,7 +24,6 @@ FIRST_PARTY_FILES = {
 FIRST_PARTY_PREFIXES = (
     "com/jimuqu/solon/claw/",
     "persona-templates/",
-    "plugins/",
     "static/",
 )
 

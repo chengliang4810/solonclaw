@@ -3,9 +3,11 @@ package com.jimuqu.solon.claw.gateway.service;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
+import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayOpenPolicyStartupGuard;
 import com.jimuqu.solon.claw.profile.ProfileEnvironmentLoader;
 import com.jimuqu.solon.claw.profile.ProfileMultiplexProfiles;
@@ -264,6 +266,29 @@ public class ProfileMultiplexRuntimeManager implements ProfileMessageRouter, Aut
         lifecycleLock.readLock().lock();
         try {
             return bundles.get(normalized);
+        } finally {
+            lifecycleLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * 读取命名 Profile 子运行时的真实渠道状态；未由 multiplex 承载时返回 null。
+     *
+     * @param profile 命名 Profile。
+     * @return 子运行时渠道状态，或 null。
+     */
+    public List<ChannelStatus> deliveryStatuses(String profile) {
+        String normalized = normalizeProfile(profile);
+        lifecycleLock.readLock().lock();
+        try {
+            ProfileRuntimeBundle bundle = bundles.get(normalized);
+            if (bundle == null) {
+                return null;
+            }
+            DeliveryService deliveryService = bundle.appContext().getBean(DeliveryService.class);
+            return deliveryService == null
+                    ? Collections.<ChannelStatus>emptyList()
+                    : deliveryService.statuses();
         } finally {
             lifecycleLock.readLock().unlock();
         }
