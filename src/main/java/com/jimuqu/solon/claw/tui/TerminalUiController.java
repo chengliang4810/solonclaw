@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tui;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.web.DashboardAuthService;
+import com.jimuqu.solon.claw.web.DashboardResponse;
 import java.util.Collections;
 import java.util.Map;
 import org.noear.solon.annotation.Controller;
@@ -34,7 +35,7 @@ public class TerminalUiController {
      * 返回终端 UI 协议版本与 WebSocket 地址。
      *
      * @param context 当前 HTTP 请求上下文，用于判断调用方是否允许读取会话 token。
-     * @return 前端握手信息；未授权时写入 401 并返回空对象。
+     * @return 前端握手信息；未授权时返回 401，未配置访问令牌时返回 503 配置错误。
      */
     @Mapping(value = "/api/tui/handshake", method = MethodType.GET)
     public Map<String, Object> handshake(Context context) {
@@ -44,6 +45,12 @@ public class TerminalUiController {
             return Collections.emptyMap();
         }
         String token = authService == null ? "" : authService.sessionToken();
+        if (StrUtil.isBlank(token)) {
+            context.status(503);
+            return DashboardResponse.error(
+                    "TUI_ACCESS_TOKEN_REQUIRED",
+                    "未配置 Dashboard 访问令牌，请先设置 solonclaw.dashboard.accessToken");
+        }
         return handshakeService.handshake(baseUrl(context), token);
     }
 

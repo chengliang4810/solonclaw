@@ -92,7 +92,10 @@ const fetchHandshake = async (): Promise<HandshakeResponse> => {
     : await fetch(url)
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`)
+    const body = (await response.json().catch(() => null)) as { detail?: unknown; error?: unknown } | null
+    const detail = typeof body?.error === 'string' ? body.error : typeof body?.detail === 'string' ? body.detail : ''
+
+    throw new Error(detail ? `HTTP ${response.status}: ${detail}` : `HTTP ${response.status}`)
   }
 
   return (await response.json()) as HandshakeResponse

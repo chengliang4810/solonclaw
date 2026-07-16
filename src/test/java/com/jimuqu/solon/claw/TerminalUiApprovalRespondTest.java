@@ -29,6 +29,23 @@ import org.noear.solon.core.util.MultiMap;
 import org.noear.solon.net.websocket.WebSocket;
 
 class TerminalUiApprovalRespondTest {
+    /** 测试 TUI WebSocket 统一使用的 Dashboard 访问令牌。 */
+    private static final String TEST_DASHBOARD_TOKEN = "test-token";
+
+    /** 验证本机无令牌连接会被策略关闭，且不会收到 server.ready。 */
+    @Test
+    void loopbackSocketWithoutTokenIsRejectedBeforeReady() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TerminalUiWebSocketListener listener = newTuiListener(env);
+        RecordingSocket socket = new RecordingSocket("");
+
+        listener.onOpen(socket);
+
+        assertThat(socket.closeCode()).isEqualTo(1008);
+        assertThat(socket.closeReason()).isEqualTo("Unauthorized");
+        assertThat(socket.sentText()).isEmpty();
+    }
+
     /** 验证 WebSocket 事件 request_id 可由同会话 clarify.respond 精确回流。 */
     @Test
     void clarifyRespondCompletesWaitingRequestForTheSameSession() throws Exception {
@@ -565,6 +582,7 @@ class TerminalUiApprovalRespondTest {
     /** 构造 TUI WebSocket 监听器，允许单个测试按需注入安全策略服务。 */
     private static TerminalUiWebSocketListener newTuiListener(
             TestEnvironment env, SecurityPolicyService securityPolicyService) {
+        env.appConfig.getDashboard().setAccessToken(TEST_DASHBOARD_TOKEN);
         TerminalUiRuntime runtime =
                 new TerminalUiRuntime(
                         env.commandService,
@@ -691,8 +709,38 @@ class TerminalUiApprovalRespondTest {
         /** WebSocket 属性。 */
         private final Map<String, Object> attrs = new LinkedHashMap<String, Object>();
 
+        /** 握手查询参数中的 Dashboard 访问令牌。 */
+        private final String token;
+
+        /** 最近一次服务端主动关闭使用的状态码。 */
+        private Integer closeCode;
+
+        /** 最近一次服务端主动关闭使用的原因。 */
+        private String closeReason;
+
+        /** 创建携带默认测试令牌的 WebSocket。 */
+        private RecordingSocket() {
+            this(TEST_DASHBOARD_TOKEN);
+        }
+
+        /** 创建携带指定测试令牌的 WebSocket。 */
+        private RecordingSocket(String token) {
+            this.token = token;
+        }
+
+        /** 返回服务端已发送的文本帧。 */
         private List<String> sentText() {
             return sentText;
+        }
+
+        /** 返回服务端主动关闭使用的状态码。 */
+        private Integer closeCode() {
+            return closeCode;
+        }
+
+        /** 返回服务端主动关闭使用的原因。 */
+        private String closeReason() {
+            return closeReason;
         }
 
         @Override
@@ -733,12 +781,16 @@ class TerminalUiApprovalRespondTest {
 
         @Override
         public MultiMap<String> paramMap() {
-            return new MultiMap<String>();
+            MultiMap<String> params = new MultiMap<String>();
+            if (token != null) {
+                params.put("token", token);
+            }
+            return params;
         }
 
         @Override
         public String param(String name) {
-            return null;
+            return "token".equalsIgnoreCase(name) ? token : null;
         }
 
         @Override
@@ -810,6 +862,9 @@ class TerminalUiApprovalRespondTest {
         public void close() {}
 
         @Override
-        public void close(int code, String reason) {}
+        public void close(int code, String reason) {
+            closeCode = Integer.valueOf(code);
+            closeReason = reason;
+        }
     }
 }

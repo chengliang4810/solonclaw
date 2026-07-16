@@ -3,7 +3,6 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -106,12 +105,9 @@ public class DashboardAuthService {
      * 判断 WebSocket 连接是否允许访问 Dashboard 同级控制面。
      *
      * @param socket WebSocket 握手后的连接对象。
-     * @return 本地连接直接放行，远程连接必须携带 Dashboard 访问令牌。
+     * @return 连接携带有效 Dashboard 访问令牌时返回 true。
      */
     public boolean isAuthorized(WebSocket socket) {
-        if (isLocalRequest(socket)) {
-            return true;
-        }
         String token = accessToken();
         if (StrUtil.isBlank(token)) {
             return false;
@@ -150,23 +146,6 @@ public class DashboardAuthService {
         } catch (Exception e) {
             return "127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "::1".equals(ip);
         }
-    }
-
-    /**
-     * 判断 WebSocket 连接是否来自本机回环地址。
-     *
-     * @param socket WebSocket 连接对象。
-     * @return 如果远端地址是本地回环地址则返回 true。
-     */
-    public boolean isLocalRequest(WebSocket socket) {
-        if (socket == null) {
-            return false;
-        }
-        InetSocketAddress remoteAddress = socket.remoteAddress();
-        if (remoteAddress == null || remoteAddress.getAddress() == null) {
-            return false;
-        }
-        return remoteAddress.getAddress().isLoopbackAddress();
     }
 
     /**

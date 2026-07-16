@@ -251,6 +251,21 @@ describe('GatewayClient solonclaw bridge', () => {
     gw.kill()
   })
 
+  it('shows the backend configuration hint when the dashboard token is missing', async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce({
+      json: async () => ({ error: '未配置 Dashboard 访问令牌，请先设置 solonclaw.dashboard.accessToken' }),
+      ok: false,
+      status: 503
+    } as Response)
+    const gw = new GatewayClient()
+
+    gw.start()
+
+    await vi.waitFor(() => expect(gw.getLogTail(20)).toContain('solonclaw.dashboard.accessToken'))
+    expect(FakeWebSocket.instances).toHaveLength(0)
+    gw.kill()
+  })
+
   it('waits for backend handshake before sending early RPC requests', async () => {
     let resolveHandshake!: (value: unknown) => void
 

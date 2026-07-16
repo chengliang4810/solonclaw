@@ -2,16 +2,36 @@ package com.jimuqu.solon.claw.tui;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.web.DashboardAuthService;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.core.handle.ContextEmpty;
 
 /** 验证终端 UI 握手服务在各协议与端口场景下生成正确的 WebSocket 入口信息。 */
 @DisplayName("TerminalUiHandshakeService 握手服务")
 class TerminalUiHandshakeServiceTest {
 
     private final TerminalUiHandshakeService service = new TerminalUiHandshakeService();
+
+    /** 验证未配置令牌时发现接口明确拒绝，而不是返回必然失败的 WebSocket 地址。 */
+    @Test
+    @DisplayName("controller handshake - 空 access token 时返回配置提示")
+    void controllerHandshakeWithEmptyTokenShouldFailClosed() {
+        AppConfig appConfig = new AppConfig();
+        TerminalUiController controller =
+                new TerminalUiController(service, new DashboardAuthService(appConfig));
+        LocalContext context = new LocalContext();
+
+        Map<String, Object> result = controller.handshake(context);
+
+        assertThat(context.status()).isEqualTo(503);
+        assertThat(result).containsEntry("success", false);
+        assertThat(result).containsEntry("code", "TUI_ACCESS_TOKEN_REQUIRED");
+        assertThat(result).doesNotContainKey("ws_url");
+    }
 
     @Test
     @DisplayName("handshake - HTTP 地址生成 ws:// WebSocket URL")
@@ -123,5 +143,14 @@ class TerminalUiHandshakeServiceTest {
         Map<String, Object> result = service.handshake("http://localhost:8080");
 
         assertThat(result.get("protocol_version")).isEqualTo(1);
+    }
+
+    /** 测试用本机上下文，允许发现接口进入 token 配置检查。 */
+    private static final class LocalContext extends ContextEmpty {
+        /** 返回 loopback 地址模拟本机终端调用。 */
+        @Override
+        public String remoteIp() {
+            return "127.0.0.1";
+        }
     }
 }
