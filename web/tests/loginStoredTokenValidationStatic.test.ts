@@ -25,7 +25,7 @@ assert.ok(
   'successful injected token validation should persist the token before routing into the app',
 )
 assert.ok(
-  !loginView.includes('if (hasApiKey()) {\n  router.replace("/solonclaw/chat");\n}'),
+  !loginView.includes('if (hasApiKey()) {\n  router.replace("/chat");\n}'),
   'login page must not route to chat only because a token exists locally',
 )
 assert.ok(
@@ -41,7 +41,7 @@ assert.ok(
   'login page should restore the explicit redirect query after token validation',
 )
 assert.ok(
-  !loginView.includes('router.replace("/solonclaw/chat")'),
+  !loginView.includes('router.replace("/chat")'),
   'login page should not hardcode chat as every successful login target',
 )
 assert.ok(

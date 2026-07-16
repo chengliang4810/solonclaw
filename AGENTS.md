@@ -1,265 +1,56 @@
-# jimuqu-agent AGENTS.md
+# jimuqu-agent 技术规范
 
-## 项目目标
+## 语言与框架
 
-- 本项目目标是使用 Java 语言，基于 Solon 与 Solon AI，对外部对标仓库进行功能复刻；本仓库内不得出现旧项目命名。
-- 复刻的目标是“行为与能力对齐”，不是逐行或逐模块照搬 Python 实现；允许使用更符合 Java / Solon 生态的实现方式。
-- 后续需求、设计、拆解、编码、测试都必须优先服务这个目标，避免偏离成泛用聊天应用、泛工作流平台或无关的 AI Demo。
-
-## 强约束
-
-### 1. 语言与框架
-
-- 主实现语言只能是 Java。
-- 核心框架只能优先使用 Solon。
-- AI 能力接入、Agent 编排、模型协议封装优先使用 Solon AI。
+- 主实现语言使用 Java，并保持 Java 8 源码兼容。
+- 核心框架使用 Solon；AI 接入、Agent 编排和模型协议封装优先使用 Solon AI。
 - 通用工具优先使用 Hutool。
-- JSON 序列化与反序列化统一优先使用 `org.noear:snack4`。
-- 若 Solon / Solon AI 官方已提供对应模块、skill、dialect、plugin 或适配实现，必须优先直接采用；只有官方能力明确缺失且无法满足目标行为时，才允许自研补充。
+- JSON 序列化与反序列化优先使用 `org.noear:snack4`。
+- 前端使用 Vue 3、TypeScript 和 Vite，沿用现有组件与状态管理方式。
+- 数据持久化沿用现有 SQLite 仓储实现。
 
-### 2. 依赖选型原则
+## 依赖选型
 
-- 没有明确理由时，不要引入 Spring Boot、Spring AI、LangChain4j、Jackson、Fastjson、Gson 等替代性主框架或主序列化方案。
-- 如某个外部协议或 SDK 必须依赖额外库，先保证边界清晰，再最小化引入，并在任务说明或变更说明中写明原因。
-- 优先使用 Maven Central 中可获取的稳定开源依赖。
+- Solon、Solon AI 已提供对应模块、dialect、plugin 或适配实现时，优先直接复用。
+- 不引入 Spring Boot、Spring AI、LangChain4j、Jackson、Fastjson、Gson 等替代性主框架或序列化方案。
+- 新依赖必须有明确必要性，保持边界清晰，并优先选择 Maven Central 或 npm 官方仓库中的稳定版本。
+- 标准库、现有工具类或已安装依赖能够解决的问题，不新增重复实现或依赖。
 
-### 3. 参考源码仓库
+## 架构约束
 
-- Solon 远程仓库：`https://gitee.com/opensolon/solon.git`
-- Solon AI 远程仓库：`https://gitee.com/opensolon/solon-ai.git`
-- Hutool 远程仓库：`https://gitee.com/dromara/hutool.git`
-- 外部 Agent 对标源码：远程仓库地址或本地副本路径由当前任务上下文提供，禁止在本仓库文件中写入旧项目名。
+- 配置、模型协议、渠道、工具、Agent 编排和存储保持职责分离。
+- `bootstrap/` 只负责 Solon Bean 装配，不承载业务逻辑。
+- `engine/` 承载会话与 Agent 编排；`llm/` 作为模型协议边界；`tool/` 承载工具实现；`gateway/` 承载消息渠道；`storage/repository/` 承载 SQLite 实现。
+- Dashboard 后端沿用 `DashboardXxxController` 与 `DashboardXxxService` 分层，统一使用现有鉴权和响应结构。
+- 前端路由放在 `web/src/router/index.ts`，API 调用放在 `web/src/api/`，页面放在 `web/src/views/`。
+- 不为单一实现增加无必要的接口、工厂、兼容层或预留扩展。
 
-遇到框架用法、设计取舍、扩展点不明确时，先根据上述远程仓库自行获取或更新参考源码，再决定实现方案。
+## 编码规范
 
-## 上游参考与同步策略
+- 修改前先检查现有调用链和项目模式，优先复用现有实现，并以最小改动解决根因。
+- Java 类、字段和方法必须添加具体的中文 Javadoc 或中文注释；配置项在格式允许时添加中文说明。
+- Controller、依赖注入、配置、过滤器和插件沿用现有 Solon 写法，不使用 Spring 注解或 Spring MVC 模式。
+- 工具副作用必须经过现有安全、审批和审计边界，不得绕过输入校验或危险操作保护。
+- 配置、代码、测试和文档只使用当前 `solonclaw` 命名，不增加历史配置键、环境变量、命令、字段或枚举值的兼容回退。
+- 外部参考仓库路径只用于本地开发，不写入仓库文件、配置样例、发布产物或用户可见文本。
 
-- 外部对标仓库是功能对标基线。
-- 实现新能力前，先定位外部对标仓库中的对应模块、配置项、交互方式、约束和用户可见行为。
-- 若任务依赖外部对标仓库的最新变动，先同步参考仓库，再继续实现；具体路径由任务上下文提供。
+## 验证规范
 
-- 若本地参考仓库与上游存在明显差异，优先说明本次实现参考的是哪个提交或本地状态。
-- 禁止把外部对标仓库中的配置键、环境变量名前缀、命令名、工具名、类名、release 文案或示例文本照搬进本仓库；涉及安全、URL 策略、审批、工具网关等功能时，也必须改为本项目命名。
-- 本项目命名以 `solonclaw` 为准；代码包名可沿用当前 `com.jimuqu.solon.claw` 结构。
-- 禁止在提交信息、Release notes、自动生成文档、测试夹具、命令输出摘要和交付说明中复述旧项目关键词；如必须说明来源，只能使用“外部对标仓库”“对标实现”“旧项目关键词”等中性说法。
-- 外部对标仓库路径只能作为本地开发上下文或临时命令参数使用，不得写入仓库文件、发布产物、配置样例或用户可见帮助文本。
-- 禁止新增或保留历史配置键、历史环境变量、历史命令名、历史工具名、历史字段名或旧语义值的兼容读取、别名映射、自动回退和迁移桥接逻辑；配置、代码、测试、文档只接受当前 `solonclaw` 命名与当前枚举语义。发现历史兼容逻辑时必须删除并同步更新测试与示例；仅当本文件明确列入的协议兼容接入面需要遵循第三方协议字段时，才允许在清晰边界内保留协议字段。
+- 修改后运行与改动最相关的测试或构建；验证失败不得提交。
+- 后端快速验证使用 `mvn -Dskip.web.build=true test`，完整构建使用 `mvn package`。
+- 前端验证在 `web/` 下运行 `npm run build`，必要时补充对应的现有静态测试。
+- Java 格式检查使用 `mvn spotless:check`，格式修复使用 `mvn spotless:apply`。
+- 提交前运行：
 
-## 复刻范围约束
+```bash
+python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
+python3 scripts/check-raw-exception-logging.py
+```
 
-### 1. 渠道范围
+## 参考源码
 
-- 仅保留中国国内消息渠道支持。
-- 海外或非目标渠道默认不做，包括但不限于：Telegram、Discord、Slack、WhatsApp、Signal、Matrix、Mattermost、BlueBubbles、Home Assistant、Email。
-- 外部对标代码中与国内场景相关、可作为参考候选的渠道适配器，仅保留：`feishu`、`dingtalk`、`wecom`、`weixin`、`qqbot`、`yuanbao`。
-- 明确不做：`sms`、`webhook`。
-- 在你确认最终渠道清单之前，后续任务只允许建设“国内渠道抽象和适配能力”，不要投入任何海外渠道实现。
+- Solon：`https://gitee.com/opensolon/solon.git`
+- Solon AI：`https://gitee.com/opensolon/solon-ai.git`
+- Hutool：`https://gitee.com/dromara/hutool.git`
 
-### 2. 大模型协议范围
-
-- 只保留以下通用协议或兼容接入面：
-- `openai`
-- `openai-responses`
-- `ollama`
-- `gemini`
-- `anthropic`
-
-- 以下提供方或专有接入默认不做，除非你后续明确要求：OpenRouter、z.ai/GLM、Kimi/Moonshot、MiniMax、Copilot、Nous Portal、Hugging Face、Vercel AI Gateway 等。
-
-### 3. 设计边界
-
-- 复刻重点是 Agent 核心能力、国内渠道接入、模型协议适配、工具系统、记忆/技能/会话等与对标产品价值直接相关的部分。
-- 渠道接入与诊断入口默认走现有 dashboard/API，优先补齐 dashboard-first setup / doctor，而不是新增完整 CLI 向导。
-- 渠道传输层遵循 websocket-first：平台官方支持 websocket / stream 时优先采用；仅微信保留对标行为中的 iLink long-poll。
-- 不要因为某个技术点实现方便，就偏离成以脚本、前端展示页、营销官网、实验性研究代码为中心的项目。
-- 若出现“为了兼容外部对标实现而牺牲 Java/Solon 可维护性”的情况，优先保持 Java 侧架构清晰，再在行为层面对齐。
-- 已明确不做：研究与实验能力。
-- 本版需要做：多模态模型输入、图像理解/生成、TTS / 独立语音转写服务、浏览器自动化内置实现、价格分析/价格计算。
-- 浏览器自动化能力进入本版主线；实现时仍保持审批、安全与审计边界。
-
-## 默认实现原则
-
-### 1. 实现顺序
-
-优先级建议如下：
-
-1. 项目骨架、配置体系、公共模型与异常定义
-2. 模型协议抽象与会话/Agent 主循环
-3. 工具注册与调用框架
-4. 国内消息渠道网关
-5. 记忆、技能、上下文文件、会话存储
-6. 定时任务、自动化、MCP 等扩展能力
-7. 低优先级或研究型能力
-
-### 2. 任务判断原则
-
-- 每次开发前，先回答“这个任务对应外部对标仓库的哪项能力”。
-- 如果对应不上外部对标仓库的明确能力，或与本项目目标无关，应先暂停并确认，而不是直接扩展范围。
-- 没有用户明确要求时，优先实现最小可用版本，再逐步补齐兼容能力。
-
-### 3. 架构原则
-
-- 先定义清晰的领域边界，再落地代码。
-- 配置、协议、渠道、工具、Agent 核心循环要解耦。
-- 避免把渠道逻辑、模型协议逻辑、工具执行逻辑直接耦合在一个类中。
-- 面向接口或抽象层设计，方便后续逐步补齐对标能力。
-
-## 待确认的对标功能清单
-
-以下是外部对标 Agent 现有功能面，后续需要逐项确认哪些保留、哪些裁剪。未确认前，可以做架构预留，但不要默认全部深度实现。
-
-### A. Agent 核心与会话
-
-- 多轮会话与会话持久化
-- 上下文压缩与历史裁剪
-- `/new`、`/retry`、`/undo`、`/branch`、`/resume` 等会话控制
-- 模型切换、推理强度、快速模式
-- 会话状态与基础运行信息
-- 保留 token 使用量统计；本版补价格分析/价格计算
-- checkpoint / rollback
-
-### B. CLI / 交互层
-
-- 保留对话内 slash commands 的命令语义，例如：`/new`、`/retry`、`/undo`
-- 建设本地交互式 CLI / TUI 能力，包括富文本、快捷键、状态栏、运行中输入策略、补全、剪贴板、皮肤、提示和历史浏览。
-- 不做语音模式入口
-
-### C. 消息网关与渠道适配
-
-- 网关进程
-- 渠道鉴权与会话绑定
-- 文本消息收发
-- 附件能力按最小可用原则处理；保留国内渠道图片/文件/视频/语音的传输、缓存与附件感知主链，并逐步接入图片理解、语音转写等内容理解型能力
-- dashboard-first setup / doctor
-- 优先 websocket / stream，微信保留 long-poll
-- home channel / 状态同步 / 跨端连续会话
-- 计划任务向渠道投递结果
-- 独立 `send_message` 能力
-- 仅保留：`feishu`、`dingtalk`、`wecom`、`weixin`、`qqbot`、`yuanbao`
-- 不做：`sms`、`webhook`
-
-### D. 模型与协议层
-
-- 流式输出
-- 工具调用 / function calling
-- 本版需要做：多模态模型输入、图像理解/生成、TTS / 独立语音转写服务、浏览器自动化内置实现、价格分析/价格计算。
-- Prompt caching
-- 模型元数据、上下文长度、token 估算
-- 智能模型路由
-- 保留 token 估算与使用量统计；本版补价格分析/价格计算
-
-### E. 工具系统
-
-- 终端命令执行
-- 进程管理
-- 文件读写、搜索、补丁
-- 保留内置 Websearch / Webfetch
-- 本版需要做浏览器自动化内置实现；实现时必须保持审批、安全与审计边界
-- 代码执行沙箱
-- 子 Agent / delegation / mixture of agents
-- 本版需要做图像理解与图像生成
-- 本版需要做 TTS / 独立语音转写服务；仍不默认建设语音模式入口
-- Todo / 计划工具
-- Memory 工具
-- 会话搜索
-- 定时任务工具
-- 发送消息工具
-- 安全扫描与危险命令审批
-
-### F. 技能、记忆、上下文
-
-- Skills 本地管理
-- Skills Hub / 手动导入兼容 / 在线 source 搜索安装
-- 内置 Websearch / Webfetch
-- token 使用量统计
-- 任务后沉淀技能或改进技能
-- MEMORY / USER / AGENTS 等上下文文件协同
-- 跨会话检索与总结
-- 用户画像 / 长期记忆
-- Honcho 用户建模或兼容能力
-
-### G. 集成与扩展
-
-- MCP 集成
-- 第一版不做 OpenAI 兼容 API Server
-- 不做 Webhook
-- 本版需要做 Profiles / 多配置隔离，并按外部对标仓库的用户可见行为对齐：支持创建、切换、克隆、重命名、删除、导入、导出和独立运行；每个 Profile 隔离配置、凭据、会话、记忆、技能、MCP、渠道状态与网关运行状态。
-- Setup / Doctor / Auth 流程保留 dashboard-first 版本；不补完整 CLI wizard
-
-### H. 运行环境与部署
-
-- 仅保留 `java -jar` 部署
-- 仅保留 Docker 部署
-- 不做 Docker 之外的复杂执行后端
-- 不做运行时工作区隔离 / worktree 执行后端；开发过程允许使用 git worktree 隔离并发开发
-- 安装脚本与部署脚本按最小可用原则建设
-
-### I. 研究与实验能力
-
-- 不做 Batch runner
-- 不做 Trajectory 保存与压缩
-- 不做 RL / Atropos 环境
-- 不做训练辅助工具
-
-## 建议默认低优先级或暂缓项
-
-若你没有明确要求，以下内容不应抢占主线开发资源：
-
-- 海外消息渠道及其运维能力
-- 与限定协议无关的模型提供方适配
-- 皮肤/主题/视觉层花活
-- 官网、落地页、营销页面
-- 研究型工具链
-- 复杂多云执行后端
-- 与主线复刻无关的迁移工具
-
-## 当前已确认不做
-
-- `sms`
-- `webhook`
-- 研究与实验能力
-- Docker 之外的执行后端
-- 运行时 worktree 执行后端
-- OpenAI 兼容 API Server
-- 基于共享业务数据和共享权限模型的多租户能力
-
-## 当前已确认保留 / 需要做
-
-- 对话内 slash commands 命令语义
-- `feishu`、`dingtalk`、`wecom`、`weixin`、`qqbot`、`yuanbao`
-- 国内渠道附件/媒体传输与附件感知主链
-- dashboard-first setup / doctor
-- websocket-first 国内渠道接入（微信除外）
-- `java -jar` 部署
-- Docker 部署
-- Profiles / 多配置隔离及每 Profile 独立网关实例
-- 本地 CLI / TUI 交互层
-- MCP 集成
-- Skills Hub / 手动导入兼容 / 在线 source 搜索安装
-- 内置 Websearch / Webfetch
-- token 使用量统计
-- 多模态模型输入
-- 图像理解 / 图像生成
-- TTS / 独立语音转写服务
-- 浏览器自动化内置实现
-- 价格分析 / 价格计算
-
-## 后续任务执行要求
-
-- 所有任务都应优先说明它对应外部对标仓库的哪个能力点。
-- 所有实现都应优先复用 Solon、Solon AI、Hutool、Snack4 的能力。
-- 做方案设计时，要显式标注“已确认范围”和“待确认范围”。
-- 新增依赖、新增协议、新增渠道、新增核心架构分层时，必须检查是否违反本文件约束。
-- 若用户后续明确裁剪某些功能，应及时更新本文件，使后续任务持续对齐目标。
-- 生成代码、配置、测试夹具、文档、提交信息、Release notes 前，必须先确认没有旧项目关键词、旧项目前缀环境变量、旧项目工具名或旧项目类名，并保持本项目命名为 `solonclaw`。
-- 生成或修改配置与代码逻辑时，必须检查是否引入历史兼容路径；禁止为了照顾旧配置、旧环境变量、旧工具名、旧命令名、旧字段或旧枚举值而增加回退读取、别名、桥接方法、导入兼容测试或隐藏开关。
-- 生成或修改代码和配置时，必须补充中文文本注释：Java 类、字段、方法必须添加中文 Javadoc 或中文注释说明用途、职责或关键约束；配置文件中的新增配置项、配置块必须在格式允许时添加中文说明注释。注释要具体说明业务含义，禁止只写“定义字段”“执行方法”等空泛描述。
-- 若需要表达来源或对标关系，只能使用“外部对标仓库”“对标实现”“旧项目关键词”等中性说法，不得把旧项目名写入仓库文件或发布产物。
-- 常规提交前命名检查只允许扫描当前工作树和当前分支相对默认分支新增的提交：`python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`。全 Git refs 扫描只能作为人工历史审计使用，不能作为判断当前源码或当前发布范围是否合格的常规门禁。
-- 频繁开发提交默认推送到 `dev` 分支；不要每次小改都直接推送 `main`。
-- `dev` 分支从上一次合并到 `main` 之后开始计数；累计每 5 次有效开发 commit 后，再合并到 `main` 并推送一次。
-- 合并到 `main` 的 merge commit 不计入下一轮 5 次开发 commit；未满 5 次时，只有用户明确要求发布或紧急修复，才允许提前合并。
-- 每次提交前仍需运行与改动匹配的编译或测试；验证失败不得提交。
-- commit message 必须使用中英双语描述，优先格式：`type: 中文说明 / English summary`。
-- GitHub Releases 描述必须使用中英双语，并包含功能变更、缺陷修复或其他变更的具体说明，不能只写下载与运行方式。
-- Release notes 的功能或缺陷描述应优先来自中英双语 commit subject；提交时要写清楚用户可见能力或修复点。
+框架 API、扩展点或行为不明确时，先核对当前依赖版本和对应官方源码，再决定实现方式。

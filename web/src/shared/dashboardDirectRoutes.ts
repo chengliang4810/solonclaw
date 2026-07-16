@@ -1,36 +1,31 @@
 const DIRECT_ROUTE_HASHES: Record<string, string> = {
-  '/status': '#/solonclaw/diagnostics',
-  '/diagnostics': '#/solonclaw/diagnostics',
+  '/status': '#/diagnostics',
+  '/diagnostics': '#/diagnostics',
   '/login': '#/',
-  '/chat': '#/solonclaw/chat',
-  '/sessions': '#/solonclaw/runs',
-  '/analytics': '#/solonclaw/usage',
-  '/models': '#/solonclaw/models',
-  '/memory': '#/solonclaw/persona/journal',
-  '/logs': '#/solonclaw/logs',
-  '/gateways': '#/solonclaw/gateways',
-  '/profiles': '#/solonclaw/profiles',
-  '/profiles/new': '#/solonclaw/profiles/new',
-  '/channels': '#/solonclaw/channels',
-  '/files': '#/solonclaw/files',
-  '/workspace': '#/solonclaw/files',
-  '/tui-runtime': '#/solonclaw/tui-runtime',
-  '/curator': '#/solonclaw/curator',
-  '/mcp': '#/solonclaw/mcp',
-  '/cron': '#/solonclaw/jobs',
-  '/skills': '#/solonclaw/skills',
-  '/config': '#/solonclaw/settings',
-  '/env': '#/solonclaw/settings',
+  '/chat': '#/chat',
+  '/sessions': '#/runs',
+  '/analytics': '#/usage',
+  '/models': '#/models',
+  '/agents': '#/persona/agents',
+  '/memory': '#/persona/journal',
+  '/logs': '#/logs',
+  '/gateways': '#/gateways',
+  '/profiles': '#/profiles',
+  '/profiles/new': '#/profiles/new',
+  '/channels': '#/channels',
+  '/files': '#/files',
+  '/workspace': '#/files',
+  '/tui-runtime': '#/tui-runtime',
+  '/curator': '#/curator',
+  '/mcp': '#/mcp',
+  '/cron': '#/jobs',
+  '/skills': '#/skills',
+  '/config': '#/settings',
+  '/env': '#/settings',
 }
 
 export function dashboardHashRouteForPath(pathname: string): string {
   const path = normalizePath(pathname)
-  if (path === '/solonclaw') {
-    return '#/solonclaw/chat'
-  }
-  if (path.startsWith('/solonclaw/')) {
-    return `#${path}`
-  }
   return DIRECT_ROUTE_HASHES[path] || ''
 }
 

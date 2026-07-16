@@ -68,7 +68,7 @@ watch(
 
 <template>
   <aside class="sidebar" :class="{ open: appStore.sidebarOpen }">
-    <div class="sidebar-logo" @click="router.push('/solonclaw/chat')">
+    <div class="sidebar-logo" @click="router.push('/chat')">
       <img :src="logoPath" alt="solonclaw" class="logo-img" />
       <span class="logo-text">solonclaw</span>
     </div>
