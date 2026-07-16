@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Button, Drawer, Select, Spin, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import {
@@ -63,6 +63,27 @@ const recoverableLoading = ref(false)
 const recoverableError = ref<string | null>(null)
 const { t } = useI18n()
 
+/** 标识最近一次会话详情请求，拒绝乱序响应。 */
+let sessionDetailRequestId = 0
+/** 标识最近一次运行详情请求，拒绝乱序响应。 */
+let runDetailRequestId = 0
+/** 标识最近一次活跃子代理请求。 */
+let activeSubagentsRequestId = 0
+/** 标识最近一次可恢复运行请求。 */
+let recoverableRunsRequestId = 0
+/** 标识最近一次运行控制请求。 */
+let runControlRequestId = 0
+/** 标识最近一次 Checkpoint 预览请求。 */
+let checkpointPreviewRequestId = 0
+/** 标识最近一次 Checkpoint 回滚请求。 */
+let rollbackRequestId = 0
+/** 标识最近一次子代理中断请求。 */
+let subagentControlRequestId = 0
+/** 标识最近一次子代理生成开关请求。 */
+let subagentSpawnRequestId = 0
+/** 记录组件是否已经卸载，阻止挂载链路继续发起请求。 */
+let disposed = false
+
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : String(err || fallback)
 }
@@ -78,131 +99,223 @@ const selectedRunActive = computed(() => {
   return Boolean(selectedRun.value && !['success', 'ok', 'failed', 'error', 'cancelled', 'stopped', 'finished'].includes(status))
 })
 
+/** 清空当前运行的所有明细，避免标题与旧事件错配。 */
+function clearRunDetail(): void {
+  events.value = []
+  tools.value = []
+  subagents.value = []
+  recoveries.value = []
+  commands.value = []
+}
+
+/** 清空当前会话的全部数据，失败时不保留上一会话内容。 */
+function clearSessionDetail(): void {
+  runs.value = []
+  selectedRunId.value = ''
+  clearRunDetail()
+  tree.value = null
+  checkpoints.value = []
+  recap.value = null
+  trajectory.value = null
+  checkpointPreviewRequestId += 1
+  checkpointPreview.value = null
+  previewOpen.value = false
+  previewingCheckpoint.value = ''
+}
+
 async function loadSessions() {
-  sessions.value = await fetchSessions(undefined, 200, false)
+  if (disposed) return
+  const loadedSessions = await fetchSessions(undefined, 200, false)
+  if (disposed) return
+  sessions.value = loadedSessions
   if (!selectedSessionId.value && sessions.value.length) {
     selectedSessionId.value = sessions.value[0].id
   }
 }
 
-async function loadSessionDetail() {
-  if (!selectedSessionId.value) return
+async function loadSessionDetail(preferredRun?: AgentRun): Promise<boolean> {
+  const sessionId = selectedSessionId.value
+  if (!sessionId || disposed) return false
+  const requestId = ++sessionDetailRequestId
+  runDetailRequestId += 1
   loading.value = true
   loadError.value = null
+  clearSessionDetail()
+  void loadActiveSubagents()
   try {
-    const [loadedRuns, loadedTree, loadedCheckpoints] = await Promise.all([
-      fetchSessionRuns(selectedSessionId.value, 30),
-      fetchSessionTree(selectedSessionId.value),
-      fetchSessionCheckpoints(selectedSessionId.value),
+    const [sessionRuns, loadedTree, loadedCheckpoints] = await Promise.all([
+      fetchSessionRuns(sessionId, 30),
+      fetchSessionTree(sessionId),
+      fetchSessionCheckpoints(sessionId),
     ])
-    runs.value = loadedRuns
+    if (requestId !== sessionDetailRequestId || sessionId !== selectedSessionId.value || disposed) return false
+    const loadedRuns = preferredRun && !sessionRuns.some(run => run.run_id === preferredRun.run_id)
+      ? [preferredRun, ...sessionRuns]
+      : sessionRuns
+    const runId = preferredRun?.run_id || loadedRuns[0]?.run_id || ''
+    const [detail, loadedRecap, loadedTrajectory] = await Promise.all([
+      runId ? fetchRunDetail(runId) : Promise.resolve(null),
+      fetchSessionRecap(sessionId),
+      fetchSessionTrajectory(sessionId),
+    ])
+    if (requestId !== sessionDetailRequestId || sessionId !== selectedSessionId.value || disposed) return false
+    const detailRun = detail?.run
+    if (detailRun && (detailRun.run_id !== runId || (detailRun.session_id && detailRun.session_id !== sessionId))) {
+      throw new Error('Run detail does not match the requested session')
+    }
+    runs.value = detailRun
+      ? loadedRuns.map(run => run.run_id === runId ? detailRun : run)
+      : loadedRuns
     tree.value = loadedTree
     checkpoints.value = loadedCheckpoints
-    await loadActiveSubagents()
-    selectedRunId.value = loadedRuns[0]?.run_id || ''
-    if (selectedRunId.value) {
-      const detail = await fetchRunDetail(selectedRunId.value)
+    selectedRunId.value = runId
+    if (detail) {
       events.value = detail.events || []
       tools.value = detail.tools || []
       subagents.value = detail.subagents || []
       recoveries.value = detail.recoveries || []
       commands.value = detail.commands || []
-    } else {
-      events.value = []
-      tools.value = []
-      subagents.value = []
-      recoveries.value = []
-      commands.value = []
     }
-    await loadSessionArtifacts()
+    recap.value = loadedRecap
+    trajectory.value = loadedTrajectory
+    return true
   } catch (err) {
-    console.error('Failed to load run session detail:', err)
-    loadError.value = errorMessage(err, 'Failed to load run session detail')
+    if (requestId === sessionDetailRequestId && sessionId === selectedSessionId.value && !disposed) {
+      clearSessionDetail()
+      console.error('Failed to load run session detail:', err)
+      loadError.value = errorMessage(err, 'Failed to load run session detail')
+    }
+    return false
   } finally {
-    loading.value = false
+    if (requestId === sessionDetailRequestId && sessionId === selectedSessionId.value && !disposed) {
+      loading.value = false
+    }
   }
 }
 
-async function loadSessionArtifacts() {
-  if (!selectedSessionId.value) return
-  const [loadedRecap, loadedTrajectory] = await Promise.all([
-    fetchSessionRecap(selectedSessionId.value),
-    fetchSessionTrajectory(selectedSessionId.value),
-  ])
-  recap.value = loadedRecap
-  trajectory.value = loadedTrajectory
-}
-
 async function loadRunDetail(runId: string) {
+  if (disposed) return
+  const sessionId = selectedSessionId.value
+  sessionDetailRequestId += 1
+  loading.value = false
   selectedRunId.value = runId
+  const requestId = ++runDetailRequestId
   loadError.value = null
+  clearRunDetail()
   if (!runId) {
-    events.value = []
-    tools.value = []
-    subagents.value = []
-    recoveries.value = []
-    commands.value = []
     return
   }
   try {
     const detail = await fetchRunDetail(runId)
+    if (requestId !== runDetailRequestId
+      || runId !== selectedRunId.value
+      || sessionId !== selectedSessionId.value
+      || disposed) return
+    if (detail.run && (detail.run.run_id !== runId || (detail.run.session_id && detail.run.session_id !== sessionId))) {
+      throw new Error('Run detail does not match the requested session')
+    }
+    if (detail.run) {
+      runs.value = runs.value.map(run => run.run_id === runId ? detail.run : run)
+    }
     events.value = detail.events || []
     tools.value = detail.tools || []
     subagents.value = detail.subagents || []
     recoveries.value = detail.recoveries || []
     commands.value = detail.commands || []
   } catch (err) {
-    console.error('Failed to load run detail:', err)
-    loadError.value = errorMessage(err, 'Failed to load run detail')
+    if (requestId === runDetailRequestId
+      && runId === selectedRunId.value
+      && sessionId === selectedSessionId.value
+      && !disposed) {
+      clearRunDetail()
+      console.error('Failed to load run detail:', err)
+      loadError.value = errorMessage(err, 'Failed to load run detail')
+    }
   }
 }
 
 async function loadActiveSubagents() {
-  const state = await fetchActiveSubagents()
-  activeSubagents.value = state.subagents
-  subagentSpawnPaused.value = Boolean(state.spawn_paused)
+  if (disposed) return
+  const requestId = ++activeSubagentsRequestId
+  try {
+    const state = await fetchActiveSubagents()
+    if (requestId !== activeSubagentsRequestId || disposed) return
+    activeSubagents.value = state.subagents
+    subagentSpawnPaused.value = Boolean(state.spawn_paused)
+  } catch (err) {
+    if (requestId === activeSubagentsRequestId && !disposed) {
+      console.error('Failed to load active subagents:', err)
+    }
+  }
 }
 
 async function loadRecoverableRuns() {
+  if (disposed) return
+  const requestId = ++recoverableRunsRequestId
   recoverableLoading.value = true
   recoverableError.value = null
   try {
-    recoverableRuns.value = await fetchRecoverableRuns(20)
+    const loadedRuns = await fetchRecoverableRuns(20)
+    if (requestId !== recoverableRunsRequestId || disposed) return
+    recoverableRuns.value = loadedRuns
   } catch (err) {
-    console.error('Failed to load recoverable runs:', err)
-    recoverableError.value = errorMessage(err, 'Failed to load recoverable runs')
+    if (requestId === recoverableRunsRequestId && !disposed) {
+      console.error('Failed to load recoverable runs:', err)
+      recoverableError.value = errorMessage(err, 'Failed to load recoverable runs')
+    }
   } finally {
-    recoverableLoading.value = false
+    if (requestId === recoverableRunsRequestId && !disposed) recoverableLoading.value = false
   }
 }
 
 async function openRecoverableRun(run: AgentRun) {
+  if (disposed) return
   if (run.session_id) {
     selectedSessionId.value = run.session_id
+    await loadSessionDetail(run)
+    return
   }
-  if (!runs.value.some(item => item.run_id === run.run_id)) {
-    runs.value = [run, ...runs.value]
-  }
+  if (!runs.value.some(item => item.run_id === run.run_id)) runs.value = [run, ...runs.value]
   await loadRunDetail(run.run_id)
 }
 
 async function handleRollback(id: string) {
+  if (disposed) return
+  const sessionId = selectedSessionId.value
+  const selectionRequestId = runDetailRequestId
+  const selectedRunSnapshot = selectedRun.value
+  const requestId = ++rollbackRequestId
   rollingBack.value = id
   try {
     await rollbackCheckpoint(id)
-    await loadSessionDetail()
+    if (requestId !== rollbackRequestId
+      || selectionRequestId !== runDetailRequestId
+      || sessionId !== selectedSessionId.value
+      || disposed) return
+    await loadSessionDetail(selectedRunSnapshot)
   } finally {
-    rollingBack.value = ''
+    if (requestId === rollbackRequestId && !disposed) rollingBack.value = ''
   }
 }
 
 async function handleCheckpointPreview(id: string) {
+  if (disposed) return
+  const sessionId = selectedSessionId.value
+  const requestId = ++checkpointPreviewRequestId
   previewingCheckpoint.value = id
   try {
-    checkpointPreview.value = await fetchCheckpointPreview(id)
+    const preview = await fetchCheckpointPreview(id)
+    if (requestId !== checkpointPreviewRequestId || sessionId !== selectedSessionId.value || disposed) return
+    checkpointPreview.value = preview
     previewOpen.value = true
+  } catch (err) {
+    if (requestId === checkpointPreviewRequestId && sessionId === selectedSessionId.value && !disposed) {
+      message.error(errorMessage(err, t('common.fetchFailed')))
+    }
   } finally {
-    previewingCheckpoint.value = ''
+    if (requestId === checkpointPreviewRequestId && sessionId === selectedSessionId.value && !disposed) {
+      previewingCheckpoint.value = ''
+    }
   }
 }
 
@@ -220,56 +333,91 @@ async function handleSaveTrajectory() {
 }
 
 async function handleRunControl(command: 'stop' | 'cancel' | 'resume') {
-  const runId = selectedRun.value?.run_id
-  if (!runId) return
+  const run = selectedRun.value
+  if (!run) return
+  const runId = run.run_id
+  const sessionId = selectedSessionId.value
+  const selectionRequestId = runDetailRequestId
+  const requestId = ++runControlRequestId
   runControlLoading.value = command
   try {
     await controlRun(runId, command)
+    if (requestId !== runControlRequestId
+      || selectionRequestId !== runDetailRequestId
+      || sessionId !== selectedSessionId.value
+      || runId !== selectedRunId.value
+      || disposed) return
     message.success(t('runs.controlSent'))
-    await loadSessionDetail()
+    const reloaded = await loadSessionDetail(run)
+    if (!reloaded || requestId !== runControlRequestId || disposed) return
     if (command === 'resume') {
       await loadRecoverableRuns()
     }
   } catch (err: any) {
-    message.error(err.message || t('runs.controlFailed'))
+    if (requestId === runControlRequestId && !disposed) {
+      message.error(err.message || t('runs.controlFailed'))
+    }
   } finally {
-    runControlLoading.value = ''
+    if (requestId === runControlRequestId && !disposed) runControlLoading.value = ''
   }
 }
 
 async function handleSubagentInterrupt(subagentId: string) {
+  if (disposed) return
+  const requestId = ++subagentControlRequestId
   subagentControlLoading.value = subagentId
   try {
     await controlSubagent(subagentId, 'interrupt')
+    if (requestId !== subagentControlRequestId || disposed) return
     message.success(t('runs.subagentInterruptSent'))
     await Promise.all([
       loadActiveSubagents(),
       selectedRunId.value ? loadRunDetail(selectedRunId.value) : Promise.resolve(),
     ])
   } catch (err: any) {
-    message.error(err.message || t('runs.subagentInterruptFailed'))
+    if (requestId === subagentControlRequestId && !disposed) {
+      message.error(err.message || t('runs.subagentInterruptFailed'))
+    }
   } finally {
-    subagentControlLoading.value = ''
+    if (requestId === subagentControlRequestId && !disposed) subagentControlLoading.value = ''
   }
 }
 
 async function handleSubagentSpawnToggle() {
+  if (disposed) return
   const command = subagentSpawnPaused.value ? 'resume_spawn' : 'pause_spawn'
+  const requestId = ++subagentSpawnRequestId
   subagentSpawnLoading.value = true
   try {
     await controlSubagent('_spawn', command)
+    if (requestId !== subagentSpawnRequestId || disposed) return
     message.success(t(subagentSpawnPaused.value ? 'runs.subagentSpawnResumed' : 'runs.subagentSpawnPaused'))
     await loadActiveSubagents()
   } catch (err: any) {
-    message.error(err.message || t('runs.subagentSpawnControlFailed'))
+    if (requestId === subagentSpawnRequestId && !disposed) {
+      message.error(err.message || t('runs.subagentSpawnControlFailed'))
+    }
   } finally {
-    subagentSpawnLoading.value = false
+    if (requestId === subagentSpawnRequestId && !disposed) subagentSpawnLoading.value = false
   }
 }
 
 onMounted(async () => {
   await loadSessions()
   await loadSessionDetail()
+})
+
+onUnmounted(() => {
+  disposed = true
+  sessionDetailRequestId += 1
+  runDetailRequestId += 1
+  activeSubagentsRequestId += 1
+  recoverableRunsRequestId += 1
+  runControlRequestId += 1
+  checkpointPreviewRequestId += 1
+  rollbackRequestId += 1
+  subagentControlRequestId += 1
+  subagentSpawnRequestId += 1
 })
 </script>
 
@@ -281,8 +429,8 @@ onMounted(async () => {
         <p class="header-subtitle">{{ t('runs.description') }}</p>
       </div>
       <div class="header-actions">
-        <Select v-model:value="selectedSessionId" :options="sessionOptions" size="small" class="session-select" @update:value="loadSessionDetail" />
-        <Button size="small" :loading="loading" @click="loadSessionDetail">{{ t('common.refresh') }}</Button>
+        <Select v-model:value="selectedSessionId" :options="sessionOptions" size="small" class="session-select" @update:value="loadSessionDetail()" />
+        <Button size="small" :loading="loading" @click="loadSessionDetail()">{{ t('common.refresh') }}</Button>
       </div>
     </header>
 
