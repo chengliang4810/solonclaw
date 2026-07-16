@@ -165,7 +165,7 @@ public class DashboardProfileServiceTest {
 
             assertThat(service.readSoul("writer")).containsEntry("exists", Boolean.TRUE);
             assertThat(String.valueOf(service.readSoul("writer").get("content")))
-                    .contains("# SOUL.md");
+                    .contains("SOUL.md 工作区模板");
             service.updateSoul("writer", "You write concise release notes.\n");
             assertThat(service.readSoul("writer"))
                     .containsEntry("content", "You write concise release notes.\n")
