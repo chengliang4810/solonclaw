@@ -100,7 +100,8 @@ public class HeartbeatScheduler {
         log.info("Heartbeat tick started: intervalMinutes={}", intervalMinutes);
         HomeChannelRecord home = gatewayPolicyRepository.getPrimaryHomeChannel();
         if (home == null || home.getPlatform() == null || StrUtil.isBlank(home.getChatId())) {
-            log.debug("Heartbeat skipped: primary home channel missing");
+            log.info(
+                    "Notification skipped: component=heartbeat, strategy=PRIMARY_CHANNEL, reason=CHANNEL_MISSING_OR_ADMIN_UNBOUND");
             return;
         }
         if (!channelEnabled(home.getPlatform())) {

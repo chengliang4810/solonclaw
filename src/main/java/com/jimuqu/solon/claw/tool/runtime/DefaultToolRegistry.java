@@ -22,7 +22,6 @@ import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.media.VisionAnalysisService;
-import com.jimuqu.solon.claw.tool.runtime.ToolRegistration;
 import com.jimuqu.solon.claw.provider.BrowserProvider;
 import com.jimuqu.solon.claw.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
@@ -193,9 +192,6 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 语音服务。 */
     private final SpeechService speechService;
 
-    /** 额外注册工具。 */
-    private final List<ToolRegistration> extraTools;
-
     /** Web 搜索附加提供方，用于按配置接管内置 websearch 后端。 */
     private List<WebSearchProvider> webSearchProviders = Collections.emptyList();
 
@@ -259,7 +255,6 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param agentRunRepository Agent运行仓储依赖。
      * @param cronJobRepository 定时任务仓储依赖。
      * @param usageEventRepository 用量事件仓储依赖。
-     * @param extraTools 额外工具列表。
      * @param webSearchProviders Web 搜索附加提供方列表。
      */
     public DefaultToolRegistry(
@@ -304,7 +299,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             AgentRunRepository agentRunRepository,
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
-            List<ToolRegistration> extraTools,
             List<WebSearchProvider> webSearchProviders) {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
@@ -356,10 +350,6 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.agentRunRepository = agentRunRepository;
         this.cronJobRepository = cronJobRepository;
         this.usageEventRepository = usageEventRepository;
-        this.extraTools =
-                extraTools == null
-                        ? Collections.<ToolRegistration>emptyList()
-                        : new ArrayList<ToolRegistration>(extraTools);
         setWebSearchProviders(webSearchProviders);
     }
 
@@ -380,15 +370,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      */
     @Override
     public List<String> listToolNames() {
-        List<String> result = new ArrayList<String>(TOOL_NAMES);
-        Set<String> seen = new LinkedHashSet<String>(TOOL_NAMES);
-        for (ToolRegistration registration : extraTools) {
-            String name = registration == null ? null : registration.getName();
-            if (StrUtil.isNotBlank(name) && seen.add(name)) {
-                result.add(name);
-            }
-        }
-        return result;
+        return new ArrayList<String>(TOOL_NAMES);
     }
 
     /**
@@ -745,7 +727,6 @@ public class DefaultToolRegistry implements ToolRegistry {
         occupiedToolNames.add("search_tools");
         occupiedToolNames.add("get_tool_detail");
         addUniqueDynamicTools(tools, dynamicTools, occupiedToolNames);
-        addUniqueDynamicTools(tools, resolveExtraTools(sourceKey, agentScope), occupiedToolNames);
         if (isGatewayEnabled(sourceKey, agentScope)) {
             gatewayCandidates.addAll(tools);
             ToolGatewayTalent gatewaySkill = buildToolGateway(gatewayCandidates);
@@ -1126,12 +1107,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 result.add(toolName);
             }
         }
-        for (String toolName : extraToolNames()) {
-            if (isExtraToolAllowed(agentScope, sourceKey, toolName)
-                    && isEnabled(sourceKey, toolName)) {
-                result.add(toolName);
-            }
-        }
         return result;
     }
 
@@ -1145,8 +1120,6 @@ public class DefaultToolRegistry implements ToolRegistry {
     public void enableTools(String sourceKey, List<String> toolNames) {
         for (String toolName : toolNames) {
             if (TOOL_NAMES.contains(toolName)) {
-                setToolEnabled(sourceKey, toolName, true);
-            } else if (extraToolNames().contains(toolName)) {
                 setToolEnabled(sourceKey, toolName, true);
             }
         }
@@ -1162,8 +1135,6 @@ public class DefaultToolRegistry implements ToolRegistry {
     public void disableTools(String sourceKey, List<String> toolNames) {
         for (String toolName : toolNames) {
             if (TOOL_NAMES.contains(toolName)) {
-                setToolEnabled(sourceKey, toolName, false);
-            } else if (extraToolNames().contains(toolName)) {
                 setToolEnabled(sourceKey, toolName, false);
             }
         }
@@ -1271,108 +1242,12 @@ public class DefaultToolRegistry implements ToolRegistry {
     }
 
     /**
-     * 解析额外工具。
-     *
-     * @param sourceKey 渠道来源键。
-     * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @return 返回解析后的额外工具。
-     */
-    private List<FunctionTool> resolveExtraTools(String sourceKey, AgentRuntimeScope agentScope) {
-        List<FunctionTool> result = new ArrayList<FunctionTool>();
-        Set<String> builtinNames = new LinkedHashSet<String>(TOOL_NAMES);
-        Set<String> seen = new LinkedHashSet<String>();
-        for (final ToolRegistration registration : extraTools) {
-            String name = registration == null ? null : registration.getName();
-            if (StrUtil.isBlank(name)
-                    || builtinNames.contains(name)
-                    || !seen.add(name)
-                    || !isExtraToolAllowed(agentScope, sourceKey, name)
-                    || !isEnabled(sourceKey, name)) {
-                continue;
-            }
-            FunctionToolDesc tool = new FunctionToolDesc(name);
-            tool.description(StrUtil.blankToDefault(registration.getDescription(), "Additional tool"));
-            if (registration.getSchema() != null && !registration.getSchema().isEmpty()) {
-                tool.inputSchema(org.noear.snack4.ONode.serialize(registration.getSchema()));
-            }
-            tool.doHandle(
-                    args -> {
-                        return registration.getHandler() == null
-                                ? ""
-                                : registration.getHandler().apply(args);
-                    });
-            result.add(tool);
-        }
-        return result;
-    }
-
-    /**
-     * 执行额外工具Names相关逻辑。
-     *
-     * @return 返回额外工具Names结果。
-     */
-    private List<String> extraToolNames() {
-        List<String> result = new ArrayList<String>();
-        Set<String> builtinNames = new LinkedHashSet<String>(TOOL_NAMES);
-        Set<String> seen = new LinkedHashSet<String>();
-        for (ToolRegistration registration : extraTools) {
-            String name = registration == null ? null : registration.getName();
-            if (StrUtil.isNotBlank(name) && !builtinNames.contains(name) && seen.add(name)) {
-                result.add(name);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * 判断是否额外工具Allowed。
-     *
-     * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @param sourceKey 渠道来源键。
-     * @param toolName 工具名称。
-     * @return 如果额外工具Allowed满足条件则返回 true，否则返回 false。
-     */
-    private boolean isExtraToolAllowed(
-            AgentRuntimeScope agentScope, String sourceKey, String toolName) {
-        if (isDelegateSourceKey(sourceKey) && !hasExplicitScopedToolToggle(sourceKey, toolName)) {
-            return false;
-        }
-        return AgentRuntimePolicy.resolveAllowedTools(agentScope, listToolNames())
-                .contains(toolName);
-    }
-
-    /**
-     * 判断是否委托来源键。
-     *
-     * @param sourceKey 渠道来源键。
-     * @return 如果委托来源键满足条件则返回 true，否则返回 false。
-     */
-    private boolean isDelegateSourceKey(String sourceKey) {
-        return StrUtil.nullToEmpty(sourceKey).contains(":delegate:");
-    }
-
-    /**
      * 按需解析 Dashboard 诊断服务，避免工具注册表创建时要求诊断服务先完成注入。
      *
      * @return 返回 Dashboard 诊断服务，容器尚未就绪时返回 null。
      */
     private DashboardDiagnosticsService resolveDashboardDiagnosticsService() {
         return ProfileBeanResolver.getBean(DashboardDiagnosticsService.class);
-    }
-
-    /**
-     * 判断是否存在Explicit Scoped工具Toggle。
-     *
-     * @param sourceKey 渠道来源键。
-     * @param toolName 工具名称。
-     * @return 如果Explicit Scoped工具Toggle满足条件则返回 true，否则返回 false。
-     */
-    private boolean hasExplicitScopedToolToggle(String sourceKey, String toolName) {
-        try {
-            return preferenceStore.hasScopedToolToggle(sourceKey, toolName);
-        } catch (SQLException e) {
-            return false;
-        }
     }
 
     /**

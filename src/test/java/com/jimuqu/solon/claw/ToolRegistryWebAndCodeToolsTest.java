@@ -311,7 +311,6 @@ class ToolRegistryWebAndCodeToolsTest {
                         .gatewayRuntimeRefreshService(env.gatewayRuntimeRefreshService)
                         .securityPolicyService(new SecurityPolicyService(env.appConfig))
                         .processRegistry(env.processRegistry)
-                        .pluginTools(java.util.Collections.emptyList())
                         .webSearchProviders(providers)
                         .build();
         providers.add(exaProvider);

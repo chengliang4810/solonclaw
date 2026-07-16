@@ -10,8 +10,8 @@ const app = readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
 const client = readFileSync(new URL('../src/api/client.ts', import.meta.url), 'utf8')
 const api = readFileSync(new URL('../src/api/solonclaw/profiles.ts', import.meta.url), 'utf8')
 
-assert.ok(router.includes("path: '/solonclaw/profiles'"), 'router should expose the Profiles page')
-assert.ok(router.includes("path: '/solonclaw/profiles/new'"), 'router should expose the dedicated stepped Profile builder')
+assert.ok(router.includes("path: '/profiles'"), 'router should expose the Profiles page')
+assert.ok(router.includes("path: '/profiles/new'"), 'router should expose the dedicated stepped Profile builder')
 assert.ok(router.includes("name: 'solonclaw.profiles.new'"), 'Profile builder should have a stable named route')
 assert.ok(sidebar.includes('<ProfileSwitcher />'), 'sidebar should render the machine-level Profile switcher')
 assert.ok(

@@ -17,10 +17,10 @@ const errorMsg = ref("");
 
 function loginTarget() {
   const redirect = typeof route.query.redirect === "string" ? route.query.redirect : "";
-  if (redirect.startsWith("/solonclaw/")) {
+  if (redirect.startsWith("/") && !redirect.startsWith("//")) {
     return redirect;
   }
-  return route.redirectedFrom?.fullPath || "/solonclaw/chat";
+  return route.redirectedFrom?.fullPath || "/chat";
 }
 
 async function validateExistingToken() {

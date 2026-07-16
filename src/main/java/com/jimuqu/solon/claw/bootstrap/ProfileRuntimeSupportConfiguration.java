@@ -179,7 +179,6 @@ public class ProfileRuntimeSupportConfiguration {
                 .agentRunRepository(agentRunRepository)
                 .cronJobRepository(cronJobRepository)
                 .usageEventRepository(usageEventRepository)
-                .pluginTools(Collections.emptyList())
                 .webSearchProviders(webSearchProviders)
                 .build();
     }

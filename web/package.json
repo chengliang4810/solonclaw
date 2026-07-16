@@ -53,7 +53,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "antdv-next": "1.3.7",
+    "antdv-next": "1.4.3",
     "antdv-style": "0.1.0-alpha.1",
     "monaco-editor": "^0.55.1",
     "pinia": "^3.0.4",
@@ -73,7 +73,7 @@
     "qrcode": "^1.5.4",
     "sass": "^1.99.0",
     "typescript": "~6.0.2",
-    "vite": "8.1.0",
+    "vite": "8.1.4",
     "vue-tsc": "^3.2.6"
   }
 }

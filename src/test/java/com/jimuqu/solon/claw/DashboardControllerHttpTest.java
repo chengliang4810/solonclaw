@@ -231,14 +231,6 @@ public class DashboardControllerHttpTest {
         assertThat(chat.status).isEqualTo(200);
         assertThat(chat.body).doesNotContain("__APP_SESSION_TOKEN__");
 
-        HttpResult solonClawChat = request("GET", "/solonclaw/chat", null, null);
-        assertThat(solonClawChat.status).isEqualTo(200);
-        assertThat(solonClawChat.body).doesNotContain("__APP_SESSION_TOKEN__");
-
-        HttpResult solonClawBase = request("GET", "/solonclaw", null, null);
-        assertThat(solonClawBase.status).isEqualTo(200);
-        assertThat(solonClawBase.body).doesNotContain("__APP_SESSION_TOKEN__");
-
         HttpResult files = request("GET", "/files", null, null);
         assertThat(files.status).isEqualTo(200);
         assertThat(files.body).doesNotContain("__APP_SESSION_TOKEN__");
