@@ -9,7 +9,6 @@ import {
   type SolonClawProfile,
 } from '@/api/solonclaw/profiles'
 import { useProfilesStore } from '@/stores/solonclaw/profiles'
-import { copyToClipboard } from '@/utils/clipboard'
 
 const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/
 const MODEL_KEY_SEPARATOR = '\u0000'
@@ -288,25 +287,6 @@ function manageSurface(profile: SolonClawProfile, routeName: string): void {
     name: routeName,
     query: profilesStore.managementProfile ? { profile: profilesStore.managementProfile } : {},
   })
-}
-
-async function copySetupCommand(profile: SolonClawProfile): Promise<void> {
-  try {
-    const result = await profilesStore.fetchSetupCommand(profile.name)
-    if (!await copyToClipboard(result.command)) throw new Error(t('profiles.copyCommandFailed'))
-    message.success(t('profiles.commandCopied'))
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : t('profiles.copyCommandFailed'))
-  }
-}
-
-async function openTerminal(profile: SolonClawProfile): Promise<void> {
-  try {
-    await profilesStore.openTerminal(profile.name)
-    message.success(t('profiles.terminalOpened'))
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : t('profiles.openTerminalFailed'))
-  }
 }
 
 async function openEditor(profile: SolonClawProfile, kind: EditorKind): Promise<void> {
@@ -682,8 +662,6 @@ function distributionLabel(profile: SolonClawProfile): string {
               <Button size="small" @click="openEditor(profile, 'description')">{{ t('profiles.editDescription') }}</Button>
               <Button size="small" @click="openEditor(profile, 'soul')">{{ t('profiles.editSoul') }}</Button>
               <Button size="small" @click="openEditor(profile, 'alias')">{{ t('profiles.manageAliases') }}</Button>
-              <Button size="small" @click="openTerminal(profile)">{{ t('profiles.openTerminal') }}</Button>
-              <Button size="small" @click="copySetupCommand(profile)">{{ t('profiles.copyCommand') }}</Button>
             </div>
 
             <div class="surface-links" :aria-label="t('profiles.scopedSurfaces')">

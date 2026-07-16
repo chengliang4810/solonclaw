@@ -6,7 +6,7 @@ const DIRECT_ROUTE_HASHES: Record<string, string> = {
   '/sessions': '#/runs',
   '/analytics': '#/usage',
   '/models': '#/models',
-  '/agents': '#/persona/agents',
+  '/agents': '#/agents',
   '/memory': '#/persona/journal',
   '/logs': '#/logs',
   '/gateways': '#/gateways',

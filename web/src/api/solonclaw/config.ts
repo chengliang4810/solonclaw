@@ -3,7 +3,6 @@ import type { ChannelQrPlatform, ChannelQrStatusView } from '@/shared/channelQr'
 import { normalizeChannelQrStatus } from '@/shared/channelQr'
 
 export interface DisplayConfig {
-  personality?: string
   resume_display?: string
   show_reasoning?: boolean
   streaming?: boolean

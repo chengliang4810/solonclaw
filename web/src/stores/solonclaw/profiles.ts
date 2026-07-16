@@ -201,8 +201,6 @@ export const useProfilesStore = defineStore('profiles', () => {
     fetchSoul: profilesApi.fetchProfileSoul,
     updateSoul,
     updateModel,
-    fetchSetupCommand: profilesApi.fetchProfileSetupCommand,
-    openTerminal: profilesApi.openProfileTerminal,
     createAlias,
     removeAlias,
     installDistribution,

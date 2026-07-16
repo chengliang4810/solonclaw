@@ -59,6 +59,11 @@ const router = createRouter({
       component: () => import('@/views/solonclaw/SkillsView.vue'),
     },
     {
+      path: '/agents',
+      name: 'solonclaw.agents',
+      component: () => import('@/views/solonclaw/AgentsView.vue'),
+    },
+    {
       path: '/profiles/new',
       name: 'solonclaw.profiles.new',
       component: () => import('@/views/solonclaw/ProfileBuilderView.vue'),

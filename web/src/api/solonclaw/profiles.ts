@@ -54,6 +54,13 @@ export interface SolonClawProfile {
   aliases: string[]
   distribution: ProfileDistribution
   no_bundled_skills: boolean
+  /** 多 Profile 运行时健康状态；旧后端未返回时由 gateway 状态降级展示。 */
+  runtime_status?: 'healthy' | 'error' | 'unloaded'
+  /** 当前协作活动；旧后端未返回时展示为空闲。 */
+  activity_status?: 'idle' | 'working' | 'waiting' | 'blocked'
+  current_task?: string
+  running_task_count?: number
+  waiting_task_count?: number
 }
 
 export interface ProfileMcpServerCreate {
@@ -223,17 +230,6 @@ export async function updateProfileModel(name: string, provider: string, model: 
   return request(`/api/profiles/${encodeURIComponent(name)}/model`, {
     method: 'PUT',
     body: JSON.stringify({ provider, model }),
-  })
-}
-
-export async function fetchProfileSetupCommand(name: string): Promise<{ command: string }> {
-  return request(`/api/profiles/${encodeURIComponent(name)}/setup-command`)
-}
-
-export async function openProfileTerminal(name: string): Promise<{ ok: boolean; command: string }> {
-  return request(`/api/profiles/${encodeURIComponent(name)}/open-terminal`, {
-    method: 'POST',
-    body: JSON.stringify({}),
   })
 }
 
