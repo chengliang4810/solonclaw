@@ -131,4 +131,7 @@ public class SessionRecord {
 
     /** 更新时间。 */
     private long updatedAt;
+
+    /** 从仓储加载或最近一次成功保存时的并发设置基线，仅用于冲突检测。 */
+    private transient Object[] persistedConcurrentSettings;
 }

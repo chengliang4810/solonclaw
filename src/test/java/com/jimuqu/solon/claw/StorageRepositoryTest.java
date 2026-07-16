@@ -67,6 +67,182 @@ public class StorageRepositoryTest {
                 .isNotNull();
     }
 
+    /** 旧运行快照不得覆盖保存期间由定向接口更新的会话设置与状态。 */
+    @Test
+    void shouldPreserveConcurrentSessionSettingsWhenSavingStaleSnapshot() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord created =
+                env.sessionRepository.bindNewSession("MEMORY:concurrent-settings:user");
+        SessionRecord firstStale = env.sessionRepository.findById(created.getSessionId());
+        SessionRecord secondStale = env.sessionRepository.findById(created.getSessionId());
+
+        env.sessionRepository.setModelOverride(created.getSessionId(), "openai:gpt-5.4");
+        env.sessionRepository.setServiceTierOverride(created.getSessionId(), "priority");
+        env.sessionRepository.setReasoningEffortOverride(created.getSessionId(), "high");
+        env.sessionRepository.setActiveAgentName(created.getSessionId(), "reviewer");
+        env.sessionRepository.setGoalState(created.getSessionId(), "{\"goal\":\"active\"}");
+        env.sessionRepository.setLastLearningAt(created.getSessionId(), 42L);
+        firstStale.setNdjson("runtime result");
+        firstStale.setLastInputTokens(12L);
+        env.sessionRepository.save(firstStale);
+
+        firstStale.setNdjson("second runtime result");
+        env.sessionRepository.save(firstStale);
+        secondStale.setNdjson("third runtime result");
+        secondStale.setLastInputTokens(12L);
+        env.sessionRepository.save(secondStale);
+
+        SessionRecord stored = env.sessionRepository.findById(created.getSessionId());
+        assertThat(stored.getModelOverride()).isEqualTo("openai:gpt-5.4");
+        assertThat(stored.getServiceTierOverride()).isEqualTo("priority");
+        assertThat(stored.getReasoningEffortOverride()).isEqualTo("high");
+        assertThat(stored.getActiveAgentName()).isEqualTo("reviewer");
+        assertThat(stored.getGoalStateJson()).isEqualTo("{\"goal\":\"active\"}");
+        assertThat(stored.getLastLearningAt()).isEqualTo(42L);
+        assertThat(stored.getNdjson()).isEqualTo("third runtime result");
+        assertThat(stored.getLastInputTokens()).isEqualTo(12L);
+    }
+
+    /** 无并发更新时，已有会话的全量保存仍应写入设置与目标状态。 */
+    @Test
+    void shouldSaveExistingSessionSettingsWithoutConcurrentChange() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord current =
+                env.sessionRepository.bindNewSession("MEMORY:existing-settings:user");
+        current.setModelOverride("openai:gpt-5.4");
+        current.setServiceTierOverride("priority");
+        current.setReasoningEffortOverride("high");
+        current.setActiveAgentName("reviewer");
+        current.setGoalStateJson("{\"goal\":\"active\"}");
+        current.setLastLearningAt(42L);
+
+        env.sessionRepository.save(current);
+
+        SessionRecord stored = env.sessionRepository.findById(current.getSessionId());
+        assertThat(stored.getModelOverride()).isEqualTo("openai:gpt-5.4");
+        assertThat(stored.getServiceTierOverride()).isEqualTo("priority");
+        assertThat(stored.getReasoningEffortOverride()).isEqualTo("high");
+        assertThat(stored.getActiveAgentName()).isEqualTo("reviewer");
+        assertThat(stored.getGoalStateJson()).isEqualTo("{\"goal\":\"active\"}");
+        assertThat(stored.getLastLearningAt()).isEqualTo(42L);
+    }
+
+    /** 无并发冲突时，全量保存必须保留调用方显式指定的旧更新时间。 */
+    @Test
+    void shouldPreserveExplicitOldUpdatedAtOnFullSave() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord current =
+                env.sessionRepository.bindNewSession("MEMORY:explicit-old-time:user");
+        current.setGoalStateJson("{\"goal\":\"historical\"}");
+        current.setUpdatedAt(123L);
+
+        env.sessionRepository.save(current);
+
+        SessionRecord stored = env.sessionRepository.findById(current.getSessionId());
+        assertThat(stored.getGoalStateJson()).isEqualTo("{\"goal\":\"historical\"}");
+        assertThat(stored.getUpdatedAt()).isEqualTo(123L);
+    }
+
+    /** 更新时间回退到旧快照版本后，并发设置仍不得被旧快照覆盖。 */
+    @Test
+    void shouldPreserveConcurrentSettingsAfterUpdatedAtRollback() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord created =
+                env.sessionRepository.bindNewSession("MEMORY:settings-time-rollback:user");
+        SessionRecord stale = env.sessionRepository.findById(created.getSessionId());
+        long staleUpdatedAt = stale.getUpdatedAt();
+
+        env.sessionRepository.setModelOverride(created.getSessionId(), "openai:gpt-5.4");
+        SessionRecord current = env.sessionRepository.findById(created.getSessionId());
+        current.setUpdatedAt(staleUpdatedAt);
+        env.sessionRepository.save(current);
+
+        stale.setNdjson("runtime result");
+        env.sessionRepository.save(stale);
+
+        SessionRecord stored = env.sessionRepository.findById(created.getSessionId());
+        assertThat(stored.getModelOverride()).isEqualTo("openai:gpt-5.4");
+        assertThat(stored.getNdjson()).isEqualTo("runtime result");
+    }
+
+    /** 单个设置发生并发更新时，其他未冲突设置仍应接受全量保存的新值。 */
+    @Test
+    void shouldMergeConcurrentSessionSettingsPerField() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord current =
+                env.sessionRepository.bindNewSession("MEMORY:per-field-settings:user");
+
+        env.sessionRepository.setModelOverride(current.getSessionId(), "openai:gpt-5.4");
+        current.setGoalStateJson("{\"goal\":\"local\"}");
+        env.sessionRepository.save(current);
+
+        SessionRecord stored = env.sessionRepository.findById(current.getSessionId());
+        assertThat(stored.getModelOverride()).isEqualTo("openai:gpt-5.4");
+        assertThat(stored.getGoalStateJson()).isEqualTo("{\"goal\":\"local\"}");
+    }
+
+    /** 新会话首次保存仍应接受完整的设置与状态初始值。 */
+    @Test
+    void shouldSaveInitialSessionSettings() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord current = new SessionRecord();
+        current.setSessionId("initial-settings");
+        current.setSourceKey("MEMORY:initial-settings:user");
+        current.setBranchName("main");
+
+        current.setModelOverride("openai:gpt-5.4");
+        current.setServiceTierOverride("priority");
+        current.setReasoningEffortOverride("high");
+        current.setActiveAgentName("reviewer");
+        current.setGoalStateJson("{\"goal\":\"active\"}");
+        current.setLastLearningAt(42L);
+        current.setUpdatedAt(System.currentTimeMillis());
+        env.sessionRepository.save(current);
+
+        SessionRecord stored = env.sessionRepository.findById(current.getSessionId());
+        assertThat(stored.getModelOverride()).isEqualTo("openai:gpt-5.4");
+        assertThat(stored.getServiceTierOverride()).isEqualTo("priority");
+        assertThat(stored.getReasoningEffortOverride()).isEqualTo("high");
+        assertThat(stored.getActiveAgentName()).isEqualTo("reviewer");
+        assertThat(stored.getGoalStateJson()).isEqualTo("{\"goal\":\"active\"}");
+        assertThat(stored.getLastLearningAt()).isEqualTo(42L);
+    }
+
+    /** 定向清空设置后，连续旧快照保存不得恢复已经删除的值。 */
+    @Test
+    void shouldPreserveConcurrentSessionSettingClears() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord initial = new SessionRecord();
+        initial.setSessionId("cleared-settings");
+        initial.setSourceKey("MEMORY:cleared-settings:user");
+        initial.setBranchName("main");
+        initial.setModelOverride("old-model");
+        initial.setServiceTierOverride("priority");
+        initial.setReasoningEffortOverride("high");
+        initial.setActiveAgentName("reviewer");
+        initial.setGoalStateJson("{\"goal\":\"old\"}");
+        initial.setLastLearningAt(42L);
+        env.sessionRepository.save(initial);
+        SessionRecord stale = env.sessionRepository.findById(initial.getSessionId());
+
+        env.sessionRepository.setModelOverride(initial.getSessionId(), null);
+        env.sessionRepository.setServiceTierOverride(initial.getSessionId(), null);
+        env.sessionRepository.setReasoningEffortOverride(initial.getSessionId(), null);
+        env.sessionRepository.setActiveAgentName(initial.getSessionId(), null);
+        env.sessionRepository.setGoalState(initial.getSessionId(), null);
+        env.sessionRepository.setLastLearningAt(initial.getSessionId(), 0L);
+        env.sessionRepository.save(stale);
+        env.sessionRepository.save(stale);
+
+        SessionRecord stored = env.sessionRepository.findById(initial.getSessionId());
+        assertThat(stored.getModelOverride()).isNull();
+        assertThat(stored.getServiceTierOverride()).isNull();
+        assertThat(stored.getReasoningEffortOverride()).isNull();
+        assertThat(stored.getActiveAgentName()).isNull();
+        assertThat(stored.getGoalStateJson()).isNull();
+        assertThat(stored.getLastLearningAt()).isZero();
+    }
+
     @Test
     void shouldApplyDurabilityAndSafetyPragmasOnEveryConnection() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

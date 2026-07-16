@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.AssistantMessage;
@@ -346,7 +347,7 @@ public class SqliteSessionRepository implements SessionRepository {
     }
 
     /**
-     * 执行save，服务于SQLite会话主流程相关逻辑。
+     * 保存会话正文与运行状态；检测到旧快照时保留并发更新的定向设置字段。
      *
      * @param sessionRecord 会话记录参数。
      */
@@ -362,6 +363,8 @@ public class SqliteSessionRepository implements SessionRepository {
         Connection connection = database.openConnection();
         try {
             connection.setAutoCommit(false);
+            SessionRecord persisted = findById(connection, sessionRecord.getSessionId());
+            SessionRecord settings = mergeConcurrentSettings(persisted, sessionRecord);
             PreparedStatement statement =
                     connection.prepareStatement(
                             "insert or replace into sessions (session_id, source_key, branch_name, parent_session_id, model_override, service_tier_override, reasoning_effort_override, active_agent_name, platform_message_id, metadata_json, ndjson, title, compressed_summary, system_prompt_snapshot, agent_snapshot_json, goal_state_json, last_learning_at, last_compression_at, last_compression_input_tokens, compression_failure_count, last_compression_failed_at, last_input_tokens, last_output_tokens, last_reasoning_tokens, last_cache_read_tokens, last_cache_write_tokens, last_total_tokens, cumulative_input_tokens, cumulative_output_tokens, cumulative_reasoning_tokens, cumulative_cache_read_tokens, cumulative_cache_write_tokens, cumulative_total_tokens, last_usage_at, last_resolved_provider, last_resolved_model, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -369,10 +372,10 @@ public class SqliteSessionRepository implements SessionRepository {
             statement.setString(2, sessionRecord.getSourceKey());
             statement.setString(3, sessionRecord.getBranchName());
             statement.setString(4, sessionRecord.getParentSessionId());
-            statement.setString(5, sessionRecord.getModelOverride());
-            statement.setString(6, sessionRecord.getServiceTierOverride());
-            statement.setString(7, sessionRecord.getReasoningEffortOverride());
-            statement.setString(8, sessionRecord.getActiveAgentName());
+            statement.setString(5, settings.getModelOverride());
+            statement.setString(6, settings.getServiceTierOverride());
+            statement.setString(7, settings.getReasoningEffortOverride());
+            statement.setString(8, settings.getActiveAgentName());
             statement.setString(9, sessionRecord.getPlatformMessageId());
             statement.setString(10, sessionRecord.getMetadataJson());
             statement.setString(11, sessionRecord.getNdjson());
@@ -380,8 +383,8 @@ public class SqliteSessionRepository implements SessionRepository {
             statement.setString(13, sessionRecord.getCompressedSummary());
             statement.setString(14, sessionRecord.getSystemPromptSnapshot());
             statement.setString(15, sessionRecord.getAgentSnapshotJson());
-            statement.setString(16, sessionRecord.getGoalStateJson());
-            statement.setLong(17, sessionRecord.getLastLearningAt());
+            statement.setString(16, settings.getGoalStateJson());
+            statement.setLong(17, settings.getLastLearningAt());
             statement.setLong(18, sessionRecord.getLastCompressionAt());
             statement.setInt(19, sessionRecord.getLastCompressionInputTokens());
             statement.setInt(20, sessionRecord.getCompressionFailureCount());
@@ -408,8 +411,10 @@ public class SqliteSessionRepository implements SessionRepository {
 
             upsertSearchIndex(connection, sessionRecord);
             connection.commit();
+            copyConcurrentSettings(settings, sessionRecord);
             sessionRecord.setCreatedAt(createdAt);
             sessionRecord.setUpdatedAt(updatedAt);
+            sessionRecord.setPersistedConcurrentSettings(concurrentSettings(sessionRecord));
         } catch (Exception e) {
             connection.rollback();
             throw e;
@@ -420,6 +425,63 @@ public class SqliteSessionRepository implements SessionRepository {
                 connection.close();
             }
         }
+    }
+
+    /** 将最终采用的并发设置同步回运行对象，避免后续保存重新带回旧值。 */
+    private void copyConcurrentSettings(SessionRecord source, SessionRecord target) {
+        target.setModelOverride(source.getModelOverride());
+        target.setServiceTierOverride(source.getServiceTierOverride());
+        target.setReasoningEffortOverride(source.getReasoningEffortOverride());
+        target.setActiveAgentName(source.getActiveAgentName());
+        target.setGoalStateJson(source.getGoalStateJson());
+        target.setLastLearningAt(source.getLastLearningAt());
+    }
+
+    /** 逐字段合并旧快照加载后由定向接口写入的会话设置。 */
+    private SessionRecord mergeConcurrentSettings(
+            SessionRecord persisted, SessionRecord requested) {
+        Object[] baseline = requested.getPersistedConcurrentSettings();
+        if (persisted == null || baseline == null || baseline.length != 6) {
+            return requested;
+        }
+        SessionRecord merged = new SessionRecord();
+        merged.setModelOverride(
+                Objects.equals(persisted.getModelOverride(), baseline[0])
+                        ? requested.getModelOverride()
+                        : persisted.getModelOverride());
+        merged.setServiceTierOverride(
+                Objects.equals(persisted.getServiceTierOverride(), baseline[1])
+                        ? requested.getServiceTierOverride()
+                        : persisted.getServiceTierOverride());
+        merged.setReasoningEffortOverride(
+                Objects.equals(persisted.getReasoningEffortOverride(), baseline[2])
+                        ? requested.getReasoningEffortOverride()
+                        : persisted.getReasoningEffortOverride());
+        merged.setActiveAgentName(
+                Objects.equals(persisted.getActiveAgentName(), baseline[3])
+                        ? requested.getActiveAgentName()
+                        : persisted.getActiveAgentName());
+        merged.setGoalStateJson(
+                Objects.equals(persisted.getGoalStateJson(), baseline[4])
+                        ? requested.getGoalStateJson()
+                        : persisted.getGoalStateJson());
+        merged.setLastLearningAt(
+                Objects.equals(Long.valueOf(persisted.getLastLearningAt()), baseline[5])
+                        ? requested.getLastLearningAt()
+                        : persisted.getLastLearningAt());
+        return merged;
+    }
+
+    /** 提取需要防止旧快照覆盖的会话设置。 */
+    private Object[] concurrentSettings(SessionRecord record) {
+        return new Object[] {
+            record.getModelOverride(),
+            record.getServiceTierOverride(),
+            record.getReasoningEffortOverride(),
+            record.getActiveAgentName(),
+            record.getGoalStateJson(),
+            Long.valueOf(record.getLastLearningAt())
+        };
     }
 
     /**

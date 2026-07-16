@@ -51,6 +51,19 @@ final class SessionRecordMapper {
         record.setLastResolvedModel(resultSet.getString("last_resolved_model"));
         record.setCreatedAt(resultSet.getLong("created_at"));
         record.setUpdatedAt(resultSet.getLong("updated_at"));
+        record.setPersistedConcurrentSettings(concurrentSettings(record));
         return record;
+    }
+
+    /** 提取需要防止旧快照覆盖的会话设置。 */
+    private static Object[] concurrentSettings(SessionRecord record) {
+        return new Object[] {
+            record.getModelOverride(),
+            record.getServiceTierOverride(),
+            record.getReasoningEffortOverride(),
+            record.getActiveAgentName(),
+            record.getGoalStateJson(),
+            Long.valueOf(record.getLastLearningAt())
+        };
     }
 }
