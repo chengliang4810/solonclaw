@@ -4,11 +4,15 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.ContentType;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
+
 import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+
+import org.noear.snack4.ONode;
+
 import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -16,7 +20,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import org.noear.snack4.ONode;
 
 /** xAI 图片生成 Provider，支持文本生成和最多三张来源图片编辑。 */
 public class XaiImageProvider implements ImageGenProvider {
@@ -104,7 +107,7 @@ public class XaiImageProvider implements ImageGenProvider {
         if (StrUtil.isBlank(apiKey)) {
             return ImageGenResult.fail("xAI image provider requires XAI_API_KEY");
         }
-        List<String> sources = sources(imageUrl, referenceImageUrls);
+        List<String> sources = MediaOptionHelper.imageSources(imageUrl, referenceImageUrls);
         if (sources.size() > maxSourceImages()) {
             return ImageGenResult.fail("xAI image editing accepts at most 3 source images");
         }
@@ -195,22 +198,6 @@ public class XaiImageProvider implements ImageGenProvider {
             throw new IllegalArgumentException("Prepared source is not an image");
         }
         return "data:" + mime + ";base64," + java.util.Base64.getEncoder().encodeToString(data);
-    }
-
-    /** 汇总主图和参考图。 */
-    private List<String> sources(String imageUrl, List<String> references) {
-        List<String> result = new ArrayList<String>();
-        if (StrUtil.isNotBlank(imageUrl)) {
-            result.add(imageUrl.trim());
-        }
-        if (references != null) {
-            for (String reference : references) {
-                if (StrUtil.isNotBlank(reference)) {
-                    result.add(reference.trim());
-                }
-            }
-        }
-        return result;
     }
 
     /** 把工具宽高比映射为 xAI API 枚举。 */

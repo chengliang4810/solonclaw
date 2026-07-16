@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.media;
 
 import cn.hutool.core.util.StrUtil;
+
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
@@ -8,7 +9,9 @@ import com.jimuqu.solon.claw.provider.SpeechProvider;
 import com.jimuqu.solon.claw.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
+import com.jimuqu.solon.claw.support.MediaOutcome;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+
 import java.io.File;
 import java.nio.file.Files;
 import java.util.List;
@@ -272,25 +275,7 @@ public class SpeechService {
     }
 
     /** 表示 TTS 结果，携带缓存附件、媒体引用和统计信息。 */
-    public static class SpeechOutcome {
-        /** 本次 TTS 是否成功。 */
-        private final boolean success;
-
-        /** 成功时缓存得到的音频附件。 */
-        private final MessageAttachment attachment;
-
-        /** 成功时可回填到会话或工具结果的媒体引用。 */
-        private final String mediaReference;
-
-        /** 实际执行 TTS 的内置提供方名称。 */
-        private final String provider;
-
-        /** 失败时经过脱敏处理的错误。 */
-        private final String error;
-
-        /** 保存媒体用量映射，便于按键快速查询。 */
-        private final Map<String, Object> mediaUsage;
-
+    public static class SpeechOutcome extends MediaOutcome {
         /**
          * 创建语音Outcome实例，并注入运行所需依赖。
          *
@@ -308,12 +293,7 @@ public class SpeechService {
                 String provider,
                 String error,
                 Map<String, Object> mediaUsage) {
-            this.success = success;
-            this.attachment = attachment;
-            this.mediaReference = mediaReference;
-            this.provider = provider;
-            this.error = error;
-            this.mediaUsage = BasicValueSupport.mutableLinkedMap(mediaUsage);
+            super(success, attachment, mediaReference, provider, error, mediaUsage);
         }
 
         /**
@@ -341,60 +321,6 @@ public class SpeechService {
          */
         public static SpeechOutcome fail(String error) {
             return new SpeechOutcome(false, null, null, null, error, null);
-        }
-
-        /**
-         * 判断 TTS 是否成功。
-         *
-         * @return 如果Success满足条件则返回 true，否则返回 false。
-         */
-        public boolean isSuccess() {
-            return success;
-        }
-
-        /**
-         * 读取缓存音频附件。
-         *
-         * @return 返回读取到的附件。
-         */
-        public MessageAttachment getAttachment() {
-            return attachment;
-        }
-
-        /**
-         * 读取可被模型或前端引用的媒体地址。
-         *
-         * @return 返回读取到的媒体Reference。
-         */
-        public String getMediaReference() {
-            return mediaReference;
-        }
-
-        /**
-         * 读取实际使用的内置提供方名称。
-         *
-         * @return 返回读取到的提供方。
-         */
-        public String getProvider() {
-            return provider;
-        }
-
-        /**
-         * 读取失败错误文本。
-         *
-         * @return 返回读取到的Error。
-         */
-        public String getError() {
-            return error;
-        }
-
-        /**
-         * 读取媒体用量。
-         *
-         * @return 返回读取到的媒体用量。
-         */
-        public Map<String, Object> getMediaUsage() {
-            return mediaUsage;
         }
     }
 

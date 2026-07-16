@@ -901,8 +901,63 @@ public class AppUpdateService {
         }
     }
 
+    /** 资产发布信息的公共字段基类，供 VersionStatus 和 ReleaseInfo 复用。 */
+    protected static class AssetReleaseFields {
+        /** 发布时间。 */
+        private String publishedAt;
+
+        /** JAR 资产下载地址。 */
+        private String jarAssetUrl;
+
+        /** JAR 资产名称。 */
+        private String jarAssetName;
+
+        /** SHA256SUMS 下载地址。 */
+        private String sha256AssetUrl;
+
+        /** 读取Published时间。 */
+        public String getPublishedAt() {
+            return publishedAt;
+        }
+
+        /** 写入Published时间。 */
+        public void setPublishedAt(String publishedAt) {
+            this.publishedAt = publishedAt;
+        }
+
+        /** 读取Jar Asset URL。 */
+        public String getJarAssetUrl() {
+            return jarAssetUrl;
+        }
+
+        /** 写入Jar Asset URL。 */
+        public void setJarAssetUrl(String jarAssetUrl) {
+            this.jarAssetUrl = jarAssetUrl;
+        }
+
+        /** 读取Jar Asset名称。 */
+        public String getJarAssetName() {
+            return jarAssetName;
+        }
+
+        /** 写入Jar Asset名称。 */
+        public void setJarAssetName(String jarAssetName) {
+            this.jarAssetName = jarAssetName;
+        }
+
+        /** 读取 SHA256SUMS 下载地址。 */
+        public String getSha256AssetUrl() {
+            return sha256AssetUrl;
+        }
+
+        /** 写入 SHA256SUMS 下载地址。 */
+        public void setSha256AssetUrl(String sha256AssetUrl) {
+            this.sha256AssetUrl = sha256AssetUrl;
+        }
+    }
+
     /** 承载版本状态相关状态和辅助逻辑。 */
-    public static class VersionStatus {
+    public static class VersionStatus extends AssetReleaseFields {
         /** 记录版本状态中的当前版本。 */
         private String currentVersion;
 
@@ -930,17 +985,7 @@ public class AppUpdateService {
         /** 记录版本状态中的tagsApiURL。 */
         private String tagsApiUrl;
 
-        /** 记录版本状态中的published时间。 */
-        private String publishedAt;
-
-        /** 记录版本状态中的jarAssetURL。 */
-        private String jarAssetUrl;
-
-        /** 记录版本状态中的jarAsset名称。 */
-        private String jarAssetName;
-
-        /** 记录版本状态中的 SHA256SUMS 下载地址。 */
-        private String sha256AssetUrl;
+        /* publishedAt、jarAssetUrl、jarAssetName、sha256AssetUrl 字段已上移至 AssetReleaseFields 基类。 */
 
         /** 是否启用更新Available。 */
         private boolean updateAvailable;
@@ -1116,77 +1161,7 @@ public class AppUpdateService {
             this.tagsApiUrl = tagsApiUrl;
         }
 
-        /**
-         * 读取Published时间。
-         *
-         * @return 返回读取到的Published时间。
-         */
-        public String getPublishedAt() {
-            return publishedAt;
-        }
-
-        /**
-         * 写入Published时间。
-         *
-         * @param publishedAt publishedAt 参数。
-         */
-        public void setPublishedAt(String publishedAt) {
-            this.publishedAt = publishedAt;
-        }
-
-        /**
-         * 读取Jar Asset URL。
-         *
-         * @return 返回读取到的Jar Asset URL。
-         */
-        public String getJarAssetUrl() {
-            return jarAssetUrl;
-        }
-
-        /**
-         * 写入Jar Asset URL。
-         *
-         * @param jarAssetUrl 待校验或访问的地址参数。
-         */
-        public void setJarAssetUrl(String jarAssetUrl) {
-            this.jarAssetUrl = jarAssetUrl;
-        }
-
-        /**
-         * 读取Jar Asset名称。
-         *
-         * @return 返回读取到的Jar Asset名称。
-         */
-        public String getJarAssetName() {
-            return jarAssetName;
-        }
-
-        /**
-         * 写入Jar Asset名称。
-         *
-         * @param jarAssetName jarAsset名称参数。
-         */
-        public void setJarAssetName(String jarAssetName) {
-            this.jarAssetName = jarAssetName;
-        }
-
-        /**
-         * 读取 SHA256SUMS 下载地址。
-         *
-         * @return 返回 SHA256SUMS 下载地址。
-         */
-        public String getSha256AssetUrl() {
-            return sha256AssetUrl;
-        }
-
-        /**
-         * 写入 SHA256SUMS 下载地址。
-         *
-         * @param sha256AssetUrl SHA256SUMS 下载地址。
-         */
-        public void setSha256AssetUrl(String sha256AssetUrl) {
-            this.sha256AssetUrl = sha256AssetUrl;
-        }
+        /* getPublishedAt/setPublishedAt、getJarAssetUrl/setJarAssetUrl、getJarAssetName/setJarAssetName、getSha256AssetUrl/setSha256AssetUrl 已上移至 AssetReleaseFields 基类。 */
 
         /**
          * 判断是否更新Available。
@@ -1262,7 +1237,7 @@ public class AppUpdateService {
     }
 
     /** 承载ReleaseInfo相关状态和辅助逻辑。 */
-    protected static class ReleaseInfo {
+    protected static class ReleaseInfo extends AssetReleaseFields {
         /** 记录ReleaseInfo中的tag。 */
         private String tag;
 
@@ -1272,17 +1247,7 @@ public class AppUpdateService {
         /** 记录ReleaseInfo中的htmlURL。 */
         private String htmlUrl;
 
-        /** 记录ReleaseInfo中的published时间。 */
-        private String publishedAt;
-
-        /** 记录ReleaseInfo中的jarAssetURL。 */
-        private String jarAssetUrl;
-
-        /** 记录ReleaseInfo中的jarAsset名称。 */
-        private String jarAssetName;
-
-        /** 记录ReleaseInfo中的 SHA256SUMS 下载地址。 */
-        private String sha256AssetUrl;
+        /* publishedAt、jarAssetUrl、jarAssetName、sha256AssetUrl 字段已上移至 AssetReleaseFields 基类。 */
 
         /** 记录ReleaseInfo中的来源。 */
         private String source;
@@ -1341,77 +1306,7 @@ public class AppUpdateService {
             this.htmlUrl = htmlUrl;
         }
 
-        /**
-         * 读取Published时间。
-         *
-         * @return 返回读取到的Published时间。
-         */
-        public String getPublishedAt() {
-            return publishedAt;
-        }
-
-        /**
-         * 写入Published时间。
-         *
-         * @param publishedAt publishedAt 参数。
-         */
-        public void setPublishedAt(String publishedAt) {
-            this.publishedAt = publishedAt;
-        }
-
-        /**
-         * 读取Jar Asset URL。
-         *
-         * @return 返回读取到的Jar Asset URL。
-         */
-        public String getJarAssetUrl() {
-            return jarAssetUrl;
-        }
-
-        /**
-         * 写入Jar Asset URL。
-         *
-         * @param jarAssetUrl 待校验或访问的地址参数。
-         */
-        public void setJarAssetUrl(String jarAssetUrl) {
-            this.jarAssetUrl = jarAssetUrl;
-        }
-
-        /**
-         * 读取Jar Asset名称。
-         *
-         * @return 返回读取到的Jar Asset名称。
-         */
-        public String getJarAssetName() {
-            return jarAssetName;
-        }
-
-        /**
-         * 写入Jar Asset名称。
-         *
-         * @param jarAssetName jarAsset名称参数。
-         */
-        public void setJarAssetName(String jarAssetName) {
-            this.jarAssetName = jarAssetName;
-        }
-
-        /**
-         * 读取 SHA256SUMS 下载地址。
-         *
-         * @return 返回 SHA256SUMS 下载地址。
-         */
-        public String getSha256AssetUrl() {
-            return sha256AssetUrl;
-        }
-
-        /**
-         * 写入 SHA256SUMS 下载地址。
-         *
-         * @param sha256AssetUrl SHA256SUMS 下载地址。
-         */
-        public void setSha256AssetUrl(String sha256AssetUrl) {
-            this.sha256AssetUrl = sha256AssetUrl;
-        }
+        /* getPublishedAt/setPublishedAt、getJarAssetUrl/setJarAssetUrl、getJarAssetName/setJarAssetName、getSha256AssetUrl/setSha256AssetUrl 已上移至 AssetReleaseFields 基类。 */
 
         /**
          * 读取来源。
@@ -1441,10 +1336,10 @@ public class AppUpdateService {
                     .set("tag", tag)
                     .set("version", version)
                     .set("htmlUrl", htmlUrl)
-                    .set("publishedAt", publishedAt)
-                    .set("jarAssetUrl", jarAssetUrl)
-                    .set("jarAssetName", jarAssetName)
-                    .set("sha256AssetUrl", sha256AssetUrl)
+                    .set("publishedAt", getPublishedAt())
+                    .set("jarAssetUrl", getJarAssetUrl())
+                    .set("jarAssetName", getJarAssetName())
+                    .set("sha256AssetUrl", getSha256AssetUrl())
                     .set("source", source);
         }
 

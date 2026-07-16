@@ -4,17 +4,19 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.ContentType;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
+
 import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+
+import org.noear.snack4.ONode;
+
 import java.io.File;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
-import org.noear.snack4.ONode;
 
 /** OpenAI 图片生成 Provider，支持文本生成和多图编辑。 */
 public class OpenAiImageProvider implements ImageGenProvider {
@@ -99,7 +101,7 @@ public class OpenAiImageProvider implements ImageGenProvider {
         if (StrUtil.isBlank(apiKey)) {
             return ImageGenResult.fail("OpenAI image provider requires OPENAI_API_KEY");
         }
-        List<String> sources = sources(imageUrl, referenceImageUrls);
+        List<String> sources = MediaOptionHelper.imageSources(imageUrl, referenceImageUrls);
         if (sources.size() > maxSourceImages()) {
             return ImageGenResult.fail("OpenAI image editing accepts at most 16 source images");
         }
@@ -160,22 +162,6 @@ public class OpenAiImageProvider implements ImageGenProvider {
         return StrUtil.isBlank(url)
                 ? ImageGenResult.fail("OpenAI image response contained no image")
                 : ImageGenResult.ok(url.trim());
-    }
-
-    /** 汇总主图和参考图。 */
-    private List<String> sources(String imageUrl, List<String> references) {
-        List<String> result = new ArrayList<String>();
-        if (StrUtil.isNotBlank(imageUrl)) {
-            result.add(imageUrl.trim());
-        }
-        if (references != null) {
-            for (String reference : references) {
-                if (StrUtil.isNotBlank(reference)) {
-                    result.add(reference.trim());
-                }
-            }
-        }
-        return result;
     }
 
     /** 把已由服务层校验的缓存路径转换为 multipart 文件数组。 */

@@ -58,24 +58,28 @@ final class OpenAiSttProvider implements TranscriptionProvider {
         AppConfig.SttConfig config = config();
         HttpRequest request =
                 HttpRequest.post(config.getEndpoint())
-                        .timeout(timeoutMillis(config.getTimeoutSeconds()))
+                        .timeout(MediaOptionHelper.timeoutMillis(config.getTimeoutSeconds()))
                         .setFollowRedirects(false)
                         .form("file", audio, fileName(mimeType))
                         .form(
                                 "model",
                                 StrUtil.blankToDefault(
-                                        optionText(options, "model"), config.getModel()))
+                                        MediaOptionHelper.optionText(options, "model"),
+                                        config.getModel()))
                         .form("response_format", "json");
         String language =
-                StrUtil.blankToDefault(optionText(options, "language"), config.getLanguage());
+                StrUtil.blankToDefault(
+                        MediaOptionHelper.optionText(options, "language"), config.getLanguage());
         if (StrUtil.isNotBlank(language)) {
             request.form("language", language.trim());
         }
-        String prompt = StrUtil.blankToDefault(optionText(options, "prompt"), config.getPrompt());
+        String prompt =
+                StrUtil.blankToDefault(
+                        MediaOptionHelper.optionText(options, "prompt"), config.getPrompt());
         if (StrUtil.isNotBlank(prompt)) {
             request.form("prompt", prompt);
         }
-        Double temperature = optionNumber(options, "temperature");
+        Double temperature = MediaOptionHelper.optionNumber(options, "temperature");
         if (temperature != null
                 && temperature.doubleValue() >= 0.0d
                 && temperature.doubleValue() <= 1.0d) {
@@ -132,35 +136,5 @@ final class OpenAiSttProvider implements TranscriptionProvider {
             return "speech.aac";
         }
         return "speech.wav";
-    }
-
-    /** 从工具选项读取首个非空字符串。 */
-    private String optionText(Map<String, Object> options, String key) {
-        if (options == null || options.get(key) == null) {
-            return "";
-        }
-        return StrUtil.nullToEmpty(String.valueOf(options.get(key))).trim();
-    }
-
-    /** 从工具选项读取有限数值，无法解析时忽略该选项。 */
-    private Double optionNumber(Map<String, Object> options, String key) {
-        if (options == null || options.get(key) == null) {
-            return null;
-        }
-        Object value = options.get(key);
-        if (value instanceof Number) {
-            return Double.valueOf(((Number) value).doubleValue());
-        }
-        try {
-            return Double.valueOf(String.valueOf(value).trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    /** 把秒级配置转换为 Hutool 使用的毫秒超时。 */
-    private int timeoutMillis(int seconds) {
-        long millis = Math.max(1L, seconds) * 1000L;
-        return (int) Math.min(Integer.MAX_VALUE, millis);
     }
 }
