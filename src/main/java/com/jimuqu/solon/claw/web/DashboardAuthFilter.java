@@ -7,7 +7,7 @@ import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.Filter;
 import org.noear.solon.core.handle.FilterChain;
 
-/** Dashboard API token 校验与 localhost CORS 过滤器。 */
+/** Dashboard API token 校验与严格同源 CORS 过滤器。 */
 public class DashboardAuthFilter implements Filter {
     /** 注入认证服务，用于调用对应业务能力。 */
     private final DashboardAuthService authService;

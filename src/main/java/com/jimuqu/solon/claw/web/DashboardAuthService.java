@@ -230,85 +230,14 @@ public class DashboardAuthService {
     }
 
     /**
-     * 判断是否Allowed控制台Origin。
-     *
-     * @param origin origin 参数。
-     * @return 如果Allowed控制台Origin满足条件则返回 true，否则返回 false。
-     */
-    public boolean isAllowedDashboardOrigin(String origin) {
-        return isLocalOrigin(origin) || isBoundDashboardOrigin(origin);
-    }
-
-    /**
      * 判断浏览器请求 Origin 是否允许访问当前 Dashboard 请求入口。
      *
      * @param context 当前请求上下文，用于识别实际访问 Host 或反向代理 Host。
      * @param origin 浏览器提交的 Origin 头。
-     * @return 如果是本机、显式绑定地址或当前请求同源地址则返回 true。
+     * @return 仅当 scheme、host、port 与当前请求入口严格同源时返回 true。
      */
     public boolean isAllowedDashboardOrigin(Context context, String origin) {
-        return isAllowedDashboardOrigin(origin) || isSameRequestOrigin(context, origin);
-    }
-
-    /**
-     * 判断是否本地Origin。
-     *
-     * @param origin origin 参数。
-     * @return 如果本地Origin满足条件则返回 true，否则返回 false。
-     */
-    private boolean isLocalOrigin(String origin) {
-        try {
-            URI uri = URI.create(origin);
-            String scheme = uri.getScheme();
-            String host = uri.getHost();
-            if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
-                    || StrUtil.isBlank(host)) {
-                return false;
-            }
-            if ("localhost".equalsIgnoreCase(host)) {
-                return true;
-            }
-            return InetAddress.getByName(host).isLoopbackAddress();
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /**
-     * 判断是否绑定控制台Origin。
-     *
-     * @param origin origin 参数。
-     * @return 如果绑定控制台Origin满足条件则返回 true，否则返回 false。
-     */
-    private boolean isBoundDashboardOrigin(String origin) {
-        AppConfig.DashboardConfig dashboard = appConfig == null ? null : appConfig.getDashboard();
-        if (dashboard == null || StrUtil.isBlank(dashboard.getBindHost())) {
-            return false;
-        }
-        try {
-            URI uri = URI.create(origin);
-            String scheme = uri.getScheme();
-            String host = uri.getHost();
-            if (!("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme))
-                    || StrUtil.isBlank(host)) {
-                return false;
-            }
-
-            String bindHost = dashboard.getBindHost().trim();
-            if (isLoopbackHost(bindHost)) {
-                return false;
-            }
-            if ("0.0.0.0".equals(bindHost) || "::".equals(bindHost)) {
-                return true;
-            }
-            if (!host.equalsIgnoreCase(bindHost)) {
-                return false;
-            }
-            int bindPort = dashboard.getBindPort();
-            return bindPort <= 0 || normalizeOriginPort(uri) == bindPort;
-        } catch (Exception e) {
-            return false;
-        }
+        return isSameRequestOrigin(context, origin);
     }
 
     /**
@@ -326,7 +255,12 @@ public class DashboardAuthService {
             URI originUri = URI.create(origin);
             String originScheme = originUri.getScheme();
             if (!("http".equalsIgnoreCase(originScheme) || "https".equalsIgnoreCase(originScheme))
-                    || StrUtil.isBlank(originUri.getHost())) {
+                    || StrUtil.isBlank(originUri.getHost())
+                    || StrUtil.isNotBlank(originUri.getUserInfo())
+                    || StrUtil.isNotBlank(originUri.getQuery())
+                    || StrUtil.isNotBlank(originUri.getFragment())
+                    || (StrUtil.isNotBlank(originUri.getPath())
+                            && !"/".equals(originUri.getPath()))) {
                 return false;
             }
             String requestHost = firstHeaderValue(context.header("X-Forwarded-Host"));
@@ -342,41 +276,11 @@ public class DashboardAuthService {
                             context.isSecure() ? "https" : "http");
             URI requestUri = URI.create(requestScheme + "://" + requestHost.trim());
             return originUri.getHost().equalsIgnoreCase(requestUri.getHost())
-                    && isCompatibleRequestScheme(originScheme, requestScheme)
-                    && isCompatibleRequestPort(originUri, requestUri);
+                    && originScheme.equalsIgnoreCase(requestScheme)
+                    && normalizeOriginPort(originUri) == normalizeOriginPort(requestUri);
         } catch (Exception e) {
             return false;
         }
-    }
-
-    /**
-     * 判断请求协议是否可视为同一 Dashboard 入口，兼容 TLS 在反向代理层终止但未透传协议头的部署。
-     *
-     * @param originScheme 浏览器 Origin 中的协议。
-     * @param requestScheme 服务端看到的请求协议。
-     * @return 如果协议一致，或仅为 http/https 代理终止差异，则返回 true。
-     */
-    private boolean isCompatibleRequestScheme(String originScheme, String requestScheme) {
-        if (originScheme.equalsIgnoreCase(requestScheme)) {
-            return true;
-        }
-        return ("https".equalsIgnoreCase(originScheme) && "http".equalsIgnoreCase(requestScheme))
-                || ("http".equalsIgnoreCase(originScheme)
-                        && "https".equalsIgnoreCase(requestScheme));
-    }
-
-    /**
-     * 判断 Origin 端口与请求 Host 端口是否匹配；Host 未显式带端口时交给浏览器默认端口处理。
-     *
-     * @param originUri 浏览器 Origin URI。
-     * @param requestUri 当前请求入口 URI。
-     * @return 如果端口一致，或请求 Host 没有显式端口，则返回 true。
-     */
-    private boolean isCompatibleRequestPort(URI originUri, URI requestUri) {
-        if (requestUri.getPort() <= 0) {
-            return true;
-        }
-        return normalizeOriginPort(originUri) == normalizeOriginPort(requestUri);
     }
 
     /**
@@ -410,29 +314,6 @@ public class DashboardAuthService {
             return 443;
         }
         return -1;
-    }
-
-    /**
-     * 判断是否Loopback Host。
-     *
-     * @param host 主机参数。
-     * @return 如果Loopback Host满足条件则返回 true，否则返回 false。
-     */
-    private boolean isLoopbackHost(String host) {
-        if (StrUtil.isBlank(host)) {
-            return false;
-        }
-        String normalized = host.trim();
-        if ("localhost".equalsIgnoreCase(normalized)) {
-            return true;
-        }
-        try {
-            return InetAddress.getByName(normalized).isLoopbackAddress();
-        } catch (Exception e) {
-            return "127.0.0.1".equals(normalized)
-                    || "0:0:0:0:0:0:0:1".equals(normalized)
-                    || "::1".equals(normalized);
-        }
     }
 
     /**

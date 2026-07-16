@@ -6,18 +6,13 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.web.DashboardAuthService;
 import java.lang.reflect.Proxy;
 import java.net.InetSocketAddress;
-import java.nio.file.Files;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-import org.noear.solon.core.Props;
 import org.noear.solon.core.handle.ContextEmpty;
 import org.noear.solon.core.util.MultiMap;
 import org.noear.solon.net.websocket.WebSocket;
 
 public class DashboardAuthServiceTest {
-    @TempDir java.nio.file.Path tempDir;
-
     @Test
     void shouldRejectBlankAccessTokenInsteadOfAdminFallback() {
         AppConfig config = new AppConfig();
@@ -63,21 +58,62 @@ public class DashboardAuthServiceTest {
         assertThat(authService.isAuthorized(webSocket("test-token"))).isTrue();
     }
 
+    /** 验证通配监听地址不会授权任意浏览器 Origin。 */
     @Test
-    void shouldAllowCorsOriginMatchingExplicitNonLoopbackBindHost() throws Exception {
-        Props props = new Props();
-        props.put(
-                "solonclaw.workspace",
-                Files.createDirectory(tempDir.resolve("runtime")).toString());
-        props.put("server.host", "100.64.0.10");
-        props.put("server.port", "9119");
-        AppConfig config = AppConfig.load(props);
-
+    void shouldNotTreatWildcardBindHostAsAllowedOrigin() {
+        AppConfig config = new AppConfig();
+        config.getDashboard().setBindHost("0.0.0.0");
+        config.getDashboard().setBindPort(8080);
         DashboardAuthService authService = new DashboardAuthService(config);
 
-        assertThat(authService.isAllowedDashboardOrigin("http://100.64.0.10:9119")).isTrue();
-        assertThat(authService.isAllowedDashboardOrigin("http://localhost:9119")).isTrue();
-        assertThat(authService.isAllowedDashboardOrigin("http://evil.example.com:9119")).isFalse();
+        assertThat(
+                        authService.isAllowedDashboardOrigin(
+                                requestContext("http", "127.0.0.1:8080"),
+                                "http://evil.example.com:8080"))
+                .isFalse();
+    }
+
+    /** 验证解析结果同为 loopback 的不同主机也不能绕过精确同源比较。 */
+    @Test
+    void shouldNotTrustDifferentLoopbackOrigin() {
+        DashboardAuthService authService = new DashboardAuthService(new AppConfig());
+
+        assertThat(
+                        authService.isAllowedDashboardOrigin(
+                                requestContext("http", "127.0.0.1:8080"), "http://127.0.0.2:8080"))
+                .isFalse();
+    }
+
+    /** 验证 Origin 必须与实际请求入口的协议、主机和有效端口全部一致。 */
+    @Test
+    void shouldRequireExactRequestOrigin() {
+        DashboardAuthService authService = new DashboardAuthService(new AppConfig());
+        ContextEmpty context = requestContext("https", "dashboard.example.com");
+
+        assertThat(authService.isAllowedDashboardOrigin(context, "https://dashboard.example.com"))
+                .isTrue();
+        assertThat(authService.isAllowedDashboardOrigin(context, "http://dashboard.example.com"))
+                .isFalse();
+        assertThat(
+                        authService.isAllowedDashboardOrigin(
+                                context, "https://dashboard.example.com:444"))
+                .isFalse();
+        assertThat(
+                        authService.isAllowedDashboardOrigin(
+                                context, "https://user@dashboard.example.com"))
+                .isFalse();
+        assertThat(
+                        authService.isAllowedDashboardOrigin(
+                                context, "https://dashboard.example.com/path"))
+                .isFalse();
+    }
+
+    /** 创建带请求入口协议和 Host 的测试上下文。 */
+    private ContextEmpty requestContext(String scheme, String host) {
+        ContextEmpty context = new ContextEmpty();
+        context.headerMap().put("X-Forwarded-Proto", scheme);
+        context.headerMap().put("Host", host);
+        return context;
     }
 
     /** 创建只暴露查询 token 的测试 WebSocket，避免依赖真实网络握手。 */

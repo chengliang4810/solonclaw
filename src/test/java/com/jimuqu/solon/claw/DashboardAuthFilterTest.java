@@ -161,7 +161,7 @@ public class DashboardAuthFilterTest {
     }
 
     @Test
-    void shouldAllowUnsafeDashboardWriteFromLocalOrigin() throws Throwable {
+    void shouldRejectCrossOriginWriteEvenWhenOriginIsLocalhost() throws Throwable {
         DashboardAuthFilter filter = filter();
         FakeContext context = new FakeContext("POST", "/api/private");
         context.requestHeader("Authorization", "Bearer test-token");
@@ -171,15 +171,15 @@ public class DashboardAuthFilterTest {
         filter.doFilter(
                 context,
                 new FilterChain() {
-                    /** 同源或本机开发 Origin 通过 CSRF 预检后仍进入正常 Bearer Token 鉴权流程。 */
+                    /** 不同端口的 localhost 仍是跨源请求，不得进入下游处理链。 */
                     @Override
                     public void doFilter(Context ctx) {
                         invoked.set(true);
                     }
                 });
 
-        assertThat(context.status()).isEqualTo(200);
-        assertThat(invoked).isTrue();
+        assertThat(context.status()).isEqualTo(403);
+        assertThat(invoked).isFalse();
     }
 
     @Test
@@ -212,12 +212,13 @@ public class DashboardAuthFilterTest {
         context.requestHeader("Authorization", "Bearer test-token");
         context.requestHeader("Origin", "https://dashboard.example.com");
         context.requestHeader("Host", "dashboard.example.com");
+        context.requestHeader("X-Forwarded-Proto", "https");
         AtomicBoolean invoked = new AtomicBoolean(false);
 
         filter.doFilter(
                 context,
                 new FilterChain() {
-                    /** HTTPS 在反向代理终止但未透传协议头时，同 Host 仍应被视为当前 Dashboard 入口。 */
+                    /** 代理明确透传外部 HTTPS 协议后，严格同源请求应进入下游处理链。 */
                     @Override
                     public void doFilter(Context ctx) {
                         invoked.set(true);
@@ -226,6 +227,30 @@ public class DashboardAuthFilterTest {
 
         assertThat(context.status()).isEqualTo(200);
         assertThat(invoked).isTrue();
+    }
+
+    /** 验证公开的首次 token 配置接口也会拒绝跨站抢占写请求。 */
+    @Test
+    void shouldRejectCrossOriginDashboardTokenBootstrap() throws Throwable {
+        DashboardAuthFilter filter = filter();
+        FakeContext context =
+                new FakeContext("POST", "/api/workspace-config/bootstrap-dashboard-token");
+        context.requestHeader("Origin", "https://evil.example.com");
+        context.requestHeader("Host", "127.0.0.1:8080");
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(
+                context,
+                new FilterChain() {
+                    /** 跨站首次配置必须在进入公开控制器前被拦截。 */
+                    @Override
+                    public void doFilter(Context ctx) {
+                        invoked.set(true);
+                    }
+                });
+
+        assertThat(context.status()).isEqualTo(403);
+        assertThat(invoked).isFalse();
     }
 
     /** 创建带固定测试令牌的过滤器实例。 */
