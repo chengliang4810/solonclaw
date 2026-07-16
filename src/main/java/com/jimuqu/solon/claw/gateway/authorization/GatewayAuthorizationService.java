@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.PairingRateLimitRecord;
+import com.jimuqu.solon.claw.core.model.PairingRequestAdmissionResult;
 import com.jimuqu.solon.claw.core.model.PairingRequestRecord;
 import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
@@ -273,17 +274,6 @@ public class GatewayAuthorizationService {
         if (isPlatformApprovalLocked(platform, now)) {
             return GatewayReply.ok("pairing 失败次数过多，请稍后再试。");
         }
-        PairingRateLimitRecord rateLimit =
-                repository.getPairingRateLimit(platform, message.getUserId());
-        if (rateLimit != null
-                && rateLimit.getRequestedAt() > 0
-                && now - rateLimit.getRequestedAt() < PairingConstants.RATE_LIMIT_MILLIS) {
-            long remainingMillis =
-                    PairingConstants.RATE_LIMIT_MILLIS - (now - rateLimit.getRequestedAt());
-            long remainingMinutes = Math.max(1L, (remainingMillis + 59_999L) / 60_000L);
-            return GatewayReply.ok("pairing 请求过于频繁，请 " + remainingMinutes + " 分钟后再试。");
-        }
-
         PairingRequestRecord request = new PairingRequestRecord();
         request.setPlatform(platform);
         request.setCode(generateCode());
@@ -292,16 +282,20 @@ public class GatewayAuthorizationService {
         request.setChatId(message.getChatId());
         request.setCreatedAt(now);
         request.setExpiresAt(now + PairingConstants.CODE_TTL_MILLIS);
-        if (!repository.trySavePairingRequest(
-                request, now, PairingConstants.MAX_PENDING_PER_PLATFORM)) {
+        PairingRequestAdmissionResult admission =
+                repository.admitPairingRequest(
+                        request,
+                        now,
+                        PairingConstants.MAX_PENDING_PER_PLATFORM,
+                        PairingConstants.RATE_LIMIT_MILLIS);
+        if (admission.getStatus() == PairingRequestAdmissionResult.Status.RATE_LIMITED) {
+            long remainingMinutes =
+                    Math.max(1L, (admission.getRetryAfterMillis() + 59_999L) / 60_000L);
+            return GatewayReply.ok("pairing 请求过于频繁，请 " + remainingMinutes + " 分钟后再试。");
+        }
+        if (admission.getStatus() == PairingRequestAdmissionResult.Status.CAPACITY_REACHED) {
             return GatewayReply.ok("当前待处理的 pairing 请求过多，请稍后再试。");
         }
-        saveRequestRate(
-                platform,
-                message.getUserId(),
-                now,
-                rateLimit == null ? 0 : rateLimit.getFailedAttempts(),
-                rateLimit == null ? 0L : rateLimit.getLockoutUntil());
         return pairingPrompt(platform, request.getCode());
     }
 
@@ -333,23 +327,6 @@ public class GatewayAuthorizationService {
                 now,
                 PairingConstants.MAX_FAILED_ATTEMPTS,
                 PairingConstants.LOCKOUT_MILLIS);
-    }
-
-    /** 保存 pairing 请求速率记录。 */
-    private void saveRequestRate(
-            PlatformType platform,
-            String userId,
-            long requestedAt,
-            int failedAttempts,
-            long lockoutUntil)
-            throws Exception {
-        PairingRateLimitRecord record = new PairingRateLimitRecord();
-        record.setPlatform(platform);
-        record.setUserId(userId);
-        record.setRequestedAt(requestedAt);
-        record.setFailedAttempts(failedAttempts);
-        record.setLockoutUntil(lockoutUntil);
-        repository.savePairingRateLimit(record);
     }
 
     /** 按平台读取渠道配置。 */

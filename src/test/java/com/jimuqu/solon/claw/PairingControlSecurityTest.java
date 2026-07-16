@@ -7,7 +7,11 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
+import com.jimuqu.solon.claw.core.model.PairingRateLimitRecord;
+import com.jimuqu.solon.claw.core.model.PairingRequestAdmissionResult;
 import com.jimuqu.solon.claw.core.model.PairingRequestRecord;
 import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
@@ -16,6 +20,7 @@ import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.support.constants.PairingConstants;
 import com.jimuqu.solon.claw.web.DashboardPairingService;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.nio.file.Files;
@@ -37,6 +42,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /** 验证可信 pairing 控制面不会把临时凭据明文落库。 */
@@ -496,6 +503,158 @@ public class PairingControlSecurityTest {
         }
     }
 
+    /** 同一用户并发申请时只能返回一个仍然有效的 pairing code，其余请求必须命中冷却。 */
+    @Test
+    void shouldAtomicallyAdmitOnePairingRequestPerUserAcrossSqliteInstances() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-concurrent-user"));
+        List<SqliteDatabase> databases = databases(config, 8);
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            CountDownLatch start = new CountDownLatch(1);
+            List<Future<GatewayReply>> futures = new ArrayList<Future<GatewayReply>>();
+            for (SqliteDatabase database : databases) {
+                futures.add(
+                        executor.submit(
+                                () -> {
+                                    GatewayAuthorizationService authorization =
+                                            new GatewayAuthorizationService(
+                                                    new SqliteGatewayPolicyRepository(database),
+                                                    config);
+                                    GatewayMessage message =
+                                            new GatewayMessage(
+                                                    PlatformType.WEIXIN,
+                                                    "same-user-chat",
+                                                    "same-user",
+                                                    "hello");
+                                    start.await();
+                                    return authorization.preAuthorize(message);
+                                }));
+            }
+
+            start.countDown();
+            List<GatewayReply> replies = new ArrayList<GatewayReply>();
+            for (Future<GatewayReply> future : futures) {
+                replies.add(future.get());
+            }
+
+            List<GatewayReply> created = new ArrayList<GatewayReply>();
+            for (GatewayReply reply : replies) {
+                if (reply.getContent().contains("pairing code")) {
+                    created.add(reply);
+                } else {
+                    assertThat(reply.getContent()).contains("请求过于频繁");
+                }
+            }
+            assertThat(created).hasSize(1);
+            String code = pairingCode(created.get(0).getContent());
+            SqliteGatewayPolicyRepository repository =
+                    new SqliteGatewayPolicyRepository(databases.get(0));
+            assertThat(repository.listPairingRequests(PlatformType.WEIXIN)).hasSize(1);
+            assertThat(repository.getPairingRequest(PlatformType.WEIXIN, code)).isNotNull();
+            assertThat(repository.getPairingRateLimit(PlatformType.WEIXIN, "same-user"))
+                    .extracting("requestedAt")
+                    .isNotEqualTo(0L);
+        } finally {
+            executor.shutdownNow();
+            shutdown(databases);
+        }
+    }
+
+    /** 容量已满时原子准入必须保留当前用户旧 code，并清理无状态限流占位。 */
+    @Test
+    void shouldKeepExistingPairingWhenAtomicAdmissionHitsCapacity() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-admit-capacity"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            long now = System.currentTimeMillis();
+            repository.savePairingRequest(request("OTHER234", "other-1"));
+            repository.savePairingRequest(request("OTHER235", "other-2"));
+            repository.savePairingRequest(request("OTHER236", "other-3"));
+            repository.savePairingRequest(request("CURRENT2", "current-user"));
+
+            PairingRequestAdmissionResult result =
+                    repository.admitPairingRequest(
+                            request("REPLACE2", "current-user"),
+                            now,
+                            PairingConstants.MAX_PENDING_PER_PLATFORM,
+                            PairingConstants.RATE_LIMIT_MILLIS);
+
+            assertThat(result.getStatus())
+                    .isEqualTo(PairingRequestAdmissionResult.Status.CAPACITY_REACHED);
+            assertThat(repository.getPairingRequest(PlatformType.WEIXIN, "CURRENT2")).isNotNull();
+            assertThat(repository.getPairingRequest(PlatformType.WEIXIN, "REPLACE2")).isNull();
+            assertThat(repository.getPairingRateLimit(PlatformType.WEIXIN, "current-user"))
+                    .isNull();
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** 原子准入发生 code 摘要冲突时必须同时回滚请求替换和限流占位。 */
+    @Test
+    void shouldRollbackAtomicAdmissionWhenPairingCodeHashCollides() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-admit-collision"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            repository.savePairingRequest(request("OWNER234", "first-user"));
+            String storedHash =
+                    repository.listPairingRequests(PlatformType.WEIXIN).get(0).getCode();
+
+            assertThatThrownBy(
+                            () ->
+                                    repository.admitPairingRequest(
+                                            request(storedHash, "second-user"),
+                                            System.currentTimeMillis(),
+                                            PairingConstants.MAX_PENDING_PER_PLATFORM,
+                                            PairingConstants.RATE_LIMIT_MILLIS))
+                    .isInstanceOf(java.sql.SQLException.class);
+
+            assertThat(repository.listPairingRequests(PlatformType.WEIXIN))
+                    .singleElement()
+                    .extracting(PairingRequestRecord::getUserId)
+                    .isEqualTo("first-user");
+            assertThat(repository.getPairingRateLimit(PlatformType.WEIXIN, "second-user")).isNull();
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** 原子准入更新请求时间时必须保留已有失败计数和锁定时间。 */
+    @Test
+    void shouldPreservePairingFailureStateDuringAtomicAdmission() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-admit-state"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            long now = System.currentTimeMillis();
+            PairingRateLimitRecord existing = new PairingRateLimitRecord();
+            existing.setPlatform(PlatformType.WEIXIN);
+            existing.setUserId("state-user");
+            existing.setRequestedAt(now - PairingConstants.RATE_LIMIT_MILLIS - 1L);
+            existing.setFailedAttempts(3);
+            existing.setLockoutUntil(now + 30_000L);
+            repository.savePairingRateLimit(existing);
+
+            PairingRequestAdmissionResult result =
+                    repository.admitPairingRequest(
+                            request("STATE234", "state-user"),
+                            now,
+                            PairingConstants.MAX_PENDING_PER_PLATFORM,
+                            PairingConstants.RATE_LIMIT_MILLIS);
+
+            PairingRateLimitRecord updated =
+                    repository.getPairingRateLimit(PlatformType.WEIXIN, "state-user");
+            assertThat(result.getStatus()).isEqualTo(PairingRequestAdmissionResult.Status.CREATED);
+            assertThat(updated.getRequestedAt()).isEqualTo(now);
+            assertThat(updated.getFailedAttempts()).isEqualTo(3);
+            assertThat(updated.getLockoutUntil()).isEqualTo(now + 30_000L);
+        } finally {
+            database.shutdown();
+        }
+    }
+
     /** 同一用户再次申请时只保留最新请求。 */
     @Test
     void shouldReplaceExistingPairingRequestForSameUser() throws Exception {
@@ -602,6 +761,13 @@ public class PairingControlSecurityTest {
         request.setCreatedAt(System.currentTimeMillis());
         request.setExpiresAt(System.currentTimeMillis() + 60_000L);
         return request;
+    }
+
+    /** 从用户提示中提取本次返回的八位 pairing code。 */
+    private String pairingCode(String prompt) {
+        Matcher matcher = Pattern.compile("`([A-Z2-9]{8})`").matcher(prompt);
+        assertThat(matcher.find()).isTrue();
+        return matcher.group(1);
     }
 
     /** 读取 Dashboard 返回的欢迎投递状态。 */

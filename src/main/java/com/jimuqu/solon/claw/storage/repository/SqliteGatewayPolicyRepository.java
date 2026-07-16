@@ -4,6 +4,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovedUserRecord;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.PairingRateLimitRecord;
+import com.jimuqu.solon.claw.core.model.PairingRequestAdmissionResult;
 import com.jimuqu.solon.claw.core.model.PairingRequestRecord;
 import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
@@ -414,62 +415,185 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport
             PairingRequestRecord record, long nowEpochMillis, int maxPending) throws SQLException {
         return inTransaction(
                 connection -> {
-                    /* 清理过期请求 */
-                    PreparedStatement deleteExpired =
-                            connection.prepareStatement(
-                                    "delete from pairing_requests where platform = ? and expires_at < ?");
-                    deleteExpired.setString(1, platformKey(record.getPlatform()));
-                    deleteExpired.setLong(2, nowEpochMillis);
-                    deleteExpired.executeUpdate();
-                    deleteExpired.close();
-
-                    /* 检查平台容量 */
-                    PreparedStatement countStmt =
-                            connection.prepareStatement(
-                                    "select count(*) from pairing_requests where platform = ?");
-                    countStmt.setString(1, platformKey(record.getPlatform()));
-                    ResultSet countRs = countStmt.executeQuery();
-                    int pending;
-                    try {
-                        pending = countRs.next() ? countRs.getInt(1) : 0;
-                    } finally {
-                        countRs.close();
-                        countStmt.close();
-                    }
-                    if (pending >= maxPending) {
+                    deleteExpiredPairingRequests(connection, record.getPlatform(), nowEpochMillis);
+                    if (countOtherPairingRequests(connection, record) >= maxPending) {
                         return false;
                     }
-
-                    /* 同一用户始终只保留最新请求。 */
-                    PreparedStatement deleteExisting =
-                            connection.prepareStatement(
-                                    "delete from pairing_requests where platform = ? and user_id = ?");
-                    deleteExisting.setString(1, platformKey(record.getPlatform()));
-                    deleteExisting.setString(2, record.getUserId());
-                    deleteExisting.executeUpdate();
-                    deleteExisting.close();
-
-                    /* 保存新请求 */
-                    PreparedStatement insert =
-                            connection.prepareStatement(
-                                    "insert into pairing_requests (platform, code, user_id, user_name, chat_id, created_at, expires_at) "
-                                            + "values (?, ?, ?, ?, ?, ?, ?)");
-                    insert.setString(1, platformKey(record.getPlatform()));
-                    insert.setString(
-                            2,
-                            PairingCodeHash.isHash(record.getCode())
-                                    ? record.getCode()
-                                    : PairingCodeHash.hash(record.getCode()));
-                    insert.setString(3, record.getUserId());
-                    insert.setString(4, record.getUserName());
-                    insert.setString(5, record.getChatId());
-                    insert.setLong(6, record.getCreatedAt());
-                    insert.setLong(7, record.getExpiresAt());
-                    insert.executeUpdate();
-                    insert.close();
-
+                    replacePairingRequest(connection, record);
                     return true;
                 });
+    }
+
+    /**
+     * 在单个 SQLite 写事务中完成用户冷却占用与 pairing 请求替换。
+     *
+     * @param record 待保存的 pairing 请求。
+     * @param nowEpochMillis 当前时间。
+     * @param maxPending 单平台最大待处理请求数。
+     * @param rateLimitMillis 同一用户请求冷却窗口。
+     * @return 原子准入结果。
+     */
+    @Override
+    public PairingRequestAdmissionResult admitPairingRequest(
+            PairingRequestRecord record, long nowEpochMillis, int maxPending, long rateLimitMillis)
+            throws SQLException {
+        return inTransaction(
+                connection -> {
+                    PairingRateLimitRecord rateLimit = claimPairingRateLimitRow(connection, record);
+                    long elapsed = nowEpochMillis - rateLimit.getRequestedAt();
+                    if (rateLimit.getRequestedAt() > 0 && elapsed < rateLimitMillis) {
+                        return PairingRequestAdmissionResult.rateLimited(rateLimitMillis - elapsed);
+                    }
+
+                    deleteExpiredPairingRequests(connection, record.getPlatform(), nowEpochMillis);
+                    if (countOtherPairingRequests(connection, record) >= maxPending) {
+                        deleteEmptyPairingRateLimit(connection, record);
+                        return PairingRequestAdmissionResult.capacityReached();
+                    }
+                    replacePairingRequest(connection, record);
+                    updatePairingRequestRate(connection, record, nowEpochMillis);
+                    return PairingRequestAdmissionResult.created();
+                });
+    }
+
+    /**
+     * 先写入用户限流占位行以取得 SQLite 写锁，再读取当前冷却状态。
+     *
+     * @param connection 当前事务连接。
+     * @param record 待准入的 pairing 请求。
+     * @return 当前用户限流记录。
+     */
+    private PairingRateLimitRecord claimPairingRateLimitRow(
+            Connection connection, PairingRequestRecord record) throws SQLException {
+        try (PreparedStatement insert =
+                connection.prepareStatement(
+                        "insert or ignore into pairing_rate_limits (platform, user_id, requested_at, failed_attempts, lockout_until) values (?, ?, 0, 0, 0)")) {
+            insert.setString(1, platformKey(record.getPlatform()));
+            insert.setString(2, record.getUserId());
+            insert.executeUpdate();
+        }
+        try (PreparedStatement select =
+                connection.prepareStatement(
+                        "select platform, user_id, failed_attempts, requested_at, lockout_until from pairing_rate_limits where platform = ? and user_id = ?")) {
+            select.setString(1, platformKey(record.getPlatform()));
+            select.setString(2, record.getUserId());
+            try (ResultSet resultSet = select.executeQuery()) {
+                if (!resultSet.next()) {
+                    throw new IllegalStateException("pairing 请求限流占位写入后无法读取。");
+                }
+                return mapRateLimit(resultSet);
+            }
+        }
+    }
+
+    /**
+     * 清理当前平台已经过期的 pairing 请求。
+     *
+     * @param connection 当前事务连接。
+     * @param platform pairing 平台。
+     * @param nowEpochMillis 当前时间。
+     */
+    private void deleteExpiredPairingRequests(
+            Connection connection, PlatformType platform, long nowEpochMillis) throws SQLException {
+        try (PreparedStatement statement =
+                connection.prepareStatement(
+                        "delete from pairing_requests where platform = ? and expires_at < ?")) {
+            statement.setString(1, platformKey(platform));
+            statement.setLong(2, nowEpochMillis);
+            statement.executeUpdate();
+        }
+    }
+
+    /**
+     * 统计平台中除当前用户外的待处理 pairing 请求。
+     *
+     * @param connection 当前事务连接。
+     * @param record 当前用户 pairing 请求。
+     * @return 其他用户待处理请求数。
+     */
+    private int countOtherPairingRequests(Connection connection, PairingRequestRecord record)
+            throws SQLException {
+        try (PreparedStatement statement =
+                connection.prepareStatement(
+                        "select count(*) from pairing_requests where platform = ? and user_id <> ?")) {
+            statement.setString(1, platformKey(record.getPlatform()));
+            statement.setString(2, record.getUserId());
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getInt(1) : 0;
+            }
+        }
+    }
+
+    /**
+     * 删除同用户旧请求并保存本次 pairing 请求。
+     *
+     * @param connection 当前事务连接。
+     * @param record 待保存的 pairing 请求。
+     */
+    private void replacePairingRequest(Connection connection, PairingRequestRecord record)
+            throws SQLException {
+        try (PreparedStatement delete =
+                connection.prepareStatement(
+                        "delete from pairing_requests where platform = ? and user_id = ?")) {
+            delete.setString(1, platformKey(record.getPlatform()));
+            delete.setString(2, record.getUserId());
+            delete.executeUpdate();
+        }
+        try (PreparedStatement insert =
+                connection.prepareStatement(
+                        "insert into pairing_requests (platform, code, user_id, user_name, chat_id, created_at, expires_at) values (?, ?, ?, ?, ?, ?, ?)")) {
+            insert.setString(1, platformKey(record.getPlatform()));
+            insert.setString(
+                    2,
+                    PairingCodeHash.isHash(record.getCode())
+                            ? record.getCode()
+                            : PairingCodeHash.hash(record.getCode()));
+            insert.setString(3, record.getUserId());
+            insert.setString(4, record.getUserName());
+            insert.setString(5, record.getChatId());
+            insert.setLong(6, record.getCreatedAt());
+            insert.setLong(7, record.getExpiresAt());
+            insert.executeUpdate();
+        }
+    }
+
+    /**
+     * 占用本次 pairing 请求的用户冷却窗口，同时保留失败计数和锁定状态。
+     *
+     * @param connection 当前事务连接。
+     * @param record 已保存的 pairing 请求。
+     * @param nowEpochMillis 本次请求时间。
+     */
+    private void updatePairingRequestRate(
+            Connection connection, PairingRequestRecord record, long nowEpochMillis)
+            throws SQLException {
+        try (PreparedStatement statement =
+                connection.prepareStatement(
+                        "update pairing_rate_limits set requested_at = ? where platform = ? and user_id = ?")) {
+            statement.setLong(1, nowEpochMillis);
+            statement.setString(2, platformKey(record.getPlatform()));
+            statement.setString(3, record.getUserId());
+            if (statement.executeUpdate() != 1) {
+                throw new IllegalStateException("pairing 请求冷却窗口占用失败。");
+            }
+        }
+    }
+
+    /**
+     * 删除容量检查前为取得写锁创建的无状态限流行，避免拒绝请求永久扩张限流表。
+     *
+     * @param connection 当前事务连接。
+     * @param record 被容量限制拒绝的 pairing 请求。
+     */
+    private void deleteEmptyPairingRateLimit(Connection connection, PairingRequestRecord record)
+            throws SQLException {
+        try (PreparedStatement statement =
+                connection.prepareStatement(
+                        "delete from pairing_rate_limits where platform = ? and user_id = ? and requested_at = 0 and failed_attempts = 0 and lockout_until = 0")) {
+            statement.setString(1, platformKey(record.getPlatform()));
+            statement.setString(2, record.getUserId());
+            statement.executeUpdate();
+        }
     }
 
     /**

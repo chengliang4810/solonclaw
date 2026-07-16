@@ -4,6 +4,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovedUserRecord;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.PairingRateLimitRecord;
+import com.jimuqu.solon.claw.core.model.PairingRequestAdmissionResult;
 import com.jimuqu.solon.claw.core.model.PairingRequestRecord;
 import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
 import java.util.List;
@@ -122,6 +123,19 @@ public interface GatewayPolicyRepository {
         savePairingRequest(record);
         return true;
     }
+
+    /**
+     * 原子申请用户 pairing 请求准入并占用冷却窗口。
+     *
+     * @param record 待保存的 pairing 请求。
+     * @param nowEpochMillis 当前时间。
+     * @param maxPending 单平台最大待处理请求数。
+     * @param rateLimitMillis 同一用户请求冷却窗口。
+     * @return 原子准入结果。
+     */
+    PairingRequestAdmissionResult admitPairingRequest(
+            PairingRequestRecord record, long nowEpochMillis, int maxPending, long rateLimitMillis)
+            throws Exception;
 
     /** 删除指定 pairing 请求。 */
     void deletePairingRequest(PlatformType platform, String code) throws Exception;

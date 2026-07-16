@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.PairingRateLimitRecord;
+import com.jimuqu.solon.claw.core.model.PairingRequestAdmissionResult;
 import com.jimuqu.solon.claw.core.model.PairingRequestRecord;
 import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
@@ -330,6 +331,16 @@ public class HeartbeatSchedulerTest {
 
         @Override
         public void savePairingRequest(PairingRequestRecord record) {}
+
+        /** 心跳测试仓储不承载 pairing 准入能力，调用时明确失败而不是使用非原子默认实现。 */
+        @Override
+        public PairingRequestAdmissionResult admitPairingRequest(
+                PairingRequestRecord record,
+                long nowEpochMillis,
+                int maxPending,
+                long rateLimitMillis) {
+            throw new UnsupportedOperationException("心跳测试仓储不支持 pairing 准入。");
+        }
 
         @Override
         public void deletePairingRequest(PlatformType platform, String code) {}
