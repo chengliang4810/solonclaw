@@ -198,7 +198,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
             String nextStatus)
             throws SQLException {
         executeUpdate(
-                "update cron_jobs set last_run_at = ?, next_run_at = ?, last_status = ?, last_error = ?, last_output = ?, repeat_completed = ?, status = ?, pending_trigger_type = null, last_delivery_error = null, updated_at = ? where job_id = ?",
+                "update cron_jobs set last_run_at = ?, next_run_at = ?, last_status = ?, last_error = ?, last_output = ?, repeat_completed = ?, status = case when status = 'PAUSED' then status else ? end, pending_trigger_type = null, last_delivery_error = null, updated_at = ? where job_id = ?",
                 stmt -> {
                     stmt.setLong(1, lastRunAt);
                     stmt.setLong(2, nextRunAt);
