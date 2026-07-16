@@ -182,6 +182,8 @@ export class GatewayClient extends EventEmitter {
   private bufferedEvents = new CircularBuffer<GatewayEvent>(MAX_BUFFERED_EVENTS)
   private pendingExit: number | null | undefined
   private requestQueue: Promise<void> = Promise.resolve()
+  /** 保存仍在执行的轮询请求，同一业务键只允许占用一个串行队列位置。 */
+  private pollingRequests = new Map<string, Promise<unknown>>()
   private ready = false
   private readyTimer: ReturnType<typeof setTimeout> | null = null
   private subscribed = false
@@ -765,6 +767,28 @@ export class GatewayClient extends EventEmitter {
     }
 
     return this.enqueueRequest<T>(method, params)
+  }
+
+  /** 合并同一业务键的轮询请求，完成后允许下一轮进入串行 RPC 队列。 */
+  poll<T = unknown>(key: string, method: string, params: Record<string, unknown> = {}): Promise<T> {
+    const current = this.pollingRequests.get(key)
+
+    if (current) {
+      return current as Promise<T>
+    }
+
+    const request = this.request<T>(method, params)
+
+    const clear = () => {
+      if (this.pollingRequests.get(key) === request) {
+        this.pollingRequests.delete(key)
+      }
+    }
+
+    this.pollingRequests.set(key, request)
+    request.then(clear, clear)
+
+    return request
   }
 
   kill(reason = 'requested') {

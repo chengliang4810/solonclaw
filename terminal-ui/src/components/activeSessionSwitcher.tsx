@@ -138,6 +138,11 @@ export const orchestratorVisibleRowIndexes = (sessionCount: number, selected: nu
 
 export type CloseFallback = { action: 'activate'; sessionId: string } | { action: 'new' } | { action: 'stay' }
 
+export type CloseSessionResult =
+  | { closed: false }
+  | { closed: true; fallback: CloseFallback; remaining: SessionActiveItem[] }
+  | null
+
 export const closeFallbackAfterClose = (
   closedId: string,
   currentSessionId: null | string,
@@ -150,6 +155,37 @@ export const closeFallbackAfterClose = (
   const next = remaining.find(s => s.id !== closedId)
 
   return next ? { action: 'activate', sessionId: next.id } : { action: 'new' }
+}
+
+/** 关闭会话并仅在调用方上下文仍有效时加载和计算后续选择。 */
+export const closeSessionWithContext = async (
+  targetId: string,
+  currentSessionId: null | string,
+  onClose: (sessionId: string) => Promise<SessionCloseResponse | null>,
+  loadRemaining: () => Promise<SessionActiveItem[]>,
+  isCurrent: () => boolean
+): Promise<CloseSessionResult> => {
+  const result = await onClose(targetId)
+
+  if (!isCurrent()) {
+    return null
+  }
+
+  if (!(result?.closed ?? result?.ok)) {
+    return { closed: false }
+  }
+
+  const remaining = await loadRemaining()
+
+  if (!isCurrent()) {
+    return null
+  }
+
+  return {
+    closed: true,
+    fallback: closeFallbackAfterClose(targetId, currentSessionId, remaining),
+    remaining
+  }
 }
 
 export const draftModelArgFromPickerValue = (value: string) => {
@@ -266,6 +302,10 @@ export function ActiveSessionSwitcher({
   const [confirmDelete, setConfirmDelete] = useState<null | string>(null)
   const [deleting, setDeleting] = useState(false)
   const initialSelectionAppliedRef = useRef(false)
+  /** 标识当前组件加载上下文，卸载或会话变化后拒绝旧结果。 */
+  const loadContextRef = useRef(0)
+  /** 统计仍在执行的加载，定时轮询不会叠加到慢请求之后。 */
+  const activeLoadsRef = useRef(0)
   // Holds the RAW `session.list` results (pre-dedupe). The quiet 1.5s poll
   // re-derives the resumable list from this against the latest live set, so a
   // session that was hidden while live reappears in history once it closes —
@@ -293,7 +333,15 @@ export function ActiveSessionSwitcher({
     // `quiet` skips the loading spinner (used by the live-status poll);
     // `includeHistory` re-queries the resumable DB list (skipped on the 1.5s
     // poll, which only needs fresh live-session status).
-    async (quiet = false, includeHistory = true) => {
+    async (quiet = false, includeHistory = true, polling = false) => {
+      const contextId = loadContextRef.current
+
+      if (polling && activeLoadsRef.current > 0) {
+        return itemsRef.current
+      }
+
+      activeLoadsRef.current += 1
+
       if (!quiet) {
         setLoading(true)
       }
@@ -303,11 +351,17 @@ export function ActiveSessionSwitcher({
         // wipe the live-session list: live sessions still render and the
         // resumable history degrades on its own.
         const [liveRes, histRes] = await Promise.allSettled([
-          gw.request<SessionActiveListResponse>('session.active_list', {
-            current_session_id: currentSessionId
-          }),
+          gw.poll<SessionActiveListResponse>(
+            `session-switcher.active-sessions:${currentSessionId ?? ''}`,
+            'session.active_list',
+            { current_session_id: currentSessionId }
+          ),
           includeHistory ? gw.request<SessionListResponse>('session.list', { limit: 200 }) : Promise.resolve(null)
         ])
+
+        if (contextId !== loadContextRef.current) {
+          return []
+        }
 
         const r = liveRes.status === 'fulfilled' ? asRpcResult<SessionActiveListResponse>(liveRes.value) : null
 
@@ -380,10 +434,14 @@ export function ActiveSessionSwitcher({
 
         return next
       } catch (e: unknown) {
-        setErr(rpcErrorMessage(e))
-        setLoading(false)
+        if (contextId === loadContextRef.current) {
+          setErr(rpcErrorMessage(e))
+          setLoading(false)
+        }
 
         return []
+      } finally {
+        activeLoadsRef.current -= 1
       }
     },
     [currentSessionId, gw]
@@ -395,10 +453,15 @@ export function ActiveSessionSwitcher({
   }, [items, history])
 
   useEffect(() => {
+    loadContextRef.current += 1
+    setClosingId('')
     void load()
-    const timer = setInterval(() => void load(true, false), 1500)
+    const timer = setInterval(() => void load(true, false, true), 1500)
 
-    return () => clearInterval(timer)
+    return () => {
+      loadContextRef.current += 1
+      clearInterval(timer)
+    }
   }, [load])
 
   const submitDraft = useCallback(
@@ -417,6 +480,7 @@ export function ActiveSessionSwitcher({
 
   const closeSelected = useCallback(async () => {
     const target = items[sel - 1]
+    const contextId = loadContextRef.current
 
     if (!target || rowKind(sel) !== 'live' || closingId) {
       return
@@ -426,17 +490,25 @@ export function ActiveSessionSwitcher({
     setClosingId(target.id)
 
     try {
-      const result = await onClose(target.id)
-      const closed = Boolean(result?.closed ?? result?.ok)
+      const result = await closeSessionWithContext(
+        target.id,
+        currentSessionId,
+        onClose,
+        () => load(true),
+        () => contextId === loadContextRef.current
+      )
 
-      if (!closed) {
+      if (!result) {
+        return
+      }
+
+      if (!result.closed) {
         setErr('session was already closed')
 
         return
       }
 
-      const remaining = await load(true)
-      const fallback = closeFallbackAfterClose(target.id, currentSessionId, remaining)
+      const { fallback, remaining } = result
 
       if (fallback.action === 'activate') {
         onSelect(fallback.sessionId)
@@ -446,9 +518,13 @@ export function ActiveSessionSwitcher({
         setSel(s => Math.max(0, Math.min(s, remaining.length + history.length)))
       }
     } catch (e: unknown) {
-      setErr(rpcErrorMessage(e))
+      if (contextId === loadContextRef.current) {
+        setErr(rpcErrorMessage(e))
+      }
     } finally {
-      setClosingId('')
+      if (contextId === loadContextRef.current) {
+        setClosingId('')
+      }
     }
   }, [closingId, currentSessionId, history.length, items, load, onClose, onNew, onSelect, rowKind, sel])
 

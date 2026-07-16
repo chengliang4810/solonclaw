@@ -5,6 +5,7 @@ import {
   canTypeOrchestratorPrompt,
   clampOrchestratorSelection,
   closeFallbackAfterClose,
+  closeSessionWithContext,
   currentSessionSelectionIndex,
   draftModelArgFromPickerValue,
   draftModelDisplayLabel,
@@ -131,6 +132,60 @@ describe('session orchestrator helpers', () => {
     expect(closeFallbackAfterClose('other', 'current', remaining)).toEqual({ action: 'stay' })
     expect(closeFallbackAfterClose('current', 'current', remaining)).toEqual({ action: 'activate', sessionId: 'next' })
     expect(closeFallbackAfterClose('current', 'current', [])).toEqual({ action: 'new' })
+  })
+
+  it('does not refresh or choose a fallback when close completes in a stale context', async () => {
+    let resolveClose!: (value: { closed: boolean }) => void
+    let current = true
+    const loadRemaining = async () => [{ id: 'next', status: 'idle' }] satisfies SessionActiveItem[]
+
+    const onClose = () => new Promise<{ closed: boolean }>(resolve => {
+      resolveClose = resolve
+    })
+
+    const closing = closeSessionWithContext('current', 'current', onClose, loadRemaining, () => current)
+
+    current = false
+    resolveClose({ closed: true })
+
+    await expect(closing).resolves.toBeNull()
+  })
+
+  it('does not choose a fallback when the context changes during the forced refresh', async () => {
+    let resolveLoad!: (value: SessionActiveItem[]) => void
+    let current = true
+
+    const loadRemaining = () => new Promise<SessionActiveItem[]>(resolve => {
+      resolveLoad = resolve
+    })
+
+    const closing = closeSessionWithContext(
+      'current',
+      'current',
+      async () => ({ closed: true }),
+      loadRemaining,
+      () => current
+    )
+
+    await Promise.resolve()
+    current = false
+    resolveLoad([{ id: 'next', status: 'idle' }])
+
+    await expect(closing).resolves.toBeNull()
+  })
+
+  it('returns the current fallback after a successful close and refresh', async () => {
+    await expect(closeSessionWithContext(
+      'current',
+      'current',
+      async () => ({ closed: true }),
+      async () => [{ id: 'next', status: 'idle' }],
+      () => true
+    )).resolves.toEqual({
+      closed: true,
+      fallback: { action: 'activate', sessionId: 'next' },
+      remaining: [{ id: 'next', status: 'idle' }]
+    })
   })
 
   it('shows clean draft model labels without picker flags or provider params', () => {

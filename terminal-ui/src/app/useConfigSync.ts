@@ -127,10 +127,13 @@ const MTIME_POLL_MS = 5000
 const quietRpc = async <T extends Record<string, any> = Record<string, any>>(
   gw: GatewayClient,
   method: string,
-  params: Record<string, unknown> = {}
+  params: Record<string, unknown> = {},
+  pollingKey?: string
 ): Promise<null | T> => {
   try {
-    return asRpcResult<T>(await gw.request<T>(method, params))
+    const raw = pollingKey ? await gw.poll<T>(pollingKey, method, params) : await gw.request<T>(method, params)
+
+    return asRpcResult<T>(raw)
   } catch {
     return null
   }
@@ -182,10 +185,15 @@ const _pasteCollapseCharsFromConfig = (cfg: ConfigFullResponse | null): number =
 export async function hydrateFullConfig(
   gw: GatewayClient,
   setBell: (v: boolean) => void,
-  setVoiceRecordKey?: (v: ParsedVoiceRecordKey) => void
+  setVoiceRecordKey?: (v: ParsedVoiceRecordKey) => void,
+  pollingKey?: string,
+  shouldApply: () => boolean = () => true
 ): Promise<ConfigFullResponse | null> {
-  const cfg = await quietRpc<ConfigFullResponse>(gw, 'config.get', { key: 'full' })
-  applyDisplay(cfg, setBell, setVoiceRecordKey)
+  const cfg = await quietRpc<ConfigFullResponse>(gw, 'config.get', { key: 'full' }, pollingKey)
+
+  if (shouldApply()) {
+    applyDisplay(cfg, setBell, setVoiceRecordKey)
+  }
 
   return cfg
 }
@@ -242,15 +250,23 @@ export function useConfigSync({
       return
     }
 
+    let stopped = false
+
     // Keep startup cheap: voice.toggle status probes optional audio/STT deps and
     // can run long enough to delay prompt.submit on the single stdio RPC pipe.
     // Environment flags are enough to initialize the UI bit; the heavier status
     // check still runs when the user opens /voice.
     setVoiceEnabled(process.env.SOLONCLAW_VOICE === '1')
-    quietRpc<ConfigMtimeResponse>(gw, 'config.get', { key: 'mtime' }).then(r => {
-      mtimeRef.current = Number(r?.mtime ?? 0)
+    void quietRpc<ConfigMtimeResponse>(gw, 'config.get', { key: 'mtime' }, 'config.mtime').then(r => {
+      if (!stopped) {
+        mtimeRef.current = Number(r?.mtime ?? 0)
+      }
     })
-    void hydrateFullConfig(gw, setBellOnComplete, setVoiceRecordKey)
+    void hydrateFullConfig(gw, setBellOnComplete, setVoiceRecordKey, 'config.full', () => !stopped)
+
+    return () => {
+      stopped = true
+    }
   }, [gw, setBellOnComplete, setVoiceEnabled, setVoiceRecordKey, sid])
 
   useEffect(() => {
@@ -258,8 +274,24 @@ export function useConfigSync({
       return
     }
 
-    const id = setInterval(() => {
-      quietRpc<ConfigMtimeResponse>(gw, 'config.get', { key: 'mtime' }).then(r => {
+    let stopped = false
+    let inFlight = false
+
+    /** 检查配置版本并在变化时串行刷新依赖状态。 */
+    const pollConfig = async () => {
+      if (stopped || inFlight) {
+        return
+      }
+
+      inFlight = true
+
+      try {
+        const r = await quietRpc<ConfigMtimeResponse>(gw, 'config.get', { key: 'mtime' }, 'config.mtime')
+
+        if (stopped) {
+          return
+        }
+
         const next = Number(r?.mtime ?? 0)
 
         if (!mtimeRef.current) {
@@ -276,14 +308,28 @@ export function useConfigSync({
 
         mtimeRef.current = next
 
-        quietRpc<ReloadMcpResponse>(gw, 'reload.mcp', { session_id: sid, confirm: true }).then(
-          r => r && turnController.pushActivity('MCP reloaded after config change')
-        )
-        void hydrateFullConfig(gw, setBellOnComplete, setVoiceRecordKey)
-      })
-    }, MTIME_POLL_MS)
+        const reload = await quietRpc<ReloadMcpResponse>(gw, 'reload.mcp', { session_id: sid, confirm: true })
 
-    return () => clearInterval(id)
+        if (stopped) {
+          return
+        }
+
+        if (reload) {
+          turnController.pushActivity('MCP reloaded after config change')
+        }
+
+        await hydrateFullConfig(gw, setBellOnComplete, setVoiceRecordKey, 'config.full', () => !stopped)
+      } finally {
+        inFlight = false
+      }
+    }
+
+    const id = setInterval(() => void pollConfig(), MTIME_POLL_MS)
+
+    return () => {
+      stopped = true
+      clearInterval(id)
+    }
   }, [gw, setBellOnComplete, setVoiceRecordKey, sid])
 }
 

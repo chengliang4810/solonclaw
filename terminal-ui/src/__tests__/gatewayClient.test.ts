@@ -443,6 +443,44 @@ describe('GatewayClient solonclaw bridge', () => {
     gw.kill()
   })
 
+  it('coalesces repeated polls while preserving the serial RPC transport', async () => {
+    process.env.SOLONCLAW_TUI_GATEWAY_URL = 'ws://gateway.test/api/ws?token=abc'
+    const gw = new GatewayClient()
+
+    gw.start()
+    const gatewaySocket = FakeWebSocket.instances[0]!
+
+    gatewaySocket.open()
+
+    const first = gw.poll<{ value: number }>('config.mtime', 'config.get', { key: 'mtime' })
+    const duplicate = gw.poll<{ value: number }>('config.mtime', 'config.get', { key: 'mtime' })
+
+    expect(duplicate).toBe(first)
+    await vi.waitFor(() => expect(findRpcFrame(gatewaySocket, 'config.get')).toBeTruthy())
+
+    const firstFrame = JSON.parse(findRpcFrame(gatewaySocket, 'config.get') ?? '{}') as { id: string }
+    gatewaySocket.message(JSON.stringify({ id: firstFrame.id, jsonrpc: '2.0', result: { value: 1 } }))
+
+    await expect(first).resolves.toEqual({ value: 1 })
+    await expect(duplicate).resolves.toEqual({ value: 1 })
+    await Promise.resolve()
+
+    const next = gw.poll<{ value: number }>('config.mtime', 'config.get', { key: 'mtime' })
+
+    await vi.waitFor(() => {
+      expect(gatewaySocket.sent.filter(frame => frame.includes('"method":"config.get"'))).toHaveLength(2)
+    })
+
+    const nextFrame = JSON.parse(
+      gatewaySocket.sent.filter(frame => frame.includes('"method":"config.get"'))[1] ?? '{}'
+    ) as { id: string }
+
+    gatewaySocket.message(JSON.stringify({ id: nextFrame.id, jsonrpc: '2.0', result: { value: 2 } }))
+
+    await expect(next).resolves.toEqual({ value: 2 })
+    gw.kill()
+  })
+
   it('mirrors event frames to sidecar websocket when configured', async () => {
     process.env.SOLONCLAW_TUI_GATEWAY_URL = 'ws://gateway.test/api/ws?token=abc'
     process.env.SOLONCLAW_TUI_SIDECAR_URL = 'ws://gateway.test/api/pub?token=abc&channel=demo'

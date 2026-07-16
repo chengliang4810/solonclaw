@@ -526,28 +526,42 @@ export function useMainApp(gw: GatewayClient) {
     }
 
     let stopped = false
+    let inFlight = false
 
-    const refresh = () => {
-      gw.request<SessionActiveListResponse>('session.active_list', { current_session_id: getUiState().sid })
-        .then(raw => {
-          const result = asRpcResult<SessionActiveListResponse>(raw)
+    /** 单次刷新活跃会话；慢请求期间跳过后续定时触发。 */
+    const refresh = async () => {
+      if (stopped || inFlight) {
+        return
+      }
 
-          if (!stopped && result?.sessions) {
-            const liveSessionCount = result.sessions.length
-            const currentSid = getUiState().sid
-            const sessionTitle = result.sessions.find(s => s.current || s.id === currentSid)?.title?.trim() ?? ''
-            const prev = getUiState()
+      inFlight = true
 
-            if (prev.liveSessionCount !== liveSessionCount || prev.sessionTitle !== sessionTitle) {
-              patchUiState({ liveSessionCount, sessionTitle })
-            }
-          }
+      try {
+        const raw = await gw.poll<SessionActiveListResponse>(`main.active-sessions:${ui.sid}`, 'session.active_list', {
+          current_session_id: ui.sid
         })
-        .catch(() => {})
+
+        const result = asRpcResult<SessionActiveListResponse>(raw)
+
+        if (!stopped && result?.sessions) {
+          const liveSessionCount = result.sessions.length
+          const currentSid = getUiState().sid
+          const sessionTitle = result.sessions.find(s => s.current || s.id === currentSid)?.title?.trim() ?? ''
+          const prev = getUiState()
+
+          if (prev.liveSessionCount !== liveSessionCount || prev.sessionTitle !== sessionTitle) {
+            patchUiState({ liveSessionCount, sessionTitle })
+          }
+        }
+      } catch {
+        // 活跃会话状态是辅助信息，下一轮会自动重试。
+      } finally {
+        inFlight = false
+      }
     }
 
-    refresh()
-    const timer = setInterval(refresh, 1500)
+    void refresh()
+    const timer = setInterval(() => void refresh(), 1500)
 
     return () => {
       stopped = true

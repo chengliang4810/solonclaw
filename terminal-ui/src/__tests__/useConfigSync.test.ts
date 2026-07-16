@@ -456,4 +456,16 @@ describe('hydrateFullConfig', () => {
     await expect(hydrateFullConfig(gw, setBell)).resolves.toBeTruthy()
     expect(setBell).toHaveBeenCalledWith(true)
   })
+
+  it('uses the coalesced polling path and ignores a stale hydration result', async () => {
+    const poll = vi.fn(() => Promise.resolve({ config: { display: { bell_on_complete: true } } }))
+    const gw = { poll, request: vi.fn(), on: vi.fn(), off: vi.fn() } as any
+    const setBell = vi.fn()
+
+    await hydrateFullConfig(gw, setBell, undefined, 'config.full', () => false)
+
+    expect(poll).toHaveBeenCalledWith('config.full', 'config.get', { key: 'full' })
+    expect(gw.request).not.toHaveBeenCalled()
+    expect(setBell).not.toHaveBeenCalled()
+  })
 })
