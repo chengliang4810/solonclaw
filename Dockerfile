@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim AS frontend
+FROM node:24-bookworm-slim AS frontend
 
 # 前端阶段只负责编译 Dashboard 静态资源，避免最终镜像携带前端构建缓存。
 WORKDIR /workspace/web
@@ -7,6 +7,17 @@ COPY web/package*.json /workspace/web/
 RUN npm ci
 
 COPY web /workspace/web
+RUN npm run build
+
+FROM node:24-bookworm-slim AS terminal-ui
+
+WORKDIR /workspace/terminal-ui
+
+COPY terminal-ui/package*.json /workspace/terminal-ui/
+COPY terminal-ui/packages/solonclaw-ink/package.json /workspace/terminal-ui/packages/solonclaw-ink/package.json
+RUN npm ci
+
+COPY terminal-ui /workspace/terminal-ui
 RUN npm run build
 
 FROM maven:3.9.9-eclipse-temurin-17 AS builder
@@ -65,8 +76,6 @@ RUN apt-get update \
         python3 \
         python3-pip \
         python3-venv \
-        nodejs \
-        npm \
         fonts-arphic-gbsn00lp \
         fonts-noto-cjk \
     && locale-gen C.UTF-8 \
@@ -82,12 +91,15 @@ RUN groupadd --system --gid 10001 solonclaw \
     && useradd --system --uid 10001 --gid solonclaw --home-dir /app --shell /usr/sbin/nologin solonclaw
 
 COPY --from=builder /tmp/solonclaw.jar /app/solonclaw.jar
+COPY --from=terminal-ui /usr/local /usr/local
+COPY --from=terminal-ui /workspace/terminal-ui/dist/entry.js /app/terminal-ui/entry.js
 COPY docker/entrypoint.sh /app/docker-entrypoint.sh
+COPY docker/solonclaw /usr/local/bin/solonclaw
 
 # workspace 是唯一持久化目录；入口脚本只确保目录存在，不改写用户配置。
 RUN mkdir -p /app/workspace \
     && sed -i 's/\r$//' /app/docker-entrypoint.sh \
-    && chmod 755 /app/docker-entrypoint.sh \
+    && chmod 755 /app/docker-entrypoint.sh /usr/local/bin/solonclaw /app/terminal-ui/entry.js \
     && chown -R solonclaw:solonclaw /app \
     && chmod -R u+rwX,go-rwx /app
 

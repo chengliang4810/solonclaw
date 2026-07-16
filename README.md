@@ -58,7 +58,7 @@ irm https://raw.githubusercontent.com/chengliang4810/solon-claw/main/scripts/ins
 
 - JDK 8+（推荐 JDK 17）
 - Maven 3.9+
-- Node.js 20+ 与 npm
+- Node.js 24+ 与 npm
 - 可访问目标大模型服务的网络环境
 
 ### 克隆与构建
@@ -112,6 +112,8 @@ docker compose up -d
 ```
 
 默认 Compose 会将本地 `./workspace` 挂载到容器内 `/app/workspace`，方便持久化工作区、运行数据和可在线更新的 `solonclaw.jar`。`/app/docker-entrypoint.sh` 会在首次启动时复制镜像内置 JAR，之后从工作区 JAR 启动。镜像内已包含 `openssh-client`，容器内可以使用 `ssh`、`scp` 和 `sftp` 等基础远程连接命令。
+
+容器启动后，可通过 `docker exec -it solonclaw solonclaw` 进入完整 TUI并连接容器内的现有服务。
 
 ## 配置
 

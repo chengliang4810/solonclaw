@@ -31,7 +31,7 @@ await build({
   bundle: true,
   platform: 'node',
   format: 'esm',
-  target: 'node20',
+  target: 'node24',
   outfile: out,
   jsx: 'automatic',
   jsxImportSource: 'react',

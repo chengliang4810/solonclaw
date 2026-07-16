@@ -18,6 +18,7 @@ public class SolonClawDockerRootRuntimeTest {
     void shouldRunOfficialDockerImageAsNonRoot() throws Exception {
         String dockerfile = readFile("Dockerfile");
         String entrypoint = readFile("docker/entrypoint.sh");
+        String tuiCommand = readFile("docker/solonclaw");
         String compose = readFile("docker-compose.yml");
 
         // 官方镜像使用固定 UID 的非 root 用户 solonclaw 运行，不依赖 gosu 降权。
@@ -25,6 +26,9 @@ public class SolonClawDockerRootRuntimeTest {
                 .contains("openssh-client")
                 .contains("useradd")
                 .contains("USER solonclaw")
+                .contains("FROM node:24-bookworm-slim AS terminal-ui")
+                .contains("/workspace/terminal-ui/dist/entry.js /app/terminal-ui/entry.js")
+                .contains("COPY docker/solonclaw /usr/local/bin/solonclaw")
                 .doesNotContain("gosu");
         assertThat(entrypoint)
                 .contains("mkdir -p \"$WORKSPACE_HOME\"")
@@ -33,6 +37,11 @@ public class SolonClawDockerRootRuntimeTest {
                 .doesNotContain("gosu")
                 .doesNotContain("SOLONCLAW_UID")
                 .doesNotContain("SOLONCLAW_GID");
+        assertThat(tuiCommand)
+                .contains("SOLONCLAW_HOME=\"${SOLONCLAW_HOME:-/app/workspace}\"")
+                .contains("SOLONCLAW_SERVER_URL=\"${SOLONCLAW_SERVER_URL:-http://127.0.0.1:8080}\"")
+                .contains("exec node /app/terminal-ui/entry.js \"$@\"")
+                .doesNotContain("java -jar");
         assertThat(compose)
                 .contains("SOLONCLAW_OFFICIAL_DOCKER_IMAGE")
                 .doesNotContain("SOLONCLAW_UID")

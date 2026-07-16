@@ -35,7 +35,7 @@ Solon Claw is a single-instance Agent service built with Java, Solon, and Solon 
 
 - JDK 8+ (JDK 17 recommended)
 - Maven 3.9+
-- Node.js 20+ and npm
+- Node.js 24+ and npm
 - Network access to your target LLM provider
 
 ### Clone and Build
@@ -89,6 +89,8 @@ docker compose up -d
 ```
 
 The default Compose file mounts local `./workspace` to `/app/workspace` inside the container so workspace data and the online-updatable `solonclaw.jar` persist. On first start, `/app/docker-entrypoint.sh` copies the bundled JAR and then runs the workspace JAR. The image includes `openssh-client`, so `ssh`, `scp`, and `sftp` are available inside the container.
+
+After the container starts, run `docker exec -it solonclaw solonclaw` to open the full TUI attached to the existing service in that container.
 
 If you are migrating from an older non-root image, fixed UID/GID ownership for the host workspace directory is no longer part of the default deployment requirement. Custom deployment scripts can remove the previous user-mapping logic.
 

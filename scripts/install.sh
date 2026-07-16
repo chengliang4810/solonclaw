@@ -324,7 +324,7 @@ deploy_native() {
     check_node() {
         if command -v node &>/dev/null; then
             NODE_VER=$(node -v 2>/dev/null | sed -E 's/v([0-9]+).*/\1/')
-            if [ "${NODE_VER:-0}" -ge 20 ]; then
+            if [ "${NODE_VER:-0}" -ge 24 ]; then
                 ok "Node.js $NODE_VER 已安装"
                 return 0
             fi
@@ -333,7 +333,7 @@ deploy_native() {
     }
 
     if ! check_node; then
-        warn "未检测到 Node.js 20+，正在尝试安装..."
+        warn "未检测到 Node.js 24+，正在尝试安装..."
         NODE_INSTALLED=0
         if [ "$PLATFORM" = "darwin" ]; then
             if command -v brew &>/dev/null; then
@@ -344,16 +344,16 @@ deploy_native() {
         elif [ "$PLATFORM" = "linux" ]; then
             # 方式 1: NodeSource（海外优先）
             if [ -z "$GITHUB_PROXY" ]; then
-                info "通过 NodeSource 安装 Node.js 20..."
-                curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>/dev/null && \
+                info "通过 NodeSource 安装 Node.js 24..."
+                curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash - 2>/dev/null && \
                 (command -v apt-get &>/dev/null && sudo apt-get install -y -qq nodejs || \
                  command -v yum &>/dev/null && sudo yum install -y nodejs || \
                  command -v dnf &>/dev/null && sudo dnf install -y nodejs) && NODE_INSTALLED=1 || true
             fi
             # 方式 2: 二进制包直接安装（国内环境，从 npmmirror 下载）
             if [ "$NODE_INSTALLED" -eq 0 ]; then
-                info "通过二进制包安装 Node.js 20..."
-                NODE_VERSION="v20.19.2"
+                info "通过二进制包安装 Node.js 24..."
+                NODE_VERSION="v24.15.0"
                 NODE_ARCH="x64"
                 [ "$ARCH" = "arm64" ] && NODE_ARCH="arm64"
                 NODE_DISTRO="linux-${NODE_ARCH}"
@@ -379,7 +379,7 @@ deploy_native() {
                 sudo apt-get update -qq && sudo apt-get install -y -qq nodejs npm && NODE_INSTALLED=1 || true
             fi
         fi
-        check_node || error "Node.js 安装失败，请手动安装 Node.js 20+（https://nodejs.org 或 https://npmmirror.com）"
+        check_node || error "Node.js 安装失败，请手动安装 Node.js 24+（https://nodejs.org 或 https://npmmirror.com）"
     fi
 
     command -v npm &>/dev/null || error "npm 未找到，请重新安装 Node.js"

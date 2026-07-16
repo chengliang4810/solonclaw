@@ -183,11 +183,11 @@ function Install-Native {
     $nodeOk = $false
     try {
         $ver = & node -v 2>$null
-        if ($ver -match 'v(\d+)') { if ([int]$Matches[1] -ge 20) { Write-Ok "Node.js $([int]$Matches[1]) 已安装"; $nodeOk = $true } }
+        if ($ver -match 'v(\d+)') { if ([int]$Matches[1] -ge 24) { Write-Ok "Node.js $([int]$Matches[1]) 已安装"; $nodeOk = $true } }
     } catch {}
 
     if (-not $nodeOk) {
-        Write-Warn "未检测到 Node.js 20+"
+        Write-Warn "未检测到 Node.js 24+"
         $winget = Read-Host "是否通过 winget 自动安装？[y/N]"
         if ($winget -match '^[Yy]$') {
             winget install OpenJS.NodeJS.LTS --accept-source-agreements --accept-package-agreements
@@ -195,9 +195,9 @@ function Install-Native {
         }
         try {
             $ver = & node -v 2>$null
-            if ($ver -match 'v(\d+)') { if ([int]$Matches[1] -ge 20) { $nodeOk = $true } }
+            if ($ver -match 'v(\d+)') { if ([int]$Matches[1] -ge 24) { $nodeOk = $true } }
         } catch {}
-        if (-not $nodeOk) { Write-Err "Node.js 安装失败，请手动安装 Node.js 20+" }
+        if (-not $nodeOk) { Write-Err "Node.js 安装失败，请手动安装 Node.js 24+" }
     }
 
     # ─── 安装 TUI ───────────────────────────────────────────────────────

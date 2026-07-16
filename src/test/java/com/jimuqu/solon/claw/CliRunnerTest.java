@@ -202,7 +202,7 @@ class CliRunnerTest {
     }
 
     @Test
-    void bareJavaTuiModeGuidesUsersToNodeTuiEntry() throws Exception {
+    void bareJavaTuiModeExitsSilently() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CliRuntime runtime =
                 new CliRuntime(
@@ -227,10 +227,7 @@ class CliRunnerTest {
             int exitCode = runner.run(new CliMode(CliMode.Kind.TUI, null, "cli-runner-tui"));
 
             assertThat(exitCode).isEqualTo(0);
-            assertThat(out.toString(StandardCharsets.UTF_8.name()))
-                    .contains("请使用 solonclaw 启动本地 TUI")
-                    .contains("node_tui_entry=solonclaw")
-                    .doesNotContain("缺少输入内容");
+            assertThat(out.toString(StandardCharsets.UTF_8.name())).isEmpty();
         } finally {
             System.setOut(originalOut);
             System.setErr(originalErr);

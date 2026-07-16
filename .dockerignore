@@ -4,4 +4,6 @@ target
 runtime
 web/node_modules
 web/dist
+terminal-ui/node_modules
+terminal-ui/dist
 *.log

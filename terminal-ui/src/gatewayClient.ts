@@ -8,7 +8,7 @@ import type { GatewayEvent } from './gatewayTypes.js'
 import { CircularBuffer } from './lib/circularBuffer.js'
 import { recordParentLifecycle } from './lib/parentLog.js'
 
-// Node.js 20 没有全局 WebSocket，用 ws 模块补全
+// 测试或兼容运行时可能没有全局 WebSocket，使用 ws 模块兜底。
 // 懒解析：每次调用时检查全局 WebSocket（测试会动态 mock/delete）
 const _wsModuleFallback: typeof WebSocket = WsWebSocket as unknown as typeof WebSocket
 
