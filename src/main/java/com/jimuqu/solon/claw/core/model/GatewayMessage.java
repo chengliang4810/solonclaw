@@ -53,6 +53,9 @@ public class GatewayMessage {
     /** 本轮消息使用的临时模型覆盖；不会持久化到会话。 */
     private String modelOverride;
 
+    /** 本轮消息使用的精简系统提示；非空时跳过 Profile 上下文与长期记忆。 */
+    private String systemPromptOverride;
+
     /** 本轮消息使用的临时工具集覆盖；不会持久化到会话。 */
     private List<String> enabledToolsetsOverride = new ArrayList<String>();
 

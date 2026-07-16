@@ -7,31 +7,22 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * SQLite 仓库支持基类，封装通用的数据库操作模板方法。
- * 提供连接管理、查询映射、事务管理等通用功能，消除子类中的重复代码。
- */
+/** SQLite 仓库支持基类，封装通用的数据库操作模板方法。 提供连接管理、查询映射、事务管理等通用功能，消除子类中的重复代码。 */
 public abstract class SqliteRepositorySupport {
 
-    /**
-     * 行映射器函数式接口。
-     */
+    /** 行映射器函数式接口。 */
     @FunctionalInterface
     public interface RowMapper<T> {
         T map(ResultSet rs) throws SQLException;
     }
 
-    /**
-     * 语句绑定器函数式接口。
-     */
+    /** 语句绑定器函数式接口。 */
     @FunctionalInterface
     public interface StatementBinder {
         void bind(PreparedStatement stmt) throws SQLException;
     }
 
-    /**
-     * 事务回调函数式接口。
-     */
+    /** 事务回调函数式接口。 */
     @FunctionalInterface
     public interface TransactionCallback<T> {
         T execute(Connection connection) throws SQLException;
@@ -39,6 +30,7 @@ public abstract class SqliteRepositorySupport {
 
     /**
      * 获取数据库连接。
+     *
      * @return 数据库连接
      * @throws SQLException 如果获取连接失败
      */
@@ -46,13 +38,15 @@ public abstract class SqliteRepositorySupport {
 
     /**
      * 查询单条记录。
+     *
      * @param sql SQL查询语句
      * @param binder 参数绑定器
      * @param mapper 行映射器
      * @return 查询结果，如果没有记录则返回null
      * @throws SQLException 如果查询失败
      */
-    protected <T> T queryOne(String sql, StatementBinder binder, RowMapper<T> mapper) throws SQLException {
+    protected <T> T queryOne(String sql, StatementBinder binder, RowMapper<T> mapper)
+            throws SQLException {
         try (Connection connection = getConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             if (binder != null) {
@@ -69,13 +63,15 @@ public abstract class SqliteRepositorySupport {
 
     /**
      * 查询记录列表。
+     *
      * @param sql SQL查询语句
      * @param binder 参数绑定器
      * @param mapper 行映射器
      * @return 查询结果列表
      * @throws SQLException 如果查询失败
      */
-    protected <T> List<T> queryList(String sql, StatementBinder binder, RowMapper<T> mapper) throws SQLException {
+    protected <T> List<T> queryList(String sql, StatementBinder binder, RowMapper<T> mapper)
+            throws SQLException {
         List<T> results = new ArrayList<>();
         try (Connection connection = getConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -93,6 +89,7 @@ public abstract class SqliteRepositorySupport {
 
     /**
      * 执行更新操作（INSERT, UPDATE, DELETE）。
+     *
      * @param sql SQL更新语句
      * @param binder 参数绑定器
      * @return 受影响的行数
@@ -110,6 +107,7 @@ public abstract class SqliteRepositorySupport {
 
     /**
      * 查询单个整数值。
+     *
      * @param sql SQL查询语句
      * @param binder 参数绑定器
      * @return 查询结果，如果没有记录则返回0
@@ -132,6 +130,7 @@ public abstract class SqliteRepositorySupport {
 
     /**
      * 在事务中执行操作。
+     *
      * @param callback 事务回调
      * @return 事务执行结果
      * @throws SQLException 如果事务执行失败
@@ -168,6 +167,7 @@ public abstract class SqliteRepositorySupport {
 
     /**
      * 获取平台类型键。
+     *
      * @param platform 平台类型
      * @return 平台类型字符串
      */
@@ -183,6 +183,7 @@ public abstract class SqliteRepositorySupport {
 
     /**
      * 安全获取字符串值。
+     *
      * @param value 原始值
      * @return 如果原始值为null则返回空字符串，否则返回原始值
      */

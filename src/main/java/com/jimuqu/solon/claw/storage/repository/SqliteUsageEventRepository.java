@@ -11,7 +11,8 @@ import lombok.RequiredArgsConstructor;
 
 /** 负责SQLite用量事件数据的持久化读写，隔离底层存储实现。 */
 @RequiredArgsConstructor
-public class SqliteUsageEventRepository extends SqliteRepositorySupport implements UsageEventRepository {
+public class SqliteUsageEventRepository extends SqliteRepositorySupport
+        implements UsageEventRepository {
     /** 记录SQLite用量事件中的数据库。 */
     private final SqliteDatabase database;
 
@@ -28,10 +29,10 @@ public class SqliteUsageEventRepository extends SqliteRepositorySupport implemen
      */
     @Override
     public boolean insertIfAbsent(UsageEventRecord record) throws SQLException {
-        int updated = executeUpdate(
-                "insert or ignore into usage_events (event_id, session_id, run_id, source_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, total_tokens, request_count, cost_micros, currency, price_source, price_source_url, pricing_version, price_fetched_at, raw_usage_json, pricing_available, unpriced_input_tokens, unpriced_output_tokens, unpriced_cache_read_tokens, unpriced_cache_write_tokens, unpriced_reasoning_tokens, priced_at, created_at, backfill_approximate) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                stmt -> bind(stmt, record)
-        );
+        int updated =
+                executeUpdate(
+                        "insert or ignore into usage_events (event_id, session_id, run_id, source_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, total_tokens, request_count, cost_micros, currency, price_source, price_source_url, pricing_version, price_fetched_at, raw_usage_json, pricing_available, unpriced_input_tokens, unpriced_output_tokens, unpriced_cache_read_tokens, unpriced_cache_write_tokens, unpriced_reasoning_tokens, priced_at, created_at, backfill_approximate) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        stmt -> bind(stmt, record));
         return updated > 0;
     }
 
@@ -46,8 +47,7 @@ public class SqliteUsageEventRepository extends SqliteRepositorySupport implemen
         return queryOne(
                 "select * from usage_events where event_id = ?",
                 stmt -> stmt.setString(1, eventId),
-                this::map
-        );
+                this::map);
     }
 
     /**
@@ -70,7 +70,8 @@ public class SqliteUsageEventRepository extends SqliteRepositorySupport implemen
      * @return 返回Between列表。
      */
     @Override
-    public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive, int limit) throws SQLException {
+    public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive, int limit)
+            throws SQLException {
         return listBetweenInternal(fromInclusive, toInclusive, true, limit);
     }
 
@@ -82,7 +83,8 @@ public class SqliteUsageEventRepository extends SqliteRepositorySupport implemen
      * @return 返回Between列表。
      */
     @Override
-    public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive) throws SQLException {
+    public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive)
+            throws SQLException {
         return listBetweenInternal(fromInclusive, toInclusive, false, 0);
     }
 
@@ -97,9 +99,10 @@ public class SqliteUsageEventRepository extends SqliteRepositorySupport implemen
      */
     private List<UsageEventRecord> listBetweenInternal(
             long fromInclusive, long toInclusive, boolean limited, int limit) throws SQLException {
-        String sql = limited
-                ? "select * from usage_events where created_at >= ? and created_at <= ? order by created_at desc limit ?"
-                : "select * from usage_events where created_at >= ? and created_at <= ? order by created_at desc";
+        String sql =
+                limited
+                        ? "select * from usage_events where created_at >= ? and created_at <= ? order by created_at desc limit ?"
+                        : "select * from usage_events where created_at >= ? and created_at <= ? order by created_at desc";
 
         return queryList(
                 sql,
@@ -110,8 +113,7 @@ public class SqliteUsageEventRepository extends SqliteRepositorySupport implemen
                         stmt.setInt(3, Math.max(1, Math.min(limit <= 0 ? 1000 : limit, 10000)));
                     }
                 },
-                this::map
-        );
+                this::map);
     }
 
     /**

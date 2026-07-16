@@ -4,19 +4,16 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.ContentType;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
-
 import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-
-import org.noear.snack4.ONode;
-
 import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import org.noear.snack4.ONode;
 
 /** OpenAI 图片生成 Provider，支持文本生成和多图编辑。 */
 public class OpenAiImageProvider implements ImageGenProvider {

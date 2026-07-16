@@ -8,7 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 定义本地模型 provider 初始化模板，供 CLI/TUI/slash 共享同一套展示与写入规则。 */
+/** 定义本地模型 provider 初始化模板，供 TUI 与 slash 共享同一套展示与写入规则。 */
 public final class RuntimeProviderSetupSpec {
     /** 按用户配置时最常见的顺序展示受支持 provider 模板。 */
     private static final List<ProviderTemplate> PROVIDERS =

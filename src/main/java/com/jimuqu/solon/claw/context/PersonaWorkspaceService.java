@@ -297,6 +297,10 @@ public class PersonaWorkspaceService {
         String resource = TEMPLATE_ROOT + fileName(key);
         InputStream stream = getClass().getClassLoader().getResourceAsStream(resource);
         if (stream == null) {
+            if (ContextFileConstants.KEY_MEMORY.equals(normalized)
+                    || ContextFileConstants.KEY_SOUL.equals(normalized)) {
+                return "";
+            }
             throw new IllegalStateException("Missing persona template resource: " + resource);
         }
         try {

@@ -19,7 +19,7 @@ public class HomeChannelCommandTest {
         GatewayReply denied =
                 env.gatewayService.handle(
                         env.message("group-1", "user-b", "group", "Dev Group", "Bob", "/sethome"));
-        assertThat(denied).isNull();
+        assertThat(denied).isNotNull();
 
         GatewayReply success =
                 env.gatewayService.handle(

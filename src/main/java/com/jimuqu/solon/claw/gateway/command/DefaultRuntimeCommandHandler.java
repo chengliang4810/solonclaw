@@ -1,19 +1,16 @@
 package com.jimuqu.solon.claw.gateway.command;
 
-import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
-import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
-import java.util.Map;
 
-/** 处理人格切换和主动协作等运行时控制面命令。 */
+/** 处理主动协作等运行时控制面命令。 */
 final class DefaultRuntimeCommandHandler {
-    /** 应用配置，用于读取人格和主动协作运行配置。 */
+    /** 应用配置，用于读取主动协作运行配置。 */
     private final AppConfig appConfig;
 
-    /** 全局设置仓储，用于保存人格和主动协作设置覆盖。 */
+    /** 全局设置仓储，用于保存主动协作设置覆盖。 */
     private final GlobalSettingRepository globalSettingRepository;
 
     /**
@@ -26,53 +23,6 @@ final class DefaultRuntimeCommandHandler {
             AppConfig appConfig, GlobalSettingRepository globalSettingRepository) {
         this.appConfig = appConfig;
         this.globalSettingRepository = globalSettingRepository;
-    }
-
-    /** 执行人格命令相关逻辑。 */
-    GatewayReply handlePersonality(String args) throws Exception {
-        Map<String, AppConfig.PersonalityConfig> personalities =
-                appConfig.getAgent().getPersonalities();
-        if (personalities == null || personalities.isEmpty()) {
-            return GatewayReply.error("当前没有可用的人格配置。");
-        }
-        if (StrUtil.isBlank(args)) {
-            StringBuilder buffer = new StringBuilder();
-            buffer.append("可用人格：\n");
-            buffer.append("- none: 清除人格覆盖\n");
-            for (Map.Entry<String, AppConfig.PersonalityConfig> entry : personalities.entrySet()) {
-                String description =
-                        entry.getValue() == null
-                                ? ""
-                                : StrUtil.blankToDefault(entry.getValue().getDescription(), "无描述");
-                buffer.append("- ")
-                        .append(entry.getKey())
-                        .append(": ")
-                        .append(description)
-                        .append('\n');
-            }
-            buffer.append("当前激活：").append(currentPersonalityName());
-            return GatewayReply.ok(buffer.toString().trim());
-        }
-
-        if ("none".equalsIgnoreCase(args)
-                || "default".equalsIgnoreCase(args)
-                || "neutral".equalsIgnoreCase(args)) {
-            globalSettingRepository.remove(AgentSettingConstants.ACTIVE_PERSONALITY);
-            return GatewayReply.ok("已清除人格覆盖，下一条消息恢复默认行为。");
-        }
-
-        String matchedName = null;
-        for (String name : personalities.keySet()) {
-            if (name.equalsIgnoreCase(args)) {
-                matchedName = name;
-                break;
-            }
-        }
-        if (matchedName == null) {
-            return GatewayReply.error("未知人格：" + args);
-        }
-        globalSettingRepository.set(AgentSettingConstants.ACTIVE_PERSONALITY, matchedName);
-        return GatewayReply.ok("已切换人格为：" + matchedName + "，将从下一条消息开始生效。");
     }
 
     /**
@@ -111,20 +61,6 @@ final class DefaultRuntimeCommandHandler {
         reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_PROACTIVE);
         reply.getRuntimeMetadata().put("action", action);
         return reply;
-    }
-
-    /**
-     * 执行当前Personality名称相关逻辑。
-     *
-     * @return 返回当前Personality名称结果。
-     */
-    String currentPersonalityName() {
-        try {
-            String value = globalSettingRepository.get(AgentSettingConstants.ACTIVE_PERSONALITY);
-            return StrUtil.blankToDefault(value, "default");
-        } catch (Exception e) {
-            return "default";
-        }
     }
 
     /**

@@ -10,7 +10,7 @@ import java.util.Map;
 
 /** 维护命令注册信息，供运行时按需查询和装配。 */
 public final class CommandRegistry {
-    /** 命令可在本地 CLI 入口使用。 */
+    /** 命令可在本地 TUI 入口使用。 */
     public static final String SCOPE_CLI = "cli";
 
     /** 命令可在消息网关入口使用。 */
@@ -23,7 +23,7 @@ public final class CommandRegistry {
     private static final Map<String, CommandDescriptor> COMMANDS =
             new LinkedHashMap<String, CommandDescriptor>();
 
-    /** 命令别名到规范名的索引，用于让 CLI、TUI、消息网关共享解析结果。 */
+    /** 命令别名到规范名的索引，用于让 TUI 与消息网关共享解析结果。 */
     private static final Map<String, String> ALIASES = new LinkedHashMap<String, String>();
 
     static {
@@ -51,9 +51,7 @@ public final class CommandRegistry {
         register(core("restart", "runtime", "等待运行中任务 drain 后重启网关"));
         register(core("stop", "runtime", "停止当前任务和后台进程"));
         register(core("security", "security", "查看安全策略、审批、审计与终端安全状态"));
-        register(core("personality", "agent", "查看或切换人格"));
         register(core("version", "system", "查看版本或执行更新"));
-        register(core("update", "system", "执行应用更新"));
         register(core("setup", "configuration", "配置模型、消息渠道与初始化设置"));
         register(core("config", "configuration", "查看或写入本地运行配置"));
         register(core("model", "model", "查看或切换模型"));
@@ -87,7 +85,6 @@ public final class CommandRegistry {
         register(terminal("background", "管理后台任务运行方式").alias("bg").alias("btw"));
         register(terminal("tasks", "查看后台任务列表").alias("agents"));
         register(terminal("statusbar", "管理 TUI 状态栏显示").alias("status-bar").alias("sb"));
-        register(terminal("skin", "查看或切换 TUI 皮肤"));
         register(terminal("copy", "复制终端选区或输出"));
         register(terminal("paste", "粘贴终端剪贴板内容"));
         register(terminal("image", "附加或管理图片输入"));
@@ -147,7 +144,7 @@ public final class CommandRegistry {
      *
      * @param category 分类参数。
      * @param description 描述参数。
-     * @return 默认支持 CLI、消息网关和 TUI 的命令构建器。
+     * @return 默认支持消息网关和 TUI 的命令构建器。
      */
     private static CommandDescriptor.Builder core(
             String name, String category, String description) {

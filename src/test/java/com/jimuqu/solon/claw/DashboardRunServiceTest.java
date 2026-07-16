@@ -510,8 +510,7 @@ public class DashboardRunServiceTest {
         }
 
         @Override
-        public void markQueuedMessage(
-                String queueId, String status, long timestamp, String error) {
+        public void markQueuedMessage(String queueId, String status, long timestamp, String error) {
             return;
         }
 

@@ -323,7 +323,7 @@ public class ProfileMultiplexRuntimeManager implements ProfileMessageRouter, Aut
     /**
      * 返回或只启动指定命名 Profile，供 Dashboard 会话等显式跨 Profile 请求复用。
      *
-     * <p>普通 CLI/TUI Bean 初始化不会调用此方法，因此仍不会批量启动所有 Profile；只有调用方明确请求的一个 Profile 会被装配。
+     * <p>终端 UI Bean 初始化不会调用此方法，因此仍不会批量启动所有 Profile；只有调用方明确请求的一个 Profile 会被装配。
      *
      * @param profile 命名 Profile。
      * @return 已启动的独立 Profile 运行时。

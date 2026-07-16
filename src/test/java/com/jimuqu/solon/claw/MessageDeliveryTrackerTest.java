@@ -74,8 +74,7 @@ public class MessageDeliveryTrackerTest {
                 "thread-b");
 
         boolean consumed =
-                MessageDeliveryTracker.consumeDirectDelivery(
-                        "FEISHU:chat-e:thread-a:user-e");
+                MessageDeliveryTracker.consumeDirectDelivery("FEISHU:chat-e:thread-a:user-e");
 
         assertThat(consumed).isFalse();
     }
@@ -94,7 +93,6 @@ public class MessageDeliveryTrackerTest {
 
         MessageDeliveryTracker.clearDirectDelivery("WEIXIN:chat-f:user-f");
 
-        assertThat(MessageDeliveryTracker.consumeDirectDelivery("WEIXIN:chat-f:user-f"))
-                .isFalse();
+        assertThat(MessageDeliveryTracker.consumeDirectDelivery("WEIXIN:chat-f:user-f")).isFalse();
     }
 }

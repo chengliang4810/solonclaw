@@ -3,7 +3,6 @@ package com.jimuqu.solon.claw.storage.repository;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -11,7 +10,8 @@ import lombok.RequiredArgsConstructor;
 
 /** SQLite 危险命令审批审计仓储。 */
 @RequiredArgsConstructor
-public class SqliteApprovalAuditRepository extends SqliteRepositorySupport implements ApprovalAuditRepository {
+public class SqliteApprovalAuditRepository extends SqliteRepositorySupport
+        implements ApprovalAuditRepository {
     /** 记录SQLite审批审计中的数据库。 */
     private final SqliteDatabase database;
 
@@ -51,8 +51,7 @@ public class SqliteApprovalAuditRepository extends SqliteRepositorySupport imple
                     stmt.setLong(16, event.getCreatedAt());
                     stmt.setLong(17, event.getApprovalCreatedAt());
                     stmt.setLong(18, event.getApprovalExpiresAt());
-                }
-        );
+                });
     }
 
     /**
@@ -67,8 +66,7 @@ public class SqliteApprovalAuditRepository extends SqliteRepositorySupport imple
         return queryList(
                 "select event_id, session_id, event_type, choice, outcome, status, approved, approver, tool_name, approval_id, approval_key, command_hash, command_preview, description, pattern_keys_json, created_at, approval_created_at, approval_expires_at from approval_audit_events order by created_at desc limit ?",
                 stmt -> stmt.setInt(1, effectiveLimit),
-                this::map
-        );
+                this::map);
     }
 
     /**

@@ -143,8 +143,9 @@ public class McpRuntimeServiceTest {
                         .appConfig(env.appConfig)
                         .preferenceStore(new SqlitePreferenceStore(env.sqliteDatabase))
                         .sessionRepository(env.sessionRepository)
-                        .cronJobService(new com.jimuqu.solon.claw.scheduler.CronJobService(
-                                env.appConfig, env.cronJobRepository))
+                        .cronJobService(
+                                new com.jimuqu.solon.claw.scheduler.CronJobService(
+                                        env.appConfig, env.cronJobRepository))
                         .deliveryService(env.deliveryService)
                         .gatewayRuntimeRefreshService(env.gatewayRuntimeRefreshService)
                         .securityPolicyService(new SecurityPolicyService(env.appConfig))

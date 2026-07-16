@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
-import com.jimuqu.solon.claw.bootstrap.ContextConfiguration;
 import com.jimuqu.solon.claw.context.AsyncSkillLearningService;
 import com.jimuqu.solon.claw.context.BuiltinMemoryProvider;
 import com.jimuqu.solon.claw.context.DefaultMemoryManager;

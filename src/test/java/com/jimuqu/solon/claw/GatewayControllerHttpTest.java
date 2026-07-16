@@ -9,13 +9,11 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
-import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
 import com.jimuqu.solon.claw.support.MessageSupport;
-import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import java.io.BufferedReader;
 import java.io.File;
@@ -80,23 +78,7 @@ public class GatewayControllerHttpTest {
     }
 
     @Test
-    void shouldHandlePersonalityStatusAndResetThroughHttpController() throws Exception {
-        postMessage("http-admin-chat", "http-admin", "/personality none");
-
-        GatewayReply listReply = postMessage("http-admin-chat", "http-admin", "/personality");
-        assertThat(listReply.getContent()).contains("helpful").contains("concise");
-
-        GatewayReply setReply =
-                postMessage("http-admin-chat", "http-admin", "/personality concise");
-        assertThat(setReply.getContent()).contains("concise");
-
-        GlobalSettingRepository globalSettingRepository = bean(GlobalSettingRepository.class);
-        assertThat(globalSettingRepository.get(AgentSettingConstants.ACTIVE_PERSONALITY))
-                .isEqualTo("concise");
-
-        GatewayReply statusReply = postMessage("http-admin-chat", "http-admin", "/status");
-        assertThat(statusReply.getContent()).contains("personality=concise");
-
+    void shouldHandleResetThroughHttpController() throws Exception {
         GatewayReply firstNew = postMessage("http-admin-chat", "http-admin", "/new");
         GatewayReply resetReply = postMessage("http-admin-chat", "http-admin", "/reset");
         assertThat(resetReply.getSessionId()).isNotEqualTo(firstNew.getSessionId());

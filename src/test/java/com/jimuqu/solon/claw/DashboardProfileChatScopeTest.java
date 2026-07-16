@@ -7,14 +7,12 @@ import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.web.DashboardChatController;
 import com.jimuqu.solon.claw.web.DashboardRunController;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
-
-import org.junit.jupiter.api.Test;
-import org.noear.solon.core.handle.Context;
-import org.noear.solon.core.handle.ContextEmpty;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.noear.solon.core.handle.Context;
+import org.noear.solon.core.handle.ContextEmpty;
 
 /** 验证 Dashboard Chat 按请求 Profile 选择独立网关并保留稳定错误语义。 */
 public class DashboardProfileChatScopeTest {

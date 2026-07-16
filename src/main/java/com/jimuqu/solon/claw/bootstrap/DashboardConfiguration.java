@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
+import com.jimuqu.solon.claw.core.repository.ProfileTaskRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
@@ -62,6 +63,7 @@ import com.jimuqu.solon.claw.web.DashboardMediaService;
 import com.jimuqu.solon.claw.web.DashboardPairingService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProfileService;
+import com.jimuqu.solon.claw.web.DashboardProfileTaskService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
@@ -80,6 +82,13 @@ import org.noear.solon.core.handle.Filter;
 /** 承载控制台配置并集中创建运行组件。 */
 @Configuration
 public class DashboardConfiguration {
+    /** 创建协作任务 Dashboard 应用服务。 */
+    @Bean
+    public DashboardProfileTaskService dashboardProfileTaskService(
+            ProfileTaskRepository profileTaskRepository, AppConfig appConfig) {
+        return new DashboardProfileTaskService(profileTaskRepository, appConfig);
+    }
+
     /**
      * 创建机器级 Profile 管理器，供 Dashboard 和后续 Profile 作用域服务复用。
      *

@@ -862,6 +862,27 @@ public class SqliteDatabase {
             addColumn(statement, "agent_profiles", "default_model text");
             addColumn(statement, "agent_profiles", "enabled integer not null default 1");
             addColumn(statement, "agent_profiles", "last_used_at integer not null default 0");
+            statement.execute(
+                    "create table if not exists profile_tasks ("
+                            + "task_id text primary key, source_profile text not null,"
+                            + "target_profile text not null, source_key text not null,"
+                            + "title text not null, prompt text not null, status text not null,"
+                            + "dependency_ids_json text not null default '[]',"
+                            + "attempt_count integer not null default 0,"
+                            + "max_attempts integer not null default 5,"
+                            + "timeout_minutes integer not null default 30,"
+                            + "execution_token text, result text, error text,"
+                            + "created_at integer not null, updated_at integer not null)");
+            statement.execute(
+                    "create index if not exists idx_profile_tasks_dispatch "
+                            + "on profile_tasks(status, target_profile, created_at)");
+            statement.execute(
+                    "create table if not exists profile_task_attempts ("
+                            + "task_id text not null, attempt integer not null,"
+                            + "execution_token text not null unique, prompt text not null,"
+                            + "status text not null, result text, error text,"
+                            + "started_at integer not null, completed_at integer not null default 0,"
+                            + "primary key(task_id, attempt))");
             try {
                 statement.execute(
                         "update agent_profiles set default_model = model where (default_model is null or default_model = '') and model is not null");

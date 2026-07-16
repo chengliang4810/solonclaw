@@ -127,8 +127,7 @@ class ProfileMultiplexRuntimeManagerTest {
         SqliteDatabase defaultDatabase = new SqliteDatabase(defaultConfig);
         SqliteDatabase alphaDatabase = new SqliteDatabase(alphaConfig);
         CapturingDeliveryService currentDelivery = new CapturingDeliveryService();
-        ChannelStatus alphaStatus =
-                new ChannelStatus(PlatformType.FEISHU, true, true, "connected");
+        ChannelStatus alphaStatus = new ChannelStatus(PlatformType.FEISHU, true, true, "connected");
         CapturingDeliveryService alphaDelivery = new CapturingDeliveryService(alphaStatus);
         ProfileRuntimeBundleFactory factory =
                 new ProfileRuntimeBundleFactory(detachedContext()) {
@@ -142,12 +141,7 @@ class ProfileMultiplexRuntimeManagerTest {
                         AppContext child = detachedContext();
                         child.wrapAndPut(DeliveryService.class, alphaDelivery);
                         return new ProfileRuntimeBundle(
-                                profile,
-                                home,
-                                environment,
-                                appConfig,
-                                child,
-                                gateway(appConfig));
+                                profile, home, environment, appConfig, child, gateway(appConfig));
                     }
                 };
         ProfileMultiplexRuntimeManager manager =
@@ -369,8 +363,7 @@ class ProfileMultiplexRuntimeManagerTest {
     /** 读取欢迎消息投递状态。 */
     @SuppressWarnings("unchecked")
     private String welcomeStatus(Map<String, Object> result) {
-        Map<String, Object> welcome =
-                (Map<String, Object>) result.get("welcome_delivery");
+        Map<String, Object> welcome = (Map<String, Object>) result.get("welcome_delivery");
         return String.valueOf(welcome.get("status"));
     }
 

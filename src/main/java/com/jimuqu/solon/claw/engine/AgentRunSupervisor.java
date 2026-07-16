@@ -880,7 +880,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
         boolean subagentRun =
                 parentContext != null
                         && !StrUtil.equals(parentContext.getSourceKey(), session.getSourceKey());
-        runRecord.setRunKind(subagentRun ? "subagent" : (resume ? "resume" : "conversation"));
+        boolean profileTaskRun = session.getSourceKey().contains("PROFILE_TASK:");
+        runRecord.setRunKind(
+                profileTaskRun
+                        ? "profile_task"
+                        : (subagentRun ? "subagent" : (resume ? "resume" : "conversation")));
         runRecord.setParentRunId(subagentRun ? parentContext.getRunId() : null);
         runRecord.setAgentName(agentScope.getEffectiveName());
         runRecord.setAgentSnapshotJson(agentScope.getSnapshotJson());

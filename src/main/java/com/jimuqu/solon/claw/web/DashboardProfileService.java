@@ -474,45 +474,6 @@ public class DashboardProfileService {
         return result;
     }
 
-    /**
-     * 返回配置 Profile 的 CLI 命令，供 Dashboard 复制到终端。
-     *
-     * @param name Profile 名。
-     * @return setup 命令。
-     * @throws Exception Profile 不存在。
-     */
-    public Map<String, Object> setupCommand(String name) throws Exception {
-        ProfileView view = profileManager.profileView(name);
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put(
-                "command",
-                "default".equals(view.getName()) ? "solonclaw setup" : view.getName() + " setup");
-        return result;
-    }
-
-    /**
-     * 在本机终端中打开指定 Profile 的 setup 命令，所有可执行文件和参数均独立传给 ProcessBuilder。
-     *
-     * @param name Profile 名。
-     * @return 用户可见 setup 命令。
-     * @throws Exception Profile 或终端启动失败。
-     */
-    public Map<String, Object> openTerminal(String name) throws Exception {
-        ProfileView view = profileManager.profileView(name);
-        Path home = validatedTerminalHome(view);
-        List<String> command = applicationLaunchCommand();
-        command.add("--profile");
-        command.add(view.getName());
-        command.add("setup");
-        launchProfileTerminal(home, command);
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("ok", Boolean.TRUE);
-        result.put(
-                "command",
-                "default".equals(view.getName()) ? "solonclaw setup" : view.getName() + " setup");
-        return result;
-    }
-
     /** 校验终端工作目录仍是管理器解析出的直接 Profile 目录，拒绝命名 Profile 符号链接。 */
     private Path validatedTerminalHome(ProfileView view) {
         Path home = view.getHome().toAbsolutePath().normalize();

@@ -16,7 +16,8 @@ import lombok.RequiredArgsConstructor;
 
 /** SqliteGatewayPolicyRepository 实现。 */
 @RequiredArgsConstructor
-public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport implements GatewayPolicyRepository {
+public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport
+        implements GatewayPolicyRepository {
     /** 记录SQLite消息网关策略中的数据库。 */
     private final SqliteDatabase database;
 
@@ -37,8 +38,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
                         + "from home_channels home join platform_admins admin on admin.platform = home.platform "
                         + "where home.platform = ?",
                 stmt -> stmt.setString(1, platformKey(platform)),
-                this::mapHome
-        );
+                this::mapHome);
     }
 
     /**
@@ -52,8 +52,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
                         + "from home_channels home join platform_admins admin on admin.platform = home.platform "
                         + "order by home.is_primary desc, home.platform asc",
                 null,
-                this::mapHome
-        );
+                this::mapHome);
     }
 
     /** {@inheritDoc} */
@@ -64,8 +63,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
                         + "from home_channels home join platform_admins admin on admin.platform = home.platform "
                         + "where home.is_primary = 1 order by home.updated_at desc, home.platform asc limit 1",
                 null,
-                this::mapHome
-        );
+                this::mapHome);
     }
 
     /**
@@ -74,55 +72,61 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
      * @param record 记录参数。
      */
     public void saveHomeChannel(HomeChannelRecord record) throws SQLException {
-        inTransaction(connection -> {
-            boolean primary = record.isPrimary()
-                    || isPrimary(connection, record.getPlatform())
-                    || !hasPrimaryHomeChannel(connection);
-            if (record.isPrimary()) {
-                clearPrimaryHomeChannel(connection);
-            }
-            PreparedStatement statement = connection.prepareStatement(
-                    "insert or replace into home_channels (platform, chat_id, thread_id, chat_name, is_primary, updated_at) values (?, ?, ?, ?, ?, ?)");
-            statement.setString(1, platformKey(record.getPlatform()));
-            statement.setString(2, record.getChatId());
-            statement.setString(3, record.getThreadId());
-            statement.setString(4, record.getChatName());
-            statement.setInt(5, primary ? 1 : 0);
-            statement.setLong(6, record.getUpdatedAt());
-            statement.executeUpdate();
-            statement.close();
-            record.setPrimary(primary);
-            return null;
-        });
+        inTransaction(
+                connection -> {
+                    boolean primary =
+                            record.isPrimary()
+                                    || isPrimary(connection, record.getPlatform())
+                                    || !hasPrimaryHomeChannel(connection);
+                    if (record.isPrimary()) {
+                        clearPrimaryHomeChannel(connection);
+                    }
+                    PreparedStatement statement =
+                            connection.prepareStatement(
+                                    "insert or replace into home_channels (platform, chat_id, thread_id, chat_name, is_primary, updated_at) values (?, ?, ?, ?, ?, ?)");
+                    statement.setString(1, platformKey(record.getPlatform()));
+                    statement.setString(2, record.getChatId());
+                    statement.setString(3, record.getThreadId());
+                    statement.setString(4, record.getChatName());
+                    statement.setInt(5, primary ? 1 : 0);
+                    statement.setLong(6, record.getUpdatedAt());
+                    statement.executeUpdate();
+                    statement.close();
+                    record.setPrimary(primary);
+                    return null;
+                });
     }
 
     /** {@inheritDoc} */
     @Override
     public HomeChannelRecord setPrimaryHomeChannel(PlatformType platform) throws SQLException {
-        return inTransaction(connection -> {
-            clearPrimaryHomeChannel(connection);
-            PreparedStatement update = connection.prepareStatement(
-                    "update home_channels set is_primary = 1 where platform = ?");
-            update.setString(1, platformKey(platform));
-            int affected = update.executeUpdate();
-            update.close();
-            if (affected != 1) {
-                throw new IllegalArgumentException("目标平台尚未绑定 home channel。");
-            }
-            PreparedStatement select = connection.prepareStatement(
-                    "select platform, chat_id, thread_id, chat_name, is_primary, updated_at from home_channels where platform = ?");
-            select.setString(1, platformKey(platform));
-            ResultSet resultSet = select.executeQuery();
-            try {
-                if (!resultSet.next()) {
-                    throw new IllegalStateException("主要通知渠道写入后无法读取。");
-                }
-                return mapHome(resultSet);
-            } finally {
-                resultSet.close();
-                select.close();
-            }
-        });
+        return inTransaction(
+                connection -> {
+                    clearPrimaryHomeChannel(connection);
+                    PreparedStatement update =
+                            connection.prepareStatement(
+                                    "update home_channels set is_primary = 1 where platform = ?");
+                    update.setString(1, platformKey(platform));
+                    int affected = update.executeUpdate();
+                    update.close();
+                    if (affected != 1) {
+                        throw new IllegalArgumentException("目标平台尚未绑定 home channel。");
+                    }
+                    PreparedStatement select =
+                            connection.prepareStatement(
+                                    "select platform, chat_id, thread_id, chat_name, is_primary, updated_at from home_channels where platform = ?");
+                    select.setString(1, platformKey(platform));
+                    ResultSet resultSet = select.executeQuery();
+                    try {
+                        if (!resultSet.next()) {
+                            throw new IllegalStateException("主要通知渠道写入后无法读取。");
+                        }
+                        return mapHome(resultSet);
+                    } finally {
+                        resultSet.close();
+                        select.close();
+                    }
+                });
     }
 
     /**
@@ -135,8 +139,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
         return queryOne(
                 "select platform, user_id, user_name, chat_id, created_at from platform_admins where platform = ?",
                 stmt -> stmt.setString(1, platformKey(platform)),
-                this::mapAdmin
-        );
+                this::mapAdmin);
     }
 
     /**
@@ -146,63 +149,68 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
      * @return 返回创建好的平台管理员If Absent。
      */
     public boolean createPlatformAdminIfAbsent(PlatformAdminRecord record) throws SQLException {
-        int affected = executeUpdate(
-                "insert or ignore into platform_admins (platform, user_id, user_name, chat_id, created_at) values (?, ?, ?, ?, ?)",
-                stmt -> {
-                    stmt.setString(1, platformKey(record.getPlatform()));
-                    stmt.setString(2, record.getUserId());
-                    stmt.setString(3, record.getUserName());
-                    stmt.setString(4, record.getChatId());
-                    stmt.setLong(5, record.getCreatedAt());
-                }
-        );
+        int affected =
+                executeUpdate(
+                        "insert or ignore into platform_admins (platform, user_id, user_name, chat_id, created_at) values (?, ?, ?, ?, ?)",
+                        stmt -> {
+                            stmt.setString(1, platformKey(record.getPlatform()));
+                            stmt.setString(2, record.getUserId());
+                            stmt.setString(3, record.getUserName());
+                            stmt.setString(4, record.getChatId());
+                            stmt.setLong(5, record.getCreatedAt());
+                        });
         return affected > 0;
     }
 
     /** 在同一事务中首次绑定管理员、默认私聊并消费 pairing 请求。 */
     @Override
     public boolean claimPlatformAdminIfAbsent(
-            PairingRequestRecord request, PlatformAdminRecord admin, HomeChannelRecord home) throws SQLException {
-        return inTransaction(connection -> {
-            PreparedStatement insertAdmin = connection.prepareStatement(
-                    "insert or ignore into platform_admins (platform, user_id, user_name, chat_id, created_at) values (?, ?, ?, ?, ?)");
-            insertAdmin.setString(1, platformKey(admin.getPlatform()));
-            insertAdmin.setString(2, admin.getUserId());
-            insertAdmin.setString(3, admin.getUserName());
-            insertAdmin.setString(4, admin.getChatId());
-            insertAdmin.setLong(5, admin.getCreatedAt());
-            int adminInserted = insertAdmin.executeUpdate();
-            insertAdmin.close();
-            if (adminInserted == 0) {
-                connection.rollback();
-                return false;
-            }
+            PairingRequestRecord request, PlatformAdminRecord admin, HomeChannelRecord home)
+            throws SQLException {
+        return inTransaction(
+                connection -> {
+                    PreparedStatement insertAdmin =
+                            connection.prepareStatement(
+                                    "insert or ignore into platform_admins (platform, user_id, user_name, chat_id, created_at) values (?, ?, ?, ?, ?)");
+                    insertAdmin.setString(1, platformKey(admin.getPlatform()));
+                    insertAdmin.setString(2, admin.getUserId());
+                    insertAdmin.setString(3, admin.getUserName());
+                    insertAdmin.setString(4, admin.getChatId());
+                    insertAdmin.setLong(5, admin.getCreatedAt());
+                    int adminInserted = insertAdmin.executeUpdate();
+                    insertAdmin.close();
+                    if (adminInserted == 0) {
+                        connection.rollback();
+                        return false;
+                    }
 
-            PreparedStatement saveHome = connection.prepareStatement(
-                    "insert or replace into home_channels (platform, chat_id, thread_id, chat_name, is_primary, updated_at) values (?, ?, ?, ?, ?, ?)");
-            boolean primary = !hasPrimaryHomeChannel(connection);
-            saveHome.setString(1, platformKey(home.getPlatform()));
-            saveHome.setString(2, home.getChatId());
-            saveHome.setString(3, home.getThreadId());
-            saveHome.setString(4, home.getChatName());
-            saveHome.setInt(5, primary ? 1 : 0);
-            saveHome.setLong(6, home.getUpdatedAt());
-            saveHome.executeUpdate();
-            saveHome.close();
-            home.setPrimary(primary);
+                    PreparedStatement saveHome =
+                            connection.prepareStatement(
+                                    "insert or replace into home_channels (platform, chat_id, thread_id, chat_name, is_primary, updated_at) values (?, ?, ?, ?, ?, ?)");
+                    boolean primary = !hasPrimaryHomeChannel(connection);
+                    saveHome.setString(1, platformKey(home.getPlatform()));
+                    saveHome.setString(2, home.getChatId());
+                    saveHome.setString(3, home.getThreadId());
+                    saveHome.setString(4, home.getChatName());
+                    saveHome.setInt(5, primary ? 1 : 0);
+                    saveHome.setLong(6, home.getUpdatedAt());
+                    saveHome.executeUpdate();
+                    saveHome.close();
+                    home.setPrimary(primary);
 
-            PreparedStatement consumeRequest = connection.prepareStatement(
-                    "delete from pairing_requests where platform = ? and code = ? and user_id = ?");
-            consumeRequest.setString(1, platformKey(request.getPlatform()));
-            consumeRequest.setString(2, request.getCode());
-            consumeRequest.setString(3, request.getUserId());
-            int consumed = consumeRequest.executeUpdate();
-            consumeRequest.close();
-            if (consumed != 1) {
-                throw new IllegalStateException("pairing 请求已被消费，请刷新后重试。");
-            }
-            return true;
-        });
+                    PreparedStatement consumeRequest =
+                            connection.prepareStatement(
+                                    "delete from pairing_requests where platform = ? and code = ? and user_id = ?");
+                    consumeRequest.setString(1, platformKey(request.getPlatform()));
+                    consumeRequest.setString(2, request.getCode());
+                    consumeRequest.setString(3, request.getUserId());
+                    int consumed = consumeRequest.executeUpdate();
+                    consumeRequest.close();
+                    if (consumed != 1) {
+                        throw new IllegalStateException("pairing 请求已被消费，请刷新后重试。");
+                    }
+                    return true;
+                });
     }
 
     /** {@inheritDoc} */
@@ -216,24 +224,28 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
                     stmt.setString(3, record.getUserName());
                     stmt.setString(4, record.getChatId());
                     stmt.setLong(5, record.getCreatedAt());
-                }
-        );
+                });
     }
 
     /** {@inheritDoc} */
     @Override
     public void deletePlatformAdmin(PlatformType platform) throws SQLException {
-        inTransaction(connection -> {
-            PreparedStatement deleteAdmin = connection.prepareStatement("delete from platform_admins where platform = ?");
-            deleteAdmin.setString(1, platformKey(platform));
-            deleteAdmin.executeUpdate();
-            deleteAdmin.close();
-            PreparedStatement deleteHome = connection.prepareStatement("delete from home_channels where platform = ?");
-            deleteHome.setString(1, platformKey(platform));
-            deleteHome.executeUpdate();
-            deleteHome.close();
-            return null;
-        });
+        inTransaction(
+                connection -> {
+                    PreparedStatement deleteAdmin =
+                            connection.prepareStatement(
+                                    "delete from platform_admins where platform = ?");
+                    deleteAdmin.setString(1, platformKey(platform));
+                    deleteAdmin.executeUpdate();
+                    deleteAdmin.close();
+                    PreparedStatement deleteHome =
+                            connection.prepareStatement(
+                                    "delete from home_channels where platform = ?");
+                    deleteHome.setString(1, platformKey(platform));
+                    deleteHome.executeUpdate();
+                    deleteHome.close();
+                    return null;
+                });
     }
 
     /**
@@ -243,15 +255,15 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
      * @param userId 用户标识。
      * @return 返回读取到的Approved用户。
      */
-    public ApprovedUserRecord getApprovedUser(PlatformType platform, String userId) throws SQLException {
+    public ApprovedUserRecord getApprovedUser(PlatformType platform, String userId)
+            throws SQLException {
         return queryOne(
                 "select platform, user_id, user_name, approved_at, approved_by from approved_users where platform = ? and user_id = ?",
                 stmt -> {
                     stmt.setString(1, platformKey(platform));
                     stmt.setString(2, userId);
                 },
-                this::mapApproved
-        );
+                this::mapApproved);
     }
 
     /**
@@ -268,8 +280,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
                     stmt.setString(3, record.getUserName());
                     stmt.setLong(4, record.getApprovedAt());
                     stmt.setString(5, record.getApprovedBy());
-                }
-        );
+                });
     }
 
     /**
@@ -284,8 +295,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
                 stmt -> {
                     stmt.setString(1, platformKey(platform));
                     stmt.setString(2, userId);
-                }
-        );
+                });
     }
 
     /**
@@ -298,8 +308,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
         return queryList(
                 "select platform, user_id, user_name, approved_at, approved_by from approved_users where platform = ? order by approved_at asc",
                 stmt -> stmt.setString(1, platformKey(platform)),
-                this::mapApproved
-        );
+                this::mapApproved);
     }
 
     /**
@@ -311,8 +320,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
     public int countApprovedUsers(PlatformType platform) throws SQLException {
         return queryInt(
                 "select count(*) from approved_users where platform = ?",
-                stmt -> stmt.setString(1, platformKey(platform))
-        );
+                stmt -> stmt.setString(1, platformKey(platform)));
     }
 
     /**
@@ -322,12 +330,13 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
      * @param code code 参数。
      * @return 返回读取到的配对请求。
      */
-    public PairingRequestRecord getPairingRequest(PlatformType platform, String code) throws Exception {
-        List<PairingRequestRecord> requests = queryList(
-                "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? order by created_at asc",
-                stmt -> stmt.setString(1, platformKey(platform)),
-                this::mapPairing
-        );
+    public PairingRequestRecord getPairingRequest(PlatformType platform, String code)
+            throws Exception {
+        List<PairingRequestRecord> requests =
+                queryList(
+                        "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? order by created_at asc",
+                        stmt -> stmt.setString(1, platformKey(platform)),
+                        this::mapPairing);
         for (PairingRequestRecord record : requests) {
             if (PairingCodeHash.matches(code, record.getCode())) {
                 return record;
@@ -343,12 +352,12 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
      * @return 返回配对请求列表。
      */
     @Override
-    public List<PairingRequestRecord> listPairingRequests(PlatformType platform) throws SQLException {
+    public List<PairingRequestRecord> listPairingRequests(PlatformType platform)
+            throws SQLException {
         return queryList(
                 "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? order by created_at desc",
                 stmt -> stmt.setString(1, platformKey(platform)),
-                this::mapPairing
-        );
+                this::mapPairing);
     }
 
     /**
@@ -358,15 +367,15 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
      * @param userId 用户标识。
      * @return 返回读取到的Latest用户配对请求。
      */
-    public PairingRequestRecord getLatestUserPairingRequest(PlatformType platform, String userId) throws SQLException {
+    public PairingRequestRecord getLatestUserPairingRequest(PlatformType platform, String userId)
+            throws SQLException {
         return queryOne(
                 "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? and user_id = ? order by created_at desc limit 1",
                 stmt -> {
                     stmt.setString(1, platformKey(platform));
                     stmt.setString(2, userId);
                 },
-                this::mapPairing
-        );
+                this::mapPairing);
     }
 
     /**
@@ -379,14 +388,17 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
                 "insert or replace into pairing_requests (platform, code, user_id, user_name, chat_id, created_at, expires_at) values (?, ?, ?, ?, ?, ?, ?)",
                 stmt -> {
                     stmt.setString(1, platformKey(record.getPlatform()));
-                    stmt.setString(2, PairingCodeHash.isHash(record.getCode()) ? record.getCode() : PairingCodeHash.hash(record.getCode()));
+                    stmt.setString(
+                            2,
+                            PairingCodeHash.isHash(record.getCode())
+                                    ? record.getCode()
+                                    : PairingCodeHash.hash(record.getCode()));
                     stmt.setString(3, record.getUserId());
                     stmt.setString(4, record.getUserName());
                     stmt.setString(5, record.getChatId());
                     stmt.setLong(6, record.getCreatedAt());
                     stmt.setLong(7, record.getExpiresAt());
-                }
-        );
+                });
     }
 
     /**
@@ -400,55 +412,64 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
     @Override
     public boolean trySavePairingRequest(
             PairingRequestRecord record, long nowEpochMillis, int maxPending) throws SQLException {
-        return inTransaction(connection -> {
-            /* 清理过期请求 */
-            PreparedStatement deleteExpired = connection.prepareStatement(
-                    "delete from pairing_requests where platform = ? and expires_at < ?");
-            deleteExpired.setString(1, platformKey(record.getPlatform()));
-            deleteExpired.setLong(2, nowEpochMillis);
-            deleteExpired.executeUpdate();
-            deleteExpired.close();
+        return inTransaction(
+                connection -> {
+                    /* 清理过期请求 */
+                    PreparedStatement deleteExpired =
+                            connection.prepareStatement(
+                                    "delete from pairing_requests where platform = ? and expires_at < ?");
+                    deleteExpired.setString(1, platformKey(record.getPlatform()));
+                    deleteExpired.setLong(2, nowEpochMillis);
+                    deleteExpired.executeUpdate();
+                    deleteExpired.close();
 
-            /* 检查平台容量 */
-            PreparedStatement countStmt = connection.prepareStatement(
-                    "select count(*) from pairing_requests where platform = ?");
-            countStmt.setString(1, platformKey(record.getPlatform()));
-            ResultSet countRs = countStmt.executeQuery();
-            int pending;
-            try {
-                pending = countRs.next() ? countRs.getInt(1) : 0;
-            } finally {
-                countRs.close();
-                countStmt.close();
-            }
-            if (pending >= maxPending) {
-                return false;
-            }
+                    /* 检查平台容量 */
+                    PreparedStatement countStmt =
+                            connection.prepareStatement(
+                                    "select count(*) from pairing_requests where platform = ?");
+                    countStmt.setString(1, platformKey(record.getPlatform()));
+                    ResultSet countRs = countStmt.executeQuery();
+                    int pending;
+                    try {
+                        pending = countRs.next() ? countRs.getInt(1) : 0;
+                    } finally {
+                        countRs.close();
+                        countStmt.close();
+                    }
+                    if (pending >= maxPending) {
+                        return false;
+                    }
 
-            /* 同一用户始终只保留最新请求。 */
-            PreparedStatement deleteExisting = connection.prepareStatement(
-                    "delete from pairing_requests where platform = ? and user_id = ?");
-            deleteExisting.setString(1, platformKey(record.getPlatform()));
-            deleteExisting.setString(2, record.getUserId());
-            deleteExisting.executeUpdate();
-            deleteExisting.close();
+                    /* 同一用户始终只保留最新请求。 */
+                    PreparedStatement deleteExisting =
+                            connection.prepareStatement(
+                                    "delete from pairing_requests where platform = ? and user_id = ?");
+                    deleteExisting.setString(1, platformKey(record.getPlatform()));
+                    deleteExisting.setString(2, record.getUserId());
+                    deleteExisting.executeUpdate();
+                    deleteExisting.close();
 
-            /* 保存新请求 */
-            PreparedStatement insert = connection.prepareStatement(
-                    "insert into pairing_requests (platform, code, user_id, user_name, chat_id, created_at, expires_at) "
-                    + "values (?, ?, ?, ?, ?, ?, ?)");
-            insert.setString(1, platformKey(record.getPlatform()));
-            insert.setString(2, PairingCodeHash.isHash(record.getCode()) ? record.getCode() : PairingCodeHash.hash(record.getCode()));
-            insert.setString(3, record.getUserId());
-            insert.setString(4, record.getUserName());
-            insert.setString(5, record.getChatId());
-            insert.setLong(6, record.getCreatedAt());
-            insert.setLong(7, record.getExpiresAt());
-            insert.executeUpdate();
-            insert.close();
+                    /* 保存新请求 */
+                    PreparedStatement insert =
+                            connection.prepareStatement(
+                                    "insert into pairing_requests (platform, code, user_id, user_name, chat_id, created_at, expires_at) "
+                                            + "values (?, ?, ?, ?, ?, ?, ?)");
+                    insert.setString(1, platformKey(record.getPlatform()));
+                    insert.setString(
+                            2,
+                            PairingCodeHash.isHash(record.getCode())
+                                    ? record.getCode()
+                                    : PairingCodeHash.hash(record.getCode()));
+                    insert.setString(3, record.getUserId());
+                    insert.setString(4, record.getUserName());
+                    insert.setString(5, record.getChatId());
+                    insert.setLong(6, record.getCreatedAt());
+                    insert.setLong(7, record.getExpiresAt());
+                    insert.executeUpdate();
+                    insert.close();
 
-            return true;
-        });
+                    return true;
+                });
     }
 
     /**
@@ -458,15 +479,15 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
      * @param code code 参数。
      * @param userId 用户标识。
      */
-    public void consumePairingRequest(PlatformType platform, String code, String userId) throws SQLException {
+    public void consumePairingRequest(PlatformType platform, String code, String userId)
+            throws SQLException {
         executeUpdate(
                 "delete from pairing_requests where platform = ? and code = ? and user_id = ?",
                 stmt -> {
                     stmt.setString(1, platformKey(platform));
                     stmt.setString(2, code);
                     stmt.setString(3, userId);
-                }
-        );
+                });
     }
 
     /**
@@ -482,8 +503,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
                 stmt -> {
                     stmt.setString(1, platformKey(platform));
                     stmt.setString(2, code);
-                }
-        );
+                });
     }
 
     /**
@@ -492,12 +512,12 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
      * @param nowEpochMillis nowEpochMillis 参数。
      * @return 返回过期Pairing Requests列表。
      */
-    public List<PairingRequestRecord> listExpiredPairingRequests(long nowEpochMillis) throws SQLException {
+    public List<PairingRequestRecord> listExpiredPairingRequests(long nowEpochMillis)
+            throws SQLException {
         return queryList(
                 "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where expires_at < ?",
                 stmt -> stmt.setLong(1, nowEpochMillis),
-                this::mapPairing
-        );
+                this::mapPairing);
     }
 
     /**
@@ -507,14 +527,14 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
      * @param nowEpochMillis nowEpochMillis 参数。
      */
     @Override
-    public void deleteExpiredPairingRequests(PlatformType platform, long nowEpochMillis) throws SQLException {
+    public void deleteExpiredPairingRequests(PlatformType platform, long nowEpochMillis)
+            throws SQLException {
         executeUpdate(
                 "delete from pairing_requests where platform = ? and expires_at < ?",
                 stmt -> {
                     stmt.setString(1, platformKey(platform));
                     stmt.setLong(2, nowEpochMillis);
-                }
-        );
+                });
     }
 
     /**
@@ -525,8 +545,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
     public void cleanupExpiredPairingRequests(long nowEpochMillis) throws SQLException {
         executeUpdate(
                 "delete from pairing_requests where expires_at < ?",
-                stmt -> stmt.setLong(1, nowEpochMillis)
-        );
+                stmt -> stmt.setLong(1, nowEpochMillis));
     }
 
     /**
@@ -538,8 +557,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
     public int countPairingRequestsByPlatform(PlatformType platform) throws SQLException {
         return queryInt(
                 "select count(*) from pairing_requests where platform = ?",
-                stmt -> stmt.setString(1, platformKey(platform))
-        );
+                stmt -> stmt.setString(1, platformKey(platform)));
     }
 
     /**
@@ -556,8 +574,7 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
                     stmt.setInt(3, record.getFailedAttempts());
                     stmt.setLong(4, record.getRequestedAt());
                     stmt.setLong(5, record.getLockoutUntil());
-                }
-        );
+                });
     }
 
     /**
@@ -571,23 +588,25 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
             String userId,
             long nowEpochMillis,
             int maxAttempts,
-            long lockoutMillis) throws SQLException {
+            long lockoutMillis)
+            throws SQLException {
         Connection connection = getConnection();
         try {
-            PreparedStatement statement = connection.prepareStatement(
-                    "insert into pairing_rate_limits (platform, user_id, requested_at, failed_attempts, lockout_until) "
-                    + "values (?, ?, ?, case when ? <= 1 then 0 else 1 end, case when ? <= 1 then ? + ? else 0 end) "
-                    + "on conflict(platform, user_id) do update set "
-                    + "requested_at = excluded.requested_at, "
-                    + "failed_attempts = case "
-                    + "when pairing_rate_limits.lockout_until > excluded.requested_at then pairing_rate_limits.failed_attempts "
-                    + "when pairing_rate_limits.failed_attempts + 1 >= ? then 0 "
-                    + "else pairing_rate_limits.failed_attempts + 1 end, "
-                    + "lockout_until = case "
-                    + "when pairing_rate_limits.lockout_until > excluded.requested_at then pairing_rate_limits.lockout_until "
-                    + "when pairing_rate_limits.failed_attempts + 1 >= ? then excluded.requested_at + ? "
-                    + "else 0 end "
-                    + "returning platform, user_id, requested_at, failed_attempts, lockout_until");
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert into pairing_rate_limits (platform, user_id, requested_at, failed_attempts, lockout_until) "
+                                    + "values (?, ?, ?, case when ? <= 1 then 0 else 1 end, case when ? <= 1 then ? + ? else 0 end) "
+                                    + "on conflict(platform, user_id) do update set "
+                                    + "requested_at = excluded.requested_at, "
+                                    + "failed_attempts = case "
+                                    + "when pairing_rate_limits.lockout_until > excluded.requested_at then pairing_rate_limits.failed_attempts "
+                                    + "when pairing_rate_limits.failed_attempts + 1 >= ? then 0 "
+                                    + "else pairing_rate_limits.failed_attempts + 1 end, "
+                                    + "lockout_until = case "
+                                    + "when pairing_rate_limits.lockout_until > excluded.requested_at then pairing_rate_limits.lockout_until "
+                                    + "when pairing_rate_limits.failed_attempts + 1 >= ? then excluded.requested_at + ? "
+                                    + "else 0 end "
+                                    + "returning platform, user_id, requested_at, failed_attempts, lockout_until");
             statement.setString(1, platformKey(platform));
             statement.setString(2, userId);
             statement.setLong(3, nowEpochMillis);
@@ -626,13 +645,14 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
             PlatformType platform, String userId, long approvalStartedAt) throws SQLException {
         Connection connection = getConnection();
         try {
-            PreparedStatement statement = connection.prepareStatement(
-                    "insert into pairing_rate_limits (platform, user_id, requested_at, failed_attempts, lockout_until) "
-                    + "values (?, ?, 0, 0, 0) "
-                    + "on conflict(platform, user_id) do update set "
-                    + "requested_at = 0, failed_attempts = 0, lockout_until = 0 "
-                    + "where pairing_rate_limits.lockout_until <= ? "
-                    + "returning platform");
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert into pairing_rate_limits (platform, user_id, requested_at, failed_attempts, lockout_until) "
+                                    + "values (?, ?, 0, 0, 0) "
+                                    + "on conflict(platform, user_id) do update set "
+                                    + "requested_at = 0, failed_attempts = 0, lockout_until = 0 "
+                                    + "where pairing_rate_limits.lockout_until <= ? "
+                                    + "returning platform");
             statement.setString(1, platformKey(platform));
             statement.setString(2, userId);
             statement.setLong(3, approvalStartedAt);
@@ -655,15 +675,15 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
      * @param userId 用户标识。
      * @return 返回读取到的配对Rate Limit。
      */
-    public PairingRateLimitRecord getPairingRateLimit(PlatformType platform, String userId) throws SQLException {
+    public PairingRateLimitRecord getPairingRateLimit(PlatformType platform, String userId)
+            throws SQLException {
         return queryOne(
                 "select platform, user_id, failed_attempts, requested_at, lockout_until from pairing_rate_limits where platform = ? and user_id = ?",
                 stmt -> {
                     stmt.setString(1, platformKey(platform));
                     stmt.setString(2, userId);
                 },
-                this::mapRateLimit
-        );
+                this::mapRateLimit);
     }
 
     // 私有辅助方法
@@ -722,8 +742,9 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
     }
 
     private boolean isPrimary(Connection connection, PlatformType platform) throws SQLException {
-        PreparedStatement statement = connection.prepareStatement(
-                "select count(*) from home_channels where platform = ? and is_primary = 1");
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "select count(*) from home_channels where platform = ? and is_primary = 1");
         statement.setString(1, platformKey(platform));
         ResultSet resultSet = statement.executeQuery();
         try {
@@ -735,8 +756,9 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
     }
 
     private boolean hasPrimaryHomeChannel(Connection connection) throws SQLException {
-        PreparedStatement statement = connection.prepareStatement(
-                "select count(*) from home_channels where is_primary = 1");
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "select count(*) from home_channels where is_primary = 1");
         ResultSet resultSet = statement.executeQuery();
         try {
             return resultSet.next() && resultSet.getInt(1) > 0;
@@ -747,10 +769,9 @@ public class SqliteGatewayPolicyRepository extends SqliteRepositorySupport imple
     }
 
     private void clearPrimaryHomeChannel(Connection connection) throws SQLException {
-        PreparedStatement statement = connection.prepareStatement(
-                "update home_channels set is_primary = 0");
+        PreparedStatement statement =
+                connection.prepareStatement("update home_channels set is_primary = 0");
         statement.executeUpdate();
         statement.close();
     }
-
 }

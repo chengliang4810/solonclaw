@@ -1824,6 +1824,8 @@ public class ProfileManager {
                             .getResourceAsStream("persona-templates/SOUL.md")) {
                 if (template != null) {
                     Files.copy(template, soul);
+                } else {
+                    Files.createFile(soul);
                 }
             }
         }

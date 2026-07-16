@@ -5,7 +5,6 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig.ChannelConfig;
 import com.jimuqu.solon.claw.config.AppConfig.FallbackProviderConfig;
 import com.jimuqu.solon.claw.config.AppConfig.ModelConfig;
-import com.jimuqu.solon.claw.config.AppConfig.PersonalityConfig;
 import com.jimuqu.solon.claw.config.AppConfig.PlatformConfig;
 import com.jimuqu.solon.claw.config.AppConfig.ProactiveConfig;
 import com.jimuqu.solon.claw.config.AppConfig.ProviderConfig;
@@ -1079,6 +1078,15 @@ final class AppConfigLoader {
                                         "solonclaw.gateway.processingReactionsEnabled",
                                         true)));
         config.getGateway().setMultiplexProfiles(readMultiplexProfiles(props, overrides));
+        config.getProfiles()
+                .setMaxNamedProfiles(
+                        Math.max(
+                                1,
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.profiles.maxNamedProfiles",
+                                        10)));
         config.getGateway()
                 .setPlatforms(loadGatewayPlatforms(props, overrides, structuredOverrides));
         config.getDashboard()
@@ -1090,7 +1098,6 @@ final class AppConfigLoader {
                 .setBindHost(resolveConfigString(readString(props, overrides, "server.host", "")));
         config.getDashboard()
                 .setBindPort(resolveInt(readInt(props, overrides, "server.port", 8080)));
-        config.getAgent().setPersonalities(loadPersonalities(props, overrides));
         config.getAgent()
                 .getHeartbeat()
                 .setIntervalMinutes(
@@ -1387,6 +1394,46 @@ final class AppConfigLoader {
                                         overrides,
                                         "solonclaw.task.mediaCacheTtlHours",
                                         168)));
+        config.getTask()
+                .setProfileTaskMaxConcurrency(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.task.profileTaskMaxConcurrency",
+                                                5)),
+                                5));
+        config.getTask()
+                .setProfileTaskDefaultTimeoutMinutes(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.task.profileTaskDefaultTimeoutMinutes",
+                                                30)),
+                                30));
+        config.getTask()
+                .setProfileTaskMaxTimeoutMinutes(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.task.profileTaskMaxTimeoutMinutes",
+                                                240)),
+                                240));
+        config.getTask()
+                .setProfileTaskMaxAttempts(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.task.profileTaskMaxAttempts",
+                                                5)),
+                                5));
         config.getSecurity()
                 .setAllowPrivateUrls(resolveBoolean(readAllowPrivateUrls(props, overrides)));
         config.getSecurity()
@@ -2388,64 +2435,6 @@ final class AppConfigLoader {
             }
         }
         return null;
-    }
-
-    /** 解析 personalities 配置映射。 */
-    private static Map<String, PersonalityConfig> loadPersonalities(
-            Props props, Map<String, Object> overrides) {
-        Map<String, PersonalityConfig> result = new LinkedHashMap<String, PersonalityConfig>();
-        if (props == null) {
-            return result;
-        }
-
-        String prefix = "solonclaw.agent.personalities.";
-        Map<String, String> rawEntries = new LinkedHashMap<String, String>();
-        for (Map.Entry<Object, Object> entry : props.entrySet()) {
-            String rawKey = String.valueOf(entry.getKey());
-            if (!rawKey.startsWith(prefix)) {
-                continue;
-            }
-            rawEntries.put(rawKey, props.get(rawKey, ""));
-        }
-        for (Map.Entry<String, Object> entry : overrides.entrySet()) {
-            if (entry.getKey().startsWith(prefix)) {
-                rawEntries.put(entry.getKey(), String.valueOf(entry.getValue()));
-            }
-        }
-
-        for (Map.Entry<String, String> entry : rawEntries.entrySet()) {
-            String rawKey = entry.getKey();
-
-            String suffix = rawKey.substring(prefix.length());
-            int index = suffix.indexOf('.');
-            if (index <= 0 || index >= suffix.length() - 1) {
-                continue;
-            }
-
-            String name = suffix.substring(0, index).trim();
-            String field = suffix.substring(index + 1).trim();
-            if (StrUtil.isBlank(name) || StrUtil.isBlank(field)) {
-                continue;
-            }
-
-            PersonalityConfig personality = result.get(name);
-            if (personality == null) {
-                personality = new PersonalityConfig();
-                result.put(name, personality);
-            }
-
-            String value = entry.getValue();
-            if ("description".equals(field)) {
-                personality.setDescription(value);
-            } else if ("systemPrompt".equals(field)) {
-                personality.setSystemPrompt(value);
-            } else if ("tone".equals(field)) {
-                personality.setTone(value);
-            } else if ("style".equals(field)) {
-                personality.setStyle(value);
-            }
-        }
-        return result;
     }
 
     /** 解析 gateway.platforms 配置映射。 */

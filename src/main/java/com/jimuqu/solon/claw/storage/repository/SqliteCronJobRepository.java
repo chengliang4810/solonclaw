@@ -5,7 +5,6 @@ import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -65,8 +64,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
                     stmt.setLong(31, job.getLastRunAt());
                     stmt.setLong(32, job.getCreatedAt());
                     stmt.setLong(33, job.getUpdatedAt());
-                }
-        );
+                });
         return job;
     }
 
@@ -80,8 +78,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
         return queryOne(
                 "select * from cron_jobs where job_id = ?",
                 stmt -> stmt.setString(1, jobId),
-                this::map
-        );
+                this::map);
     }
 
     /**
@@ -94,8 +91,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
         return queryList(
                 "select * from cron_jobs where source_key = ? order by updated_at desc",
                 stmt -> stmt.setString(1, sourceKey),
-                this::map
-        );
+                this::map);
     }
 
     /**
@@ -105,11 +101,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
      */
     @Override
     public List<CronJobRecord> listAll() throws SQLException {
-        return queryList(
-                "select * from cron_jobs order by updated_at desc",
-                null,
-                this::map
-        );
+        return queryList("select * from cron_jobs order by updated_at desc", null, this::map);
     }
 
     /**
@@ -122,8 +114,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
         return queryList(
                 "select * from cron_jobs where status = 'ACTIVE' and (next_run_at <= ? or next_run_at is null or next_run_at = 0) order by next_run_at asc",
                 stmt -> stmt.setLong(1, nowEpochMillis),
-                this::map
-        );
+                this::map);
     }
 
     /**
@@ -132,10 +123,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
      * @param jobId job标识。
      */
     public void delete(String jobId) throws SQLException {
-        executeUpdate(
-                "delete from cron_jobs where job_id = ?",
-                stmt -> stmt.setString(1, jobId)
-        );
+        executeUpdate("delete from cron_jobs where job_id = ?", stmt -> stmt.setString(1, jobId));
     }
 
     /**
@@ -149,11 +137,11 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
                 "update cron_jobs set status = ?, paused_at = ?, updated_at = ? where job_id = ?",
                 stmt -> {
                     stmt.setString(1, status);
-                    stmt.setLong(2, "PAUSED".equalsIgnoreCase(status) ? System.currentTimeMillis() : 0L);
+                    stmt.setLong(
+                            2, "PAUSED".equalsIgnoreCase(status) ? System.currentTimeMillis() : 0L);
                     stmt.setLong(3, System.currentTimeMillis());
                     stmt.setString(4, jobId);
-                }
-        );
+                });
     }
 
     /**
@@ -183,8 +171,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
                     stmt.setLong(2, nextRunAt);
                     stmt.setLong(3, System.currentTimeMillis());
                     stmt.setString(4, jobId);
-                }
-        );
+                });
     }
 
     /**
@@ -201,8 +188,15 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
      */
     @Override
     public void markRunResult(
-            String jobId, long lastRunAt, long nextRunAt, String status, String error,
-            String output, int repeatCompleted, String nextStatus) throws SQLException {
+            String jobId,
+            long lastRunAt,
+            long nextRunAt,
+            String status,
+            String error,
+            String output,
+            int repeatCompleted,
+            String nextStatus)
+            throws SQLException {
         executeUpdate(
                 "update cron_jobs set last_run_at = ?, next_run_at = ?, last_status = ?, last_error = ?, last_output = ?, repeat_completed = ?, status = ?, pending_trigger_type = null, last_delivery_error = null, updated_at = ? where job_id = ?",
                 stmt -> {
@@ -215,8 +209,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
                     stmt.setString(7, nextStatus);
                     stmt.setLong(8, System.currentTimeMillis());
                     stmt.setString(9, jobId);
-                }
-        );
+                });
     }
 
     /**
@@ -233,8 +226,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
                     stmt.setString(1, redact(error, 2000));
                     stmt.setLong(2, System.currentTimeMillis());
                     stmt.setString(3, jobId);
-                }
-        );
+                });
     }
 
     /**
@@ -261,8 +253,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
                     stmt.setString(11, redact(run.getError(), 2000));
                     stmt.setString(12, redact(run.getDeliveryError(), 2000));
                     stmt.setString(13, redact(run.getDeliveryResultJson(), 4000));
-                }
-        );
+                });
         return run;
     }
 
@@ -282,8 +273,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
                     stmt.setString(1, jobId);
                     stmt.setInt(2, safeLimit);
                 },
-                this::mapRun
-        );
+                this::mapRun);
     }
 
     /**

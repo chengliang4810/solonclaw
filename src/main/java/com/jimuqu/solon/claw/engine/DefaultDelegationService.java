@@ -65,6 +65,10 @@ public class DefaultDelegationService implements DelegationService {
     /** 当前系统已知工具清单。 */
     private static final List<String> ALL_TOOLS = AgentRuntimePolicy.knownToolNames();
 
+    /** 子 Agent 未指定时使用的固定极简系统提示。 */
+    private static final String DEFAULT_SUBAGENT_SYSTEM_PROMPT =
+            "你是一次性子 Agent。只使用任务中明确提供的信息和允许的工具完成任务，返回结果后结束。" + "不要假设你拥有父对话、长期记忆或 Profile 身份。";
+
     /** 父运行链最大回溯层数，避免异常环或损坏数据造成无限遍历。 */
     private static final int MAX_DEPTH_LOOKUP = 64;
 
@@ -225,6 +229,7 @@ public class DefaultDelegationService implements DelegationService {
     @Override
     public Map<String, Object> delegateInBackground(
             final String sourceKey, final List<DelegationTask> tasks) {
+        rejectNestedDelegation();
         if (tasks == null || tasks.isEmpty()) {
             throw new IllegalArgumentException("No tasks provided");
         }
@@ -475,6 +480,9 @@ public class DefaultDelegationService implements DelegationService {
             return failureResult("delegate", "Subagent spawning is paused.");
         }
         AgentRunContext parentContext = AgentRunContext.current();
+        if (parentContext != null && "subagent".equalsIgnoreCase(parentContext.getRunKind())) {
+            return failureResult("delegate", "Subagents cannot create subagents.");
+        }
         int depth = resolveDepth(parentContext);
         int maxDepth =
                 appConfig == null ? 1 : Math.max(1, appConfig.getTask().getSubagentMaxDepth());
@@ -497,13 +505,12 @@ public class DefaultDelegationService implements DelegationService {
             SessionRecord parentSession = sessionRepository.getBoundSession(sourceKey);
             String subagentId = "sa-" + IdSupport.newId();
             String childSourceKey = childSourceKey(sourceKey, subagentId);
-            cloneToolVisibility(sourceKey, childSourceKey);
             applyAllowedTools(
                     sourceKey,
                     childSourceKey,
                     task == null ? null : task.getAllowedTools(),
                     task == null ? null : task.getToolsets());
-            applyBlockedTools(childSourceKey, task == null ? null : task.getRole());
+            applyBlockedTools(childSourceKey);
             prepareChildSession(childSourceKey, parentSession);
 
             if (conversationHolder.get() == null) {
@@ -512,6 +519,15 @@ public class DefaultDelegationService implements DelegationService {
             GatewayMessage message =
                     new GatewayMessage(PlatformType.MEMORY, "", "", decoratePrompt(task));
             message.setSourceKeyOverride(childSourceKey);
+            if (StrUtil.isNotBlank(task.getModel())) {
+                message.setModelOverride(task.getModel().trim());
+            }
+            message.setSystemPromptOverride(
+                    StrUtil.blankToDefault(task.getSystemPrompt(), DEFAULT_SUBAGENT_SYSTEM_PROMPT));
+            message.setAllowedToolsOverride(
+                    task.getAllowedTools() == null
+                            ? java.util.Collections.<String>emptyList()
+                            : task.getAllowedTools());
             subagent =
                     startSubagent(
                             subagentId, sourceKey, childSourceKey, task, parentContext, depth);
@@ -675,6 +691,10 @@ public class DefaultDelegationService implements DelegationService {
     public List<DelegationResult> delegateBatch(final String sourceKey, List<DelegationTask> tasks)
             throws Exception {
         List<DelegationResult> results = new ArrayList<DelegationResult>();
+        if (isSubagentRun()) {
+            results.add(failureResult("delegate", "Subagents cannot create subagents."));
+            return results;
+        }
         if (tasks == null || tasks.isEmpty()) {
             return results;
         }
@@ -740,27 +760,9 @@ public class DefaultDelegationService implements DelegationService {
         }
     }
 
-    /** 复制父来源键的工具可见性。 */
-    private void cloneToolVisibility(String parentSourceKey, String childSourceKey)
-            throws Exception {
-        for (String toolName : ALL_TOOLS) {
-            boolean enabled = preferenceStore.isToolEnabled(parentSourceKey, toolName);
-            preferenceStore.setToolEnabled(childSourceKey, toolName, enabled);
-        }
-    }
-
-    /**
-     * 对子会话应用固定黑名单；orchestrator 仅保留继续委派能力，其它高风险工具仍禁用。
-     *
-     * @param childSourceKey 子代理来源键。
-     * @param role 子代理角色。
-     */
-    private void applyBlockedTools(String childSourceKey, String role) throws Exception {
+    /** 对子会话应用固定黑名单。 */
+    private void applyBlockedTools(String childSourceKey) throws Exception {
         for (String blockedTool : BLOCKED_TOOLS) {
-            if (ToolNameConstants.DELEGATE_TASK.equals(blockedTool)
-                    && "orchestrator".equalsIgnoreCase(StrUtil.nullToEmpty(role).trim())) {
-                continue;
-            }
             preferenceStore.setToolEnabled(childSourceKey, blockedTool, false);
         }
     }
@@ -788,9 +790,6 @@ public class DefaultDelegationService implements DelegationService {
             }
         }
         requested.addAll(AgentRuntimePolicy.expandToolSelectors(toolsets));
-        if (requested.isEmpty()) {
-            return;
-        }
         for (String toolName : ALL_TOOLS) {
             preferenceStore.setToolEnabled(childSourceKey, toolName, false);
         }
@@ -809,6 +808,19 @@ public class DefaultDelegationService implements DelegationService {
         return preferenceStore.isToolEnabled(parentSourceKey, normalized);
     }
 
+    /** 在服务边界拒绝子 Agent 递归委派。 */
+    private void rejectNestedDelegation() {
+        if (isSubagentRun()) {
+            throw new IllegalStateException("Subagents cannot create subagents.");
+        }
+    }
+
+    /** 判断当前运行是否为一次性子 Agent。 */
+    private boolean isSubagentRun() {
+        AgentRunContext current = AgentRunContext.current();
+        return current != null && "subagent".equalsIgnoreCase(current.getRunKind());
+    }
+
     /** 预先创建子会话并写入父会话关系。 */
     private void prepareChildSession(String childSourceKey, SessionRecord parentSession)
             throws Exception {
@@ -820,9 +832,6 @@ public class DefaultDelegationService implements DelegationService {
         SessionRecord childSession = sessionRepository.bindNewSession(childSourceKey);
         if (parentSession != null) {
             childSession.setParentSessionId(parentSession.getSessionId());
-            childSession.setModelOverride(parentSession.getModelOverride());
-            childSession.setServiceTierOverride(parentSession.getServiceTierOverride());
-            childSession.setReasoningEffortOverride(parentSession.getReasoningEffortOverride());
         }
         sessionRepository.save(childSession);
     }

@@ -649,12 +649,13 @@ class ToolRegistryWebAndCodeToolsTest {
 
     @Test
     void shouldRedactDirectCodeExecutionSkillOutputs() throws Exception {
-        assumeTrue(commandExists("python"));
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
         SolonClawCodeExecutionSkills.SafePythonSkill python =
                 new SolonClawCodeExecutionSkills.SafePythonSkill(
-                        env.appConfig.getRuntime().getHome(), "python", policy);
+                        env.appConfig.getRuntime().getHome(), pythonCommand, policy);
 
         String output =
                 python.execute(
@@ -668,13 +669,14 @@ class ToolRegistryWebAndCodeToolsTest {
 
     @Test
     void shouldExposeJimuquStyleExecuteCodeResultEnvelope() throws Exception {
-        assumeTrue(commandExists("python"));
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getTask().setToolOutputInlineLimit(200);
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
-                        "python",
+                        pythonCommand,
                         new SecurityPolicyService(env.appConfig),
                         env.appConfig);
 
@@ -700,12 +702,13 @@ class ToolRegistryWebAndCodeToolsTest {
 
     @Test
     void shouldReturnJimuquStyleExecuteCodeErrorsWithStderr() throws Exception {
-        assumeTrue(commandExists("python"));
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
-                        "python",
+                        pythonCommand,
                         new SecurityPolicyService(env.appConfig),
                         env.appConfig);
 
@@ -726,12 +729,13 @@ class ToolRegistryWebAndCodeToolsTest {
 
     @Test
     void shouldRedactExecuteCodeTimeoutOutput() throws Exception {
-        assumeTrue(commandExists("python"));
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
-                        "python",
+                        pythonCommand,
                         new SecurityPolicyService(env.appConfig),
                         env.appConfig);
 
@@ -753,7 +757,8 @@ class ToolRegistryWebAndCodeToolsTest {
 
     @Test
     void shouldAllowExecuteCodeToCallJimuquFileAndTerminalToolsThroughRpc() throws Exception {
-        assumeTrue(commandExists("python"));
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Files.write(
@@ -763,7 +768,7 @@ class ToolRegistryWebAndCodeToolsTest {
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
-                        "python",
+                        pythonCommand,
                         new SecurityPolicyService(env.appConfig),
                         env.appConfig);
 
@@ -846,7 +851,8 @@ class ToolRegistryWebAndCodeToolsTest {
 
     @Test
     void shouldResetExecuteCodeRpcReadDedupAfterOtherToolCall() throws Exception {
-        assumeTrue(commandExists("python"));
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         Files.write(
@@ -856,7 +862,7 @@ class ToolRegistryWebAndCodeToolsTest {
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         env.appConfig.getRuntime().getHome(),
-                        "python",
+                        pythonCommand,
                         new SecurityPolicyService(env.appConfig),
                         env.appConfig);
 

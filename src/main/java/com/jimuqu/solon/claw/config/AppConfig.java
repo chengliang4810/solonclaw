@@ -77,6 +77,9 @@ public class AppConfig {
     /** 网关通用授权配置。 */
     private GatewayConfig gateway = new GatewayConfig();
 
+    /** 多 Profile 管理配置。 */
+    private ProfilesConfig profiles = new ProfilesConfig();
+
     /** 记录应用中的控制台。 */
     private DashboardConfig dashboard = new DashboardConfig();
 
@@ -215,8 +218,8 @@ public class AppConfig {
                 other.getGateway().isProcessingReactionsEnabled());
         this.gateway.setMultiplexProfiles(other.getGateway().isMultiplexProfiles());
         this.gateway.setPlatforms(cloneGatewayPlatforms(other.getGateway().getPlatforms()));
+        this.profiles.setMaxNamedProfiles(other.getProfiles().getMaxNamedProfiles());
         this.dashboard.setAccessToken(other.getDashboard().getAccessToken());
-        this.agent.setPersonalities(clonePersonalities(other.getAgent().getPersonalities()));
         this.agent
                 .getHeartbeat()
                 .setIntervalMinutes(other.getAgent().getHeartbeat().getIntervalMinutes());
@@ -512,6 +515,10 @@ public class AppConfig {
         this.task.setToolOutputMaxLines(other.getToolOutputMaxLines());
         this.task.setToolOutputMaxLineLength(other.getToolOutputMaxLineLength());
         this.task.setMediaCacheTtlHours(other.getMediaCacheTtlHours());
+        this.task.setProfileTaskMaxConcurrency(other.getProfileTaskMaxConcurrency());
+        this.task.setProfileTaskDefaultTimeoutMinutes(other.getProfileTaskDefaultTimeoutMinutes());
+        this.task.setProfileTaskMaxTimeoutMinutes(other.getProfileTaskMaxTimeoutMinutes());
+        this.task.setProfileTaskMaxAttempts(other.getProfileTaskMaxAttempts());
     }
 
     /**
@@ -738,31 +745,6 @@ public class AppConfig {
      */
     private static String exceptionSummary(Exception error) {
         return error == null ? "unknown" : error.getClass().getName();
-    }
-
-    /**
-     * 克隆Personalities。
-     *
-     * @param source 来源参数。
-     * @return 返回clone Personalities结果。
-     */
-    private Map<String, PersonalityConfig> clonePersonalities(
-            Map<String, PersonalityConfig> source) {
-        Map<String, PersonalityConfig> result = new LinkedHashMap<String, PersonalityConfig>();
-        if (source == null) {
-            return result;
-        }
-        for (Map.Entry<String, PersonalityConfig> entry : source.entrySet()) {
-            PersonalityConfig config = new PersonalityConfig();
-            if (entry.getValue() != null) {
-                config.setDescription(entry.getValue().getDescription());
-                config.setSystemPrompt(entry.getValue().getSystemPrompt());
-                config.setTone(entry.getValue().getTone());
-                config.setStyle(entry.getValue().getStyle());
-            }
-            result.put(entry.getKey(), config);
-        }
-        return result;
     }
 
     /**
@@ -1220,10 +1202,6 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class AgentConfig {
-        /** 预定义人格列表。 */
-        private Map<String, PersonalityConfig> personalities =
-                new LinkedHashMap<String, PersonalityConfig>();
-
         /** HEARTBEAT.md 相关调度配置。 */
         private HeartbeatConfig heartbeat = new HeartbeatConfig();
     }
@@ -1376,6 +1354,18 @@ public class AppConfig {
 
         /** 媒体缓存 TTL，单位小时。 */
         private int mediaCacheTtlHours = 168;
+
+        /** 跨 Profile 协作任务全局并发；同一目标 Profile 固定为一。 */
+        private int profileTaskMaxConcurrency = 5;
+
+        /** 跨 Profile 协作任务默认单次超时分钟数。 */
+        private int profileTaskDefaultTimeoutMinutes = 30;
+
+        /** 跨 Profile 协作任务单次超时上限分钟数。 */
+        private int profileTaskMaxTimeoutMinutes = 240;
+
+        /** 跨 Profile 协作任务最大执行次数，包含首次执行。 */
+        private int profileTaskMaxAttempts = 5;
     }
 
     /** 承载 TTS 与独立语音转写配置，两个 Provider 可分别启停和指向不同服务。 */
@@ -1620,45 +1610,6 @@ public class AppConfig {
         private String scope;
     }
 
-    /** 单个人格定义。 */
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    public static class PersonalityConfig {
-        /** 描述文案。 */
-        private String description;
-
-        /** 系统提示词主体。 */
-        private String systemPrompt;
-
-        /** 额外语气提示。 */
-        private String tone;
-
-        /** 额外风格提示。 */
-        private String style;
-
-        /** 合并为最终注入文本。 */
-        public String toPrompt() {
-            StringBuilder buffer = new StringBuilder();
-            if (StrUtil.isNotBlank(systemPrompt)) {
-                buffer.append(systemPrompt.trim());
-            }
-            if (StrUtil.isNotBlank(tone)) {
-                if (buffer.length() > 0) {
-                    buffer.append('\n');
-                }
-                buffer.append("Tone: ").append(tone.trim());
-            }
-            if (StrUtil.isNotBlank(style)) {
-                if (buffer.length() > 0) {
-                    buffer.append('\n');
-                }
-                buffer.append("Style: ").append(style.trim());
-            }
-            return buffer.toString();
-        }
-    }
-
     /** 全部渠道配置集合。 */
     @Getter
     @Setter
@@ -1854,6 +1805,15 @@ public class AppConfig {
 
         /** 各平台工具集权限配置，键为平台名称（大写），值为该平台的工具集策略。 */
         private Map<String, PlatformConfig> platforms = new LinkedHashMap<String, PlatformConfig>();
+    }
+
+    /** 多 Profile 管理配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class ProfilesConfig {
+        /** 命名 Profile 数量上限，不包含 default。 */
+        private int maxNamedProfiles = 10;
     }
 
     /** 单平台工具集权限配置。 */

@@ -383,7 +383,7 @@ public class SolonAiLlmGatewayConfigTest {
         config.getLlm().setModel("gpt-4o");
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
         AgentRunContext runContext =
-                new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
+                new AgentRunContext(null, "run-1", "session-1", "MEMORY:tui:session-1");
         MessageAttachment attachment = new MessageAttachment();
         attachment.setKind("image");
         attachment.setOriginalName("shot.png");
@@ -434,7 +434,7 @@ public class SolonAiLlmGatewayConfigTest {
 
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
         AgentRunContext runContext =
-                new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
+                new AgentRunContext(null, "run-1", "session-1", "MEMORY:tui:session-1");
         runContext.setUserAttachments(
                 Arrays.asList(
                         imageWithData("image/png", "iVBORw0KGgo="),
@@ -473,7 +473,7 @@ public class SolonAiLlmGatewayConfigTest {
         config.getLlm().setModel("custom/unknown-small-model");
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
         AgentRunContext runContext =
-                new AgentRunContext(null, "run-1", "session-1", "MEMORY:cli:session-1");
+                new AgentRunContext(null, "run-1", "session-1", "MEMORY:tui:session-1");
         runContext.setUserAttachments(Arrays.asList(imageWithData("image/png", "iVBORw0KGgo=")));
         Method userContentBlocks =
                 SolonAiLlmGateway.class.getDeclaredMethod(

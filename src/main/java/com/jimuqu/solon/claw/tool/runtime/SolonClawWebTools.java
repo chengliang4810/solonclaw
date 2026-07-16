@@ -703,8 +703,7 @@ public class SolonClawWebTools {
             this.webSearchProviders =
                     providers == null
                             ? Collections
-                                    .<com.jimuqu.solon.claw.provider.WebSearchProvider>
-                                            emptyList()
+                                    .<com.jimuqu.solon.claw.provider.WebSearchProvider>emptyList()
                             : providers;
         }
 
@@ -832,8 +831,7 @@ public class SolonClawWebTools {
                     || StrUtil.isBlank(backend)) {
                 return null;
             }
-            for (com.jimuqu.solon.claw.provider.WebSearchProvider provider :
-                    webSearchProviders) {
+            for (com.jimuqu.solon.claw.provider.WebSearchProvider provider : webSearchProviders) {
                 if (provider == null || !backend.equals(normalizedProviderName(provider))) {
                     continue;
                 }

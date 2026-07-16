@@ -153,8 +153,7 @@ public class MemoryApprovalGateTest {
         FileMemoryService service = new FileMemoryService(env.appConfig);
         service.add("memory", "项目约定：版本为 v1");
 
-        assertThat(service.replace("memory", "- 项目约定：版本为 v1", "项目约定：版本为 v2"))
-                .contains("已更新");
+        assertThat(service.replace("memory", "- 项目约定：版本为 v1", "项目约定：版本为 v2")).contains("已更新");
         assertThat(service.read("memory")).contains("版本为 v2").doesNotContain("版本为 v1");
     }
 
@@ -167,14 +166,8 @@ public class MemoryApprovalGateTest {
         service.add("memory", "项目约定：第二条");
         service.add("memory", "项目约定：第三条");
 
-        assertThat(
-                        service.replace(
-                                "memory",
-                                "- 项目约定：第一条\n- 项目约定：第二条",
-                                "项目约定：已合并"))
-                .contains("已更新");
-        assertThat(service.remove("memory", "- 项目约定：已合并\n- 项目约定：第三条"))
-                .contains("已删除");
+        assertThat(service.replace("memory", "- 项目约定：第一条\n- 项目约定：第二条", "项目约定：已合并")).contains("已更新");
+        assertThat(service.remove("memory", "- 项目约定：已合并\n- 项目约定：第三条")).contains("已删除");
         assertThat(service.read("memory"))
                 .doesNotContain("项目约定：第一条")
                 .doesNotContain("项目约定：第二条")

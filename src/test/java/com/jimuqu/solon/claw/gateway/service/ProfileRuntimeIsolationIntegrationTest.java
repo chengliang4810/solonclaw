@@ -5,8 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.SolonClawApp;
 import com.jimuqu.solon.claw.bootstrap.DashboardConfiguration;
-import com.jimuqu.solon.claw.bootstrap.StartupModeContext;
-import com.jimuqu.solon.claw.cli.CliMode;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -70,7 +68,6 @@ class ProfileRuntimeIsolationIntegrationTest {
         System.setProperty("solonclaw.profile.root", root.toString());
         System.setProperty("solonclaw.profile.name", "default");
         System.setProperty("solonclaw.workspace", root.toString());
-        StartupModeContext.set(new CliMode(CliMode.Kind.SERVER, null, null));
 
         Solon.start(
                 SolonClawApp.class,

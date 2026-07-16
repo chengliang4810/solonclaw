@@ -35,13 +35,13 @@ class PersonaWorkspaceServiceTest {
                         ContextFileConstants.KEY_MEMORY_TODAY);
         assertThat(service.exists(ContextFileConstants.KEY_AGENTS)).isTrue();
         assertThat(service.read(ContextFileConstants.KEY_AGENTS)).contains("## 记忆系统");
-        assertThat(service.read(ContextFileConstants.KEY_SOUL)).contains("## 你是谁");
+        assertThat(service.read(ContextFileConstants.KEY_SOUL)).isEmpty();
         assertThat(service.read(ContextFileConstants.KEY_IDENTITY))
                 .contains("# IDENTITY.md - 我是谁？");
         assertThat(service.read(ContextFileConstants.KEY_USER)).contains("## 关于用户");
         assertThat(service.read(ContextFileConstants.KEY_TOOLS)).contains("# TOOLS.md - 工具配置与说明");
         assertThat(service.read(ContextFileConstants.KEY_HEARTBEAT)).contains("# 心跳任务清单");
-        assertThat(service.read(ContextFileConstants.KEY_MEMORY)).contains("## 工具配置");
+        assertThat(service.read(ContextFileConstants.KEY_MEMORY)).isEmpty();
         assertThat(service.read(ContextFileConstants.KEY_BOOTSTRAP)).contains("## 第一次对话");
         assertThat(service.read(ContextFileConstants.KEY_PROACTIVE)).contains("# 主动消息");
         assertThat(service.read(ContextFileConstants.KEY_PROACTIVITY_ANALYSIS)).contains("活跃度分析器");

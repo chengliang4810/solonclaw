@@ -59,6 +59,9 @@ public interface ToolNameConstants {
     /** 委托任务的统一常量值。 */
     String DELEGATE_TASK = "delegate_task";
 
+    /** 向其他命名 Profile 分配持久协作任务。 */
+    String ASSIGN_PROFILE_TASK = "assign_profile_task";
+
     /** 记忆的统一常量值。 */
     String MEMORY = "memory";
 
@@ -196,6 +199,21 @@ public interface ToolNameConstants {
 
     /** 模型提供方管理的统一常量值。 */
     String PROVIDER_MANAGE = "provider_manage";
+
+    /** 创建命名 Profile。 */
+    String PROFILE_CREATE = "profile_create";
+
+    /** 修改命名 Profile。 */
+    String PROFILE_UPDATE = "profile_update";
+
+    /** 删除命名 Profile。 */
+    String PROFILE_DELETE = "profile_delete";
+
+    /** 查询单个 Profile。 */
+    String PROFILE_GET = "profile_get";
+
+    /** 查询全部 Profile。 */
+    String PROFILE_LIST = "profile_list";
 
     /** CODESEARCH的统一常量值。 */
     String CODESEARCH = "codesearch";

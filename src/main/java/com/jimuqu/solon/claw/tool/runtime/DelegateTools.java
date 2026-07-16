@@ -29,14 +29,17 @@ public class DelegateTools {
     @ToolMapping(
             name = "delegate_task",
             description =
-                    "Delegate one goal or a structured task list. Each task has goal, optional context, and optional role leaf/orchestrator.")
+                    "Delegate one goal or a structured task list to one-time leaf agents. Provide the model, necessary context, and an explicit tool whitelist.")
     public String delegateTask(
             @Param(name = "goal", description = "单任务目标；与 tasks 二选一", required = false) String goal,
             @Param(name = "context", description = "委托补充上下文", required = false) String context,
             @Param(name = "tasks", description = "批量结构化任务，每项必须包含 goal", required = false)
                     List<DelegateTaskInput> tasks,
-            @Param(name = "role", description = "子代理角色：leaf 或 orchestrator", required = false)
-                    String role,
+            @Param(name = "model", description = "单任务使用的模型", required = false) String model,
+            @Param(name = "system_prompt", description = "可选的极简系统提示", required = false)
+                    String systemPrompt,
+            @Param(name = "allowed_tools", description = "单任务工具白名单", required = false)
+                    List<String> allowedTools,
             @Param(name = "background", description = "协议字段；执行方式由运行时决定，模型值不改变调度", required = false)
                     Boolean background)
             throws Exception {
@@ -45,14 +48,11 @@ public class DelegateTools {
         }
 
         try {
-            String topRole = normalizeRole(role);
-            if (topRole == null) {
-                return error("role must be leaf or orchestrator");
-            }
             if (tasks != null && !tasks.isEmpty()) {
-                List<DelegationTask> items = toTasks(tasks, context, topRole);
+                List<DelegationTask> items =
+                        toTasks(tasks, context, model, systemPrompt, allowedTools);
                 if (items == null) {
-                    return error("each task requires a goal and role must be leaf or orchestrator");
+                    return error("each task requires a goal, model, and explicit tool whitelist");
                 }
                 if (shouldRunInBackground()) {
                     return SecretRedactor.redact(
@@ -70,7 +70,12 @@ public class DelegateTools {
             task.setName("delegate");
             task.setPrompt(goal.trim());
             task.setContext(context);
-            task.setRole(topRole);
+            task.setModel(model);
+            task.setSystemPrompt(systemPrompt);
+            task.setAllowedTools(allowedTools);
+            if (!validTask(task)) {
+                return error("model and explicit tool whitelist are required");
+            }
             if (shouldRunInBackground()) {
                 return SecretRedactor.redact(
                         ONode.serialize(
@@ -85,10 +90,9 @@ public class DelegateTools {
         }
     }
 
-    /** 一次性 CLI 必须同步等待委派结果，避免 JVM 退出时中断尚未完成的子 Agent。 */
+    /** 根据委派服务策略决定是否在后台运行。 */
     private boolean shouldRunInBackground() {
-        return delegationService.shouldRunInBackground()
-                && !StrUtil.startWith(sourceKey, "MEMORY:cli:");
+        return delegationService.shouldRunInBackground();
     }
 
     /**
@@ -96,26 +100,34 @@ public class DelegateTools {
      *
      * @param tasks 结构化任务。
      * @param sharedContext 顶层共享上下文。
-     * @param topRole 顶层角色。
+     * @param model 顶层模型。
+     * @param systemPrompt 顶层精简系统提示。
+     * @param allowedTools 顶层工具白名单。
      * @return 参数非法时返回 null，否则返回领域任务列表。
      */
     private List<DelegationTask> toTasks(
-            List<DelegateTaskInput> tasks, String sharedContext, String topRole) {
+            List<DelegateTaskInput> tasks,
+            String sharedContext,
+            String model,
+            String systemPrompt,
+            List<String> allowedTools) {
         List<DelegationTask> items = new ArrayList<DelegationTask>();
         for (int i = 0; i < tasks.size(); i++) {
             DelegateTaskInput input = tasks.get(i);
             if (input == null || StrUtil.isBlank(input.getGoal())) {
                 return null;
             }
-            String itemRole = normalizeRole(StrUtil.blankToDefault(input.getRole(), topRole));
-            if (itemRole == null) {
-                return null;
-            }
             DelegationTask task = new DelegationTask();
             task.setName("delegate-" + (i + 1));
             task.setPrompt(input.getGoal().trim());
             task.setContext(StrUtil.blankToDefault(input.getContext(), sharedContext));
-            task.setRole(itemRole);
+            task.setModel(StrUtil.blankToDefault(input.getModel(), model));
+            task.setSystemPrompt(StrUtil.blankToDefault(input.getSystemPrompt(), systemPrompt));
+            task.setAllowedTools(
+                    input.getAllowedTools() == null ? allowedTools : input.getAllowedTools());
+            if (!validTask(task)) {
+                return null;
+            }
             items.add(task);
         }
         return items;
@@ -127,13 +139,10 @@ public class DelegateTools {
      * @param role 原始角色。
      * @return leaf/orchestrator；非法值返回 null。
      */
-    private String normalizeRole(String role) {
-        String normalized =
-                StrUtil.blankToDefault(role, "leaf").trim().toLowerCase(java.util.Locale.ROOT);
-        if ("leaf".equals(normalized) || "orchestrator".equals(normalized)) {
-            return normalized;
-        }
-        return null;
+    private boolean validTask(DelegationTask task) {
+        return task != null
+                && StrUtil.isNotBlank(task.getModel())
+                && task.getAllowedTools() != null;
     }
 
     /**
@@ -162,8 +171,16 @@ public class DelegateTools {
         @Param(description = "Task-specific context", required = false)
         private String context;
 
-        /** 子任务角色；为空时使用顶层 role。 */
-        @Param(description = "leaf or orchestrator", required = false)
-        private String role;
+        /** 子任务模型；为空时使用顶层 model。 */
+        @Param(description = "Model for this task", required = false)
+        private String model;
+
+        /** 子任务极简系统提示；为空时使用顶层 system_prompt。 */
+        @Param(description = "Minimal system prompt", required = false)
+        private String systemPrompt;
+
+        /** 子任务工具白名单；为空时使用顶层 allowed_tools。 */
+        @Param(description = "Explicit tool whitelist", required = false)
+        private List<String> allowedTools;
     }
 }

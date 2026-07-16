@@ -157,7 +157,7 @@ public class SubprocessEnvironmentSanitizerTest {
         config.getTerminal().getEnvPassthrough().add("TENOR_API_KEY");
         config.getTerminal().getEnvPassthrough().add("OPENAI_API_KEY");
         DashboardDiagnosticsService diagnosticsService =
-                                        DashboardDiagnosticsService.builder()
+                DashboardDiagnosticsService.builder()
                         .appConfig(config)
                         .deliveryService(null)
                         .llmProviderService(null)

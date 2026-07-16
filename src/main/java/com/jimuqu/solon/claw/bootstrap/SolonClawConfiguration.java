@@ -39,9 +39,7 @@ public class SolonClawConfiguration {
     @Bean(destroyMethod = "shutdown")
     public RuntimeMemoryMonitorService runtimeMemoryMonitorService() {
         RuntimeMemoryMonitorService service = new RuntimeMemoryMonitorService();
-        if (StartupModeContext.shouldStartServerLifecycle()) {
-            service.start();
-        }
+        service.start();
         return service;
     }
 }

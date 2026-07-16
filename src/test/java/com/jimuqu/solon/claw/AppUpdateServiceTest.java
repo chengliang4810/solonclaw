@@ -5,16 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.crypto.digest.DigestUtil;
-
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-
+import java.io.File;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
-
-import java.io.File;
 
 public class AppUpdateServiceTest {
     /** Snack4 序列化必须保留从发布资产基类继承的字段。 */
@@ -109,8 +106,7 @@ public class AppUpdateServiceTest {
         File downloaded = new File(dir, "downloaded.jar");
         FileUtil.writeUtf8String("old", current);
         FileUtil.writeUtf8String("new", downloaded);
-        FakeUpdateService service =
-                new FakeUpdateService(config, new FakeVersionService(config));
+        FakeUpdateService service = new FakeUpdateService(config, new FakeVersionService(config));
 
         service.exposeReplaceCurrentJar(current, downloaded);
 

@@ -58,9 +58,7 @@ public class PairingControlSecurityTest {
                     .doesNotContain("ABCD2345");
             assertThat(repository.getPairingRequest(PlatformType.WEIXIN, "WRONG234")).isNull();
 
-            assertThat(
-                            authorization.claimPairingOwner(PlatformType.WEIXIN, "ABCD2345")
-                                    .getUserId())
+            assertThat(authorization.claimPairingOwner(PlatformType.WEIXIN, "ABCD2345").getUserId())
                     .isEqualTo("wx-user");
             assertThat(repository.listPairingRequests(PlatformType.WEIXIN)).isEmpty();
             assertThat(repository.getPlatformAdmin(PlatformType.WEIXIN).getUserId())
@@ -185,9 +183,7 @@ public class PairingControlSecurityTest {
             repository.savePairingRequest(request("SECOND23", "second-owner"));
 
             assertThatThrownBy(
-                            () ->
-                                    authorization.claimPairingOwner(
-                                            PlatformType.WEIXIN, "SECOND23"))
+                            () -> authorization.claimPairingOwner(PlatformType.WEIXIN, "SECOND23"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("已绑定主人");
             assertThat(repository.getPlatformAdmin(PlatformType.WEIXIN).getUserId())
@@ -246,7 +242,8 @@ public class PairingControlSecurityTest {
     /** 首次欢迎语失败后只能按已绑定主人记录重发，不能信任客户端投递目标。 */
     @Test
     void shouldReportWelcomeFailureAndRetryBoundOwnerDm() throws Exception {
-        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-owner-welcome-retry"));
+        AppConfig config =
+                config(Files.createTempDirectory("solonclaw-pairing-owner-welcome-retry"));
         SqliteDatabase database = new SqliteDatabase(config);
         try {
             SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
@@ -335,9 +332,7 @@ public class PairingControlSecurityTest {
             }
 
             assertThatThrownBy(
-                            () ->
-                                    authorization.claimPairingOwner(
-                                            PlatformType.WEIXIN, "LOCK2345"))
+                            () -> authorization.claimPairingOwner(PlatformType.WEIXIN, "LOCK2345"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("失败次数过多");
             assertThat(repository.getPlatformAdmin(PlatformType.WEIXIN)).isNull();
@@ -530,7 +525,8 @@ public class PairingControlSecurityTest {
             SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
             PairingRequestRecord owner = request("OWNER234", "first-user");
             repository.savePairingRequest(owner);
-            String storedHash = repository.listPairingRequests(PlatformType.WEIXIN).get(0).getCode();
+            String storedHash =
+                    repository.listPairingRequests(PlatformType.WEIXIN).get(0).getCode();
             PairingRequestRecord collision = request(storedHash, "second-user");
 
             assertThatThrownBy(

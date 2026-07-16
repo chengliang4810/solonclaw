@@ -1661,8 +1661,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 @Override
                                 public void run() {
                                     maybeFetchTypingTicket(userId, contextToken);
-                                    TypingLifecycle lifecycle =
-                                            activeTypingLifecycles.get(userId);
+                                    TypingLifecycle lifecycle = activeTypingLifecycles.get(userId);
                                     if (lifecycle != null) {
                                         synchronized (lifecycle) {
                                             if (!lifecycle.stopped) {

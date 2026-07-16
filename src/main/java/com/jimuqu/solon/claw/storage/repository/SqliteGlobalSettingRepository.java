@@ -2,14 +2,13 @@ package com.jimuqu.solon.claw.storage.repository;
 
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import lombok.RequiredArgsConstructor;
 
 /** SQLite 全局设置仓储。 */
 @RequiredArgsConstructor
-public class SqliteGlobalSettingRepository extends SqliteRepositorySupport implements GlobalSettingRepository {
+public class SqliteGlobalSettingRepository extends SqliteRepositorySupport
+        implements GlobalSettingRepository {
     /** 记录SQLiteGlobal设置中的数据库。 */
     private final SqliteDatabase database;
 
@@ -29,8 +28,7 @@ public class SqliteGlobalSettingRepository extends SqliteRepositorySupport imple
         return queryOne(
                 "select setting_value from global_settings where setting_key = ?",
                 stmt -> stmt.setString(1, key),
-                rs -> rs.getString(1)
-        );
+                rs -> rs.getString(1));
     }
 
     /**
@@ -47,8 +45,7 @@ public class SqliteGlobalSettingRepository extends SqliteRepositorySupport imple
                     stmt.setString(1, key);
                     stmt.setString(2, safeValue(value));
                     stmt.setLong(3, System.currentTimeMillis());
-                }
-        );
+                });
     }
 
     /**
@@ -60,7 +57,6 @@ public class SqliteGlobalSettingRepository extends SqliteRepositorySupport imple
     public void remove(String key) throws SQLException {
         executeUpdate(
                 "delete from global_settings where setting_key = ?",
-                stmt -> stmt.setString(1, key)
-        );
+                stmt -> stmt.setString(1, key));
     }
 }

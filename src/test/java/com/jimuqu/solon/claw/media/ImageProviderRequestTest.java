@@ -38,7 +38,8 @@ class ImageProviderRequestTest {
         RuntimeConfigResolver.initialize(defaultProfile.toString());
         AppConfig namedConfig = new AppConfig();
         namedConfig.getRuntime().setHome(namedProfile.toString());
-        ImageGenProvider provider = new ProviderConfiguration().imageGenProviders(namedConfig).get(0);
+        ImageGenProvider provider =
+                new ProviderConfiguration().imageGenProviders(namedConfig).get(0);
 
         try (ProfileRuntimeScope.Scope ignored =
                 ProfileRuntimeScope.open(
@@ -47,7 +48,10 @@ class ImageProviderRequestTest {
         }
         try (ProfileRuntimeScope.Scope ignored =
                 ProfileRuntimeScope.open(
-                        "named", namedProfile, Collections.singletonMap("OPENAI_API_KEY", "named-key"), null)) {
+                        "named",
+                        namedProfile,
+                        Collections.singletonMap("OPENAI_API_KEY", "named-key"),
+                        null)) {
             assertThat(provider.isAvailable()).isTrue();
         }
     }

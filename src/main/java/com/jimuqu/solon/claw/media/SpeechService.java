@@ -1,7 +1,6 @@
 package com.jimuqu.solon.claw.media;
 
 import cn.hutool.core.util.StrUtil;
-
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
@@ -11,7 +10,6 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.MediaOutcome;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-
 import java.io.File;
 import java.nio.file.Files;
 import java.util.List;

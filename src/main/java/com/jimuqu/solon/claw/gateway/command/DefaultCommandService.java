@@ -9,7 +9,6 @@ import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.stripGoa
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
-import com.jimuqu.solon.claw.cli.TerminalSecurityPolicyView;
 import com.jimuqu.solon.claw.command.CommandDescriptor;
 import com.jimuqu.solon.claw.command.CommandRegistry;
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -72,7 +71,6 @@ import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -499,9 +497,7 @@ public class DefaultCommandService implements CommandService {
                                     + fastModeName(session)
                                     + ", agent="
                                     + StrUtil.blankToDefault(
-                                            session.getActiveAgentName(), "default")
-                                    + ", personality="
-                                    + currentPersonalityName());
+                                            session.getActiveAgentName(), "default"));
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
@@ -551,26 +547,9 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.COMMAND_SECURITY.equals(command)) {
-            GatewayReply reply =
-                    GatewayReply.ok(TerminalSecurityPolicyView.render(appConfig, commandLine));
+            GatewayReply reply = GatewayReply.ok(SecurityPolicyView.render(appConfig, commandLine));
             reply.getRuntimeMetadata().put("command_status", "handled");
             reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_SECURITY);
-            return reply;
-        }
-
-        if (GatewayCommandConstants.COMMAND_PERSONALITY.equals(command)) {
-            return handlePersonality(args);
-        }
-
-        if (GatewayCommandConstants.COMMAND_UPDATE.equals(command)) {
-            SessionRecord session = requireSession(message.sourceKey());
-            AppUpdateService.UpdateResult result = appUpdateService.startUpdate();
-            GatewayReply reply =
-                    result.isError()
-                            ? GatewayReply.error(result.getMessage())
-                            : GatewayReply.ok(result.getMessage());
-            reply.setSessionId(session.getSessionId());
-            reply.setBranchName(session.getBranchName());
             return reply;
         }
 
@@ -579,18 +558,22 @@ public class DefaultCommandService implements CommandService {
             GatewayReply reply;
             if (StrUtil.isBlank(args)) {
                 reply = GatewayReply.ok(appUpdateService.formatVersionReport(false));
-            } else if ("check".equalsIgnoreCase(args) || "status".equalsIgnoreCase(args)) {
+            } else if ("help".equalsIgnoreCase(args)) {
+                reply =
+                        GatewayReply.ok(
+                                "/version - 查看当前版本\n"
+                                        + "/version check - 检查是否存在新版本\n"
+                                        + "/version update - 下载并应用更新");
+            } else if ("check".equalsIgnoreCase(args)) {
                 reply = GatewayReply.ok(appUpdateService.formatVersionReport(true));
-            } else if ("update".equalsIgnoreCase(args)
-                    || "upgrade".equalsIgnoreCase(args)
-                    || "run".equalsIgnoreCase(args)) {
+            } else if ("update".equalsIgnoreCase(args)) {
                 AppUpdateService.UpdateResult result = appUpdateService.startUpdate();
                 reply =
                         result.isError()
                                 ? GatewayReply.error(result.getMessage())
                                 : GatewayReply.ok(result.getMessage());
             } else {
-                reply = GatewayReply.error("用法：/version [check|update]");
+                reply = GatewayReply.error("用法：/version [help|check|update]");
             }
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
@@ -2599,10 +2582,6 @@ public class DefaultCommandService implements CommandService {
     }
 
     /** 执行人格命令相关逻辑。 */
-    private GatewayReply handlePersonality(String args) throws Exception {
-        return newRuntimeCommandHandler().handlePersonality(args);
-    }
-
     /**
      * 执行主动协作命令；人工 retry 子命令会显式触发一次投递。
      *
@@ -3263,15 +3242,6 @@ public class DefaultCommandService implements CommandService {
             }
         }
         return buffer.toString();
-    }
-
-    /**
-     * 执行当前Personality名称相关逻辑。
-     *
-     * @return 返回当前Personality名称结果。
-     */
-    private String currentPersonalityName() {
-        return newRuntimeCommandHandler().currentPersonalityName();
     }
 
     /** 创建会话设置命令处理器。 */

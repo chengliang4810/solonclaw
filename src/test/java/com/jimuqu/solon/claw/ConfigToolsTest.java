@@ -255,8 +255,7 @@ public class ConfigToolsTest {
         Object configEnvProbeTool = findToolByName(env, "configEnvProbe");
 
         assertThat(configEnvProbeTool).isNotNull();
-        Method method =
-                configEnvProbeTool.getClass().getMethod("configEnvProbe", String.class);
+        Method method = configEnvProbeTool.getClass().getMethod("configEnvProbe", String.class);
         ONode response =
                 ONode.ofJson(
                         (String)

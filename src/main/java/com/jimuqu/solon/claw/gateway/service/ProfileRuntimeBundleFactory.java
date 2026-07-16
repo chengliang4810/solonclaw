@@ -2,9 +2,9 @@ package com.jimuqu.solon.claw.gateway.service;
 
 import com.jimuqu.solon.claw.bootstrap.ContextConfiguration;
 import com.jimuqu.solon.claw.bootstrap.GatewayConfiguration;
-import com.jimuqu.solon.claw.bootstrap.ProviderConfiguration;
 import com.jimuqu.solon.claw.bootstrap.PricingConfiguration;
 import com.jimuqu.solon.claw.bootstrap.ProfileRuntimeSupportConfiguration;
+import com.jimuqu.solon.claw.bootstrap.ProviderConfiguration;
 import com.jimuqu.solon.claw.bootstrap.SchedulerConfiguration;
 import com.jimuqu.solon.claw.bootstrap.StorageConfiguration;
 import com.jimuqu.solon.claw.bootstrap.ToolConfiguration;

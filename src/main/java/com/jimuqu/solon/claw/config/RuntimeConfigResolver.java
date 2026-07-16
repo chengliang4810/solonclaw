@@ -555,7 +555,6 @@ public class RuntimeConfigResolver {
         addDynamicPrefix(prefixes, "pricing.prices");
         addDynamicPrefix(prefixes, "solonclaw.pricing.prices");
         addDynamicPrefix(prefixes, "solonclaw.gateway.platforms.");
-        addDynamicPrefix(prefixes, "solonclaw.agent.personalities.");
         addDynamicPrefix(prefixes, "solonclaw.channels.wecom.groups.");
         addDynamicPrefix(prefixes, "solonclaw.scheduler.enabledToolsets");
         addDynamicPrefix(prefixes, "security.fileGuardrailMode");
@@ -573,9 +572,6 @@ public class RuntimeConfigResolver {
         if (appConfig != null) {
             for (String providerKey : appConfig.getProviders().keySet()) {
                 addDynamicPrefix(prefixes, "providers." + providerKey + ".");
-            }
-            for (String personality : appConfig.getAgent().getPersonalities().keySet()) {
-                addDynamicPrefix(prefixes, "solonclaw.agent.personalities." + personality + ".");
             }
         }
         return prefixes;

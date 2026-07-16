@@ -19,7 +19,6 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.Props;
@@ -45,18 +44,6 @@ public class DashboardProfileServiceTest {
         assertMapping(
                 "installDistribution", "/api/profiles/install", MethodType.POST, Context.class);
         assertMapping("show", "/api/profiles/{name}", MethodType.GET, Context.class, String.class);
-        assertMapping(
-                "setupCommand",
-                "/api/profiles/{name}/setup-command",
-                MethodType.GET,
-                Context.class,
-                String.class);
-        assertMapping(
-                "openTerminal",
-                "/api/profiles/{name}/open-terminal",
-                MethodType.POST,
-                Context.class,
-                String.class);
         assertMapping(
                 "updateDescription",
                 "/api/profiles/{name}/description",
@@ -164,8 +151,7 @@ public class DashboardProfileServiceTest {
                     .containsEntry("description_auto", Boolean.FALSE);
 
             assertThat(service.readSoul("writer")).containsEntry("exists", Boolean.TRUE);
-            assertThat(String.valueOf(service.readSoul("writer").get("content")))
-                    .contains("SOUL.md 工作区模板");
+            assertThat(String.valueOf(service.readSoul("writer").get("content"))).isEmpty();
             service.updateSoul("writer", "You write concise release notes.\n");
             assertThat(service.readSoul("writer"))
                     .containsEntry("content", "You write concise release notes.\n")
@@ -208,8 +194,6 @@ public class DashboardProfileServiceTest {
             assertThat(service.showProfile("writer"))
                     .containsEntry("provider", "anthropic")
                     .containsEntry("model", "claude-test");
-            assertThat(service.setupCommand("writer")).containsEntry("command", "writer setup");
-            assertThat(service.setupCommand("default")).containsEntry("command", "solonclaw setup");
 
             assertThat(service.createAlias("writer", "release-writer").get("aliases"))
                     .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
@@ -289,16 +273,6 @@ public class DashboardProfileServiceTest {
                             new LocalSkillService(defaultConfig, preferences), preferences, scope);
             assertThat(skillEnabled(verifySkills.getSkills("builder"), "keep")).isTrue();
             assertThat(skillEnabled(verifySkills.getSkills("builder"), "drop")).isFalse();
-            assertThat(service.openTerminal("builder"))
-                    .containsEntry("ok", Boolean.TRUE)
-                    .containsEntry("command", "builder setup");
-            assertThat(service.terminalHome).isEqualTo(home);
-            assertThat(service.terminalCommand)
-                    .containsSubsequence("--profile", "builder", "setup")
-                    .doesNotContain("sh", "-lc", "cmd.exe", "/c");
-            org.assertj.core.api.Assertions.assertThatThrownBy(
-                            () -> service.openTerminal("builder;touch"))
-                    .isInstanceOf(IllegalArgumentException.class);
 
             Map<String, Object> disableAll = new LinkedHashMap<String, Object>();
             disableAll.put("name", "disable-all");
@@ -369,32 +343,6 @@ public class DashboardProfileServiceTest {
         } finally {
             deleteTree(root);
             deleteTree(wrappers);
-        }
-    }
-
-    /** open-terminal 必须拒绝指向 Profile 根外部的符号链接目录。 */
-    @Test
-    void shouldRejectSymlinkProfileForOpenTerminal() throws Exception {
-        Path root = Files.createTempDirectory("solonclaw-profile-terminal-symlink-");
-        Path wrappers = Files.createTempDirectory("solonclaw-profile-terminal-symlink-wrappers-");
-        Path outside = Files.createTempDirectory("solonclaw-profile-terminal-outside-");
-        try {
-            Files.createDirectories(root.resolve("profiles"));
-            try {
-                Files.createSymbolicLink(root.resolve("profiles/linked"), outside);
-            } catch (UnsupportedOperationException | IOException unsupported) {
-                Assumptions.assumeTrue(false, "Symbolic links are unavailable");
-            }
-            DashboardProfileService service =
-                    new DashboardProfileService(new ProfileManager(root, wrappers, "solonclaw"));
-
-            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.openTerminal("linked"))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Profile path");
-        } finally {
-            deleteTree(root);
-            deleteTree(wrappers);
-            deleteTree(outside);
         }
     }
 
@@ -677,12 +625,6 @@ public class DashboardProfileServiceTest {
         /** 调用次数。 */
         private int calls;
 
-        /** open-terminal 捕获到的工作目录。 */
-        private Path terminalHome;
-
-        /** open-terminal 捕获到的应用参数。 */
-        private List<String> terminalCommand;
-
         /** 创建 Builder 进程边界替身。 */
         private BuilderProfileService(
                 ProfileManager manager,
@@ -707,13 +649,6 @@ public class DashboardProfileServiceTest {
                 throw laterFailure;
             }
             return null;
-        }
-
-        /** 捕获安全 argv，不启动真实终端。 */
-        @Override
-        protected void launchProfileTerminal(Path home, List<String> applicationCommand) {
-            terminalHome = home;
-            terminalCommand = new java.util.ArrayList<String>(applicationCommand);
         }
     }
 

@@ -240,8 +240,7 @@ public class AppUpdateService {
 
             scheduleCurrentProcessExit();
 
-            return UpdateResult.ok(
-                    "已升级到 " + status.getLatestTag() + "，应用将在几秒后由运行管理器自动重启。");
+            return UpdateResult.ok("已升级到 " + status.getLatestTag() + "，应用将在几秒后由运行管理器自动重启。");
         } catch (Exception e) {
             if (downloadedJar != null) {
                 FileUtil.del(downloadedJar);
@@ -400,11 +399,7 @@ public class AppUpdateService {
     private void downloadAsset(String assetUrl, File target, long maxBytes) {
         ensureTrustedUpdateAssetUrl(assetUrl);
         BoundedAttachmentIO.downloadHutoolToFile(
-                assetUrl,
-                target,
-                60000,
-                maxBytes,
-                updateAssetSecurityPolicy());
+                assetUrl, target, 60000, maxBytes, updateAssetSecurityPolicy());
     }
 
     /**

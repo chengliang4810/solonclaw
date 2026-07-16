@@ -144,14 +144,10 @@ public interface GatewayCommandConstants {
     String COMMAND_SECURITY = "security";
 
     /** 命令PERSONALITY的统一常量值。 */
-    String COMMAND_PERSONALITY = "personality";
-
     /** 命令版本的统一常量值。 */
     String COMMAND_VERSION = "version";
 
     /** 命令更新的统一常量值。 */
-    String COMMAND_UPDATE = "update";
-
     /** 命令模型的统一常量值。 */
     String COMMAND_MODEL = "model";
 
@@ -303,14 +299,10 @@ public interface GatewayCommandConstants {
     String SLASH_STOP = COMMAND_PREFIX + COMMAND_STOP;
 
     /** 斜杠命令PERSONALITY的统一常量值。 */
-    String SLASH_PERSONALITY = COMMAND_PREFIX + COMMAND_PERSONALITY;
-
     /** 斜杠命令版本的统一常量值。 */
     String SLASH_VERSION = COMMAND_PREFIX + COMMAND_VERSION;
 
     /** 斜杠命令更新的统一常量值。 */
-    String SLASH_UPDATE = COMMAND_PREFIX + COMMAND_UPDATE;
-
     /** 斜杠命令模型的统一常量值。 */
     String SLASH_MODEL = COMMAND_PREFIX + COMMAND_MODEL;
 

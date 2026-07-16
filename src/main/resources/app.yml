@@ -237,6 +237,7 @@ solonclaw.gateway.allowAllUsers: false
 solonclaw.gateway.processingReactionsEnabled: true
 # 是否由 default Profile 的单个网关进程承载全部 Profile，使每个 Profile 可同时运行独立机器人账号。
 solonclaw.gateway.multiplexProfiles: true
+solonclaw.profiles.maxNamedProfiles: 10
 
 # 版本检查与更新
 solonclaw.update.repo:

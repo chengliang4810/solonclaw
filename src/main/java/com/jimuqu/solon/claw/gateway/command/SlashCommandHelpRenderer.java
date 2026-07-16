@@ -71,8 +71,7 @@ final class SlashCommandHelpRenderer {
         put(usages, "queue", "/queue <prompt>");
         put(usages, "steer", "/steer <prompt>");
         put(usages, "security", "/security [status|audit|policy]");
-        put(usages, "personality", "/personality [name|none]");
-        put(usages, "version", "/version [check|update]");
+        put(usages, "version", "/version [help|check|update]");
         put(usages, "setup", "/setup [status|model|gateway]");
         put(usages, "config", "/config [get|set|set-secret|refresh]");
         put(usages, "model", "/model [--global] [provider:]<model>|clear");

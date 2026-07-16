@@ -175,8 +175,7 @@ public final class MessageSupport {
                             normalizedCalls.add(null);
                             continue;
                         }
-                        String normalizedId =
-                                normalizedToolCallId(call.getId(), normalizedIds);
+                        String normalizedId = normalizedToolCallId(call.getId(), normalizedIds);
                         String normalizedIndex =
                                 normalizedToolCallId(call.getIndex(), normalizedIds);
                         if (!StrUtil.equals(call.getId(), normalizedId)

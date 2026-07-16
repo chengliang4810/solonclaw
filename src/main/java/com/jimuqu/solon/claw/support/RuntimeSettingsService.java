@@ -9,7 +9,6 @@ import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
-import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
@@ -320,19 +319,6 @@ public class RuntimeSettingsService {
             log.debug("运行时渠道状态读取失败，按空状态列表兜底 error={}", exceptionSummary(e));
         }
 
-        String activePersonality = "default";
-        try {
-            String stored =
-                    globalSettingRepository == null
-                            ? null
-                            : globalSettingRepository.get(AgentSettingConstants.ACTIVE_PERSONALITY);
-            if (StrUtil.isNotBlank(stored)) {
-                activePersonality = stored.trim();
-            }
-        } catch (Exception e) {
-            log.debug("运行时人格设置读取失败，按默认人格兜底 error={}", exceptionSummary(e));
-        }
-
         StringBuilder buffer = new StringBuilder();
         LlmProviderService.ResolvedProvider globalResolved =
                 llmProviderService.resolveEffectiveProvider(null);
@@ -362,7 +348,6 @@ public class RuntimeSettingsService {
         buffer.append("branch=")
                 .append(session == null ? "" : StrUtil.nullToEmpty(session.getBranchName()))
                 .append('\n');
-        buffer.append("active_personality=").append(activePersonality).append('\n');
         buffer.append("default_provider=")
                 .append(StrUtil.nullToEmpty(appConfig.getModel().getProviderKey()))
                 .append('\n');

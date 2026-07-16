@@ -21,7 +21,6 @@ import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.BlockingLlmGateway;
-import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
@@ -48,25 +47,11 @@ public class CommandEnhancementTest {
     private static final Pattern SLASH_CONFIRM_ID = Pattern.compile("确认编号：([0-9a-fA-F]{32})");
 
     @Test
-    void shouldSupportResetAndPersonalityCommands() throws Exception {
+    void shouldSupportResetCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        FakeLlmGateway fake = (FakeLlmGateway) env.llmGateway;
         bootstrapAdmin(env);
 
-        GatewayReply listReply = env.send("admin-chat", "admin-user", "/personality");
-        assertThat(listReply.getContent()).contains("helpful").contains("concise");
-
-        GatewayReply setReply = env.send("admin-chat", "admin-user", "/personality helpful");
-        assertThat(setReply.getContent()).contains("helpful");
-
-        GatewayReply statusReply = env.send("admin-chat", "admin-user", "/status");
-        assertThat(statusReply.getContent()).contains("personality=helpful");
-
-        GatewayReply conversationReply = env.send("admin-chat", "admin-user", "人格测试");
-        assertThat(conversationReply.getContent()).contains("echo:人格测试");
-        assertThat(fake.lastSystemPrompt).contains("[Personality: helpful]");
-        assertThat(fake.lastSystemPrompt).contains("You are a helpful assistant.");
-
+        env.sessionRepository.bindNewSession("MEMORY:admin-chat:admin-user");
         SessionRecord beforeReset =
                 env.sessionRepository.getBoundSession("MEMORY:admin-chat:admin-user");
         GatewayReply resetReply = env.send("admin-chat", "admin-user", "/reset");

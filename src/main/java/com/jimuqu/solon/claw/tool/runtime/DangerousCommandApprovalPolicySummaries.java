@@ -617,5 +617,4 @@ final class DangerousCommandApprovalPolicySummaries {
                 "Foreground terminal guardrails block unmanaged background wrappers, inline background operators, credential path access, unsafe proxy/preproxy URLs, system DNS/proxy changes, hosts/resolver writes, download output or network upload source credential paths, and common long-running dev/server commands, with managed background process guidance and redacted sudo support.");
         return summary;
     }
-
 }

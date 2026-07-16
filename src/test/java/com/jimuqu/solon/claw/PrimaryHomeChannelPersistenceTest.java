@@ -7,14 +7,13 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.PairingRequestRecord;
+import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
-
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-
-import java.nio.file.Path;
 
 /** 验证每个 Profile 只持久化一个主要通知渠道。 */
 class PrimaryHomeChannelPersistenceTest {
@@ -31,6 +30,8 @@ class PrimaryHomeChannelPersistenceTest {
         SqliteDatabase database = new SqliteDatabase(config);
         try {
             SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            repository.savePlatformAdmin(admin(PlatformType.FEISHU, "feishu-admin"));
+            repository.savePlatformAdmin(admin(PlatformType.DINGTALK, "dingtalk-admin"));
             repository.saveHomeChannel(home(PlatformType.FEISHU, "feishu-home", false, 1L));
             repository.saveHomeChannel(home(PlatformType.DINGTALK, "dingtalk-home", false, 2L));
 
@@ -100,6 +101,17 @@ class PrimaryHomeChannelPersistenceTest {
         record.setChatName(chatId);
         record.setPrimary(primary);
         record.setUpdatedAt(updatedAt);
+        return record;
+    }
+
+    /** 创建测试平台管理员。 */
+    private PlatformAdminRecord admin(PlatformType platform, String userId) {
+        PlatformAdminRecord record = new PlatformAdminRecord();
+        record.setPlatform(platform);
+        record.setUserId(userId);
+        record.setUserName(userId);
+        record.setChatId(userId + "-chat");
+        record.setCreatedAt(System.currentTimeMillis());
         return record;
     }
 

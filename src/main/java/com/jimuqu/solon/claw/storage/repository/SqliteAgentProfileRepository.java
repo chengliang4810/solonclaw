@@ -3,7 +3,6 @@ package com.jimuqu.solon.claw.storage.repository;
 import com.jimuqu.solon.claw.agent.AgentProfile;
 import com.jimuqu.solon.claw.agent.AgentProfileRepository;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -11,7 +10,8 @@ import lombok.RequiredArgsConstructor;
 
 /** 负责SQLite Agent角色配置数据的持久化读写，隔离底层存储实现。 */
 @RequiredArgsConstructor
-public class SqliteAgentProfileRepository extends SqliteRepositorySupport implements AgentProfileRepository {
+public class SqliteAgentProfileRepository extends SqliteRepositorySupport
+        implements AgentProfileRepository {
     /** 记录SQLiteAgent角色配置中的数据库。 */
     private final SqliteDatabase database;
 
@@ -44,8 +44,7 @@ public class SqliteAgentProfileRepository extends SqliteRepositorySupport implem
                     stmt.setLong(11, profile.getLastUsedAt());
                     stmt.setLong(12, profile.getCreatedAt());
                     stmt.setLong(13, profile.getUpdatedAt());
-                }
-        );
+                });
         return profile;
     }
 
@@ -60,8 +59,7 @@ public class SqliteAgentProfileRepository extends SqliteRepositorySupport implem
         return queryOne(
                 "select * from agent_profiles where agent_name = ?",
                 stmt -> stmt.setString(1, agentName),
-                this::map
-        );
+                this::map);
     }
 
     /**
@@ -71,11 +69,7 @@ public class SqliteAgentProfileRepository extends SqliteRepositorySupport implem
      */
     @Override
     public List<AgentProfile> listAll() throws SQLException {
-        return queryList(
-                "select * from agent_profiles order by updated_at desc",
-                null,
-                this::map
-        );
+        return queryList("select * from agent_profiles order by updated_at desc", null, this::map);
     }
 
     /**
@@ -87,8 +81,7 @@ public class SqliteAgentProfileRepository extends SqliteRepositorySupport implem
     public void deleteByName(String agentName) throws SQLException {
         executeUpdate(
                 "delete from agent_profiles where agent_name = ?",
-                stmt -> stmt.setString(1, agentName)
-        );
+                stmt -> stmt.setString(1, agentName));
     }
 
     /**

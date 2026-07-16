@@ -132,7 +132,7 @@ public class AttachmentPathResolver {
         summary.put("maxAttachmentBytes", Long.valueOf(MAX_ATTACHMENT_BYTES));
         summary.put(
                 "description",
-                "CLI/TUI pasted local paths are converted to cached attachments only after path safety checks; resolved attachment labels, blocked previews, and missing previews are secret-redacted.");
+                "TUI pasted local paths are converted to cached attachments only after path safety checks; resolved attachment labels, blocked previews, and missing previews are secret-redacted.");
         return summary;
     }
 

@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** 描述一条对话内 slash command，统一提供 CLI、TUI 与消息网关可复用的命令元数据。 */
+/** 描述一条对话内 slash command，统一提供 TUI 与消息网关可复用的命令元数据。 */
 public final class CommandDescriptor {
     /** 命令规范名，不包含斜杠前缀，用于注册表索引和用户输入解析。 */
     private final String name;

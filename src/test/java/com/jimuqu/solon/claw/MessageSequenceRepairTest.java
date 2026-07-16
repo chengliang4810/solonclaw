@@ -99,7 +99,8 @@ public class MessageSequenceRepairTest {
 
     @Test
     void shouldNormalizePersistedToolCallIndexWhenProviderStoredIdAsIndex() {
-        AssistantMessage assistant = assistantWithToolCall("functions.image_generate:47", "image_generate");
+        AssistantMessage assistant =
+                assistantWithToolCall("functions.image_generate:47", "image_generate");
         ToolCall call = assistant.getToolCalls().get(0);
         assistant =
                 new AssistantMessage(

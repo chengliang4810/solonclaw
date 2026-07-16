@@ -1429,9 +1429,9 @@ public class DefaultCronScheduler {
     }
 
     /**
-     * 将 Dashboard、CLI 和 TUI 来源的定时任务结果写回会话或保留在运行历史。
+     * 将 Dashboard 和 TUI 来源的定时任务结果写回会话或保留在运行历史。
      *
-     * @param job 当前定时任务，用于定位 CLI/TUI 绑定会话。
+     * @param job 当前定时任务，用于定位 TUI 绑定会话。
      * @param target 投递目标。
      * @param request 投递请求。
      * @return 如果已完成本地回投则返回 true。
@@ -1443,9 +1443,7 @@ public class DefaultCronScheduler {
             return false;
         }
         boolean dashboard = "dashboard".equalsIgnoreCase(StrUtil.nullToEmpty(target.chatId));
-        boolean localTerminal =
-                "cli".equalsIgnoreCase(StrUtil.nullToEmpty(target.chatId))
-                        || "terminal-ui".equalsIgnoreCase(StrUtil.nullToEmpty(target.chatId));
+        boolean localTerminal = "terminal-ui".equalsIgnoreCase(StrUtil.nullToEmpty(target.chatId));
         if (!dashboard && !localTerminal) {
             return false;
         }
@@ -1461,7 +1459,7 @@ public class DefaultCronScheduler {
                         ? sessionRepository.findById(target.threadId)
                         : sessionRepository.getBoundSession(job.getSourceKey());
         if (session == null) {
-            // CLI/TUI 会话可能已被用户删除，此时运行历史仍保留完整结果。
+            // TUI 会话可能已被用户删除，此时运行历史仍保留完整结果。
             return true;
         }
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
@@ -1765,7 +1763,9 @@ public class DefaultCronScheduler {
     private CronDeliveryTarget originFallbackHomeTarget(CronJobRecord job) {
         try {
             HomeChannelRecord home = gatewayPolicyRepository.getPrimaryHomeChannel();
-            if (home != null && home.getPlatform() != null && StrUtil.isNotBlank(home.getChatId())) {
+            if (home != null
+                    && home.getPlatform() != null
+                    && StrUtil.isNotBlank(home.getChatId())) {
                 log.info(
                         "Cron job has deliver=origin but no origin/source chat; falling back to primary {} home channel: jobId={}",
                         home.getPlatform(),

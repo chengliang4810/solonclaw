@@ -19,7 +19,7 @@ public class TuiRuntimeProtocolService {
     /** 应用配置，用于读取当前模型 provider 和运行时目录。 */
     private final AppConfig appConfig;
 
-    /** 共享初始化写入服务，确保 TUI 保存行为与 CLI/setup 命令一致。 */
+    /** 共享初始化写入服务，确保 TUI 保存行为与后端配置规则一致。 */
     private final RuntimeSetupService setupService;
 
     /** 微信二维码 setup 服务；为空时 TUI 只暴露手动配置。 */

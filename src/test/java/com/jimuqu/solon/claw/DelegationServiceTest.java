@@ -29,7 +29,6 @@ import com.jimuqu.solon.claw.tool.runtime.DelegateTools;
 import com.jimuqu.solon.claw.tool.runtime.TodoTools;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -122,9 +121,9 @@ public class DelegationServiceTest {
                 .contains(result.getSubagentId());
     }
 
-    /** 验证子代理继承父会话当前生效的模型、推理和快速模式覆盖。 */
+    /** 验证子代理不继承父会话的模型、推理和快速模式覆盖。 */
     @Test
-    void shouldInheritParentModelRequestOverrides() throws Exception {
+    void shouldNotInheritParentModelRequestOverrides() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String parentSourceKey = "MEMORY:room-a:user-a";
         SessionRecord parent = env.sessionRepository.bindNewSession(parentSourceKey);
@@ -138,9 +137,9 @@ public class DelegationServiceTest {
 
         SessionRecord child = env.sessionRepository.findById(result.getSessionId());
         assertThat(child.getParentSessionId()).isEqualTo(parent.getSessionId());
-        assertThat(child.getModelOverride()).isEqualTo("gpt-5.4");
-        assertThat(child.getServiceTierOverride()).isEqualTo("priority");
-        assertThat(child.getReasoningEffortOverride()).isEqualTo("high");
+        assertThat(child.getModelOverride()).isNull();
+        assertThat(child.getServiceTierOverride()).isNull();
+        assertThat(child.getReasoningEffortOverride()).isNull();
     }
 
     @Test
@@ -196,9 +195,9 @@ public class DelegationServiceTest {
         assertThat(daemonWorker.get()).isTrue();
     }
 
-    /** 深层 orchestrator 必须沿父运行链累计深度，不能把三层以后继续视为第二层。 */
+    /** 子 Agent 在第一层即禁止继续创建子 Agent。 */
     @Test
-    void shouldRejectDelegationBeyondRecursiveParentDepth() throws Exception {
+    void shouldRejectNestedDelegation() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getTask().setSubagentMaxDepth(3);
         env.agentRunRepository.saveRun(run("root", "conversation", null));
@@ -228,7 +227,7 @@ public class DelegationServiceTest {
         }
 
         assertThat(result.isError()).isTrue();
-        assertThat(result.getContent()).contains("depth limit exceeded");
+        assertThat(result.getContent()).contains("Subagents cannot create subagents");
     }
 
     /** 启动时只能收敛遗留的活动记录，不能改写已正常结束的子 Agent。 */
@@ -527,6 +526,8 @@ public class DelegationServiceTest {
         DelegationTask task = new DelegationTask();
         task.setName("web-child");
         task.setPrompt("use web tools");
+        task.setModel("test-model");
+        task.setAllowedTools(java.util.Collections.<String>emptyList());
         task.setToolsets(Arrays.asList("web"));
 
         DelegationResult result = env.delegationService.delegateSingle(parentSourceKey, task);
@@ -539,24 +540,65 @@ public class DelegationServiceTest {
                 .containsExactly("codesearch", "websearch", "web_extract");
     }
 
+    /** 子 Agent 只接收显式系统提示、任务上下文、模型和工具白名单。 */
+    @Test
+    void shouldUseMinimalExplicitSubagentContext() throws Exception {
+        RecordingToolGateway gateway = new RecordingToolGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        String parentSourceKey = "MEMORY:room-a:user-a";
+        env.sessionRepository.bindNewSession(parentSourceKey);
+        DelegationTask task = new DelegationTask();
+        task.setPrompt("inspect module");
+        task.setContext("only src/engine");
+        task.setModel("test-model");
+        task.setSystemPrompt("minimal-system-marker");
+        task.setAllowedTools(Arrays.asList("codesearch"));
+
+        DelegationResult result = env.delegationService.delegateSingle(parentSourceKey, task);
+
+        assertThat(result.isError()).isFalse();
+        assertThat(gateway.lastSystemPrompt)
+                .startsWith("minimal-system-marker")
+                .doesNotContain("Workspace Rules", "Soul", "User", "Enabled Skills");
+        assertThat(gateway.lastUserMessage)
+                .contains("inspect module", "only src/engine")
+                .doesNotContain("MEMORY.md", "SOUL.md", "USER.md");
+        assertThat(gateway.lastToolObjects.toString()).contains("SafeCodeSearchTool");
+        assertThat(gateway.lastToolObjects).hasSize(1);
+    }
+
     @Test
     void delegateToolShouldMapSingleAndBatchTasks() throws Exception {
         RecordingDelegationService service = new RecordingDelegationService();
         DelegateTools tools = new DelegateTools(service, "MEMORY:room-a:user-a");
         DelegateTools.DelegateTaskInput first =
-                delegationInput("batch goal", "batch context", "orchestrator");
-        DelegateTools.DelegateTaskInput second = delegationInput("default role", null, null);
+                delegationInput("batch goal", "batch context", "model-a");
+        DelegateTools.DelegateTaskInput second = delegationInput("default model", null, null);
 
-        tools.delegateTask("single goal", "single context", null, "leaf", Boolean.FALSE);
-        tools.delegateTask(null, "shared context", Arrays.asList(first, second), "leaf", null);
+        tools.delegateTask(
+                "single goal",
+                "single context",
+                null,
+                "model-main",
+                null,
+                java.util.Collections.<String>emptyList(),
+                Boolean.FALSE);
+        tools.delegateTask(
+                null,
+                "shared context",
+                Arrays.asList(first, second),
+                "model-main",
+                null,
+                java.util.Collections.<String>emptyList(),
+                null);
 
         assertThat(service.singleTask.getPrompt()).isEqualTo("single goal");
         assertThat(service.singleTask.getContext()).isEqualTo("single context");
-        assertThat(service.singleTask.getRole()).isEqualTo("leaf");
+        assertThat(service.singleTask.getModel()).isEqualTo("model-main");
         assertThat(service.batchTasks.get(0).getContext()).isEqualTo("batch context");
-        assertThat(service.batchTasks.get(0).getRole()).isEqualTo("orchestrator");
+        assertThat(service.batchTasks.get(0).getModel()).isEqualTo("model-a");
         assertThat(service.batchTasks.get(1).getContext()).isEqualTo("shared context");
-        assertThat(service.batchTasks.get(1).getRole()).isEqualTo("leaf");
+        assertThat(service.batchTasks.get(1).getModel()).isEqualTo("model-main");
     }
 
     /** 顶层 delegate_task 必须立即返回后台句柄，并在子任务完成后回流父会话。 */
@@ -630,7 +672,15 @@ public class DelegationServiceTest {
         AgentRunContext.setCurrent(parent);
         String handle;
         try {
-            handle = tools.delegateTask("slow goal", null, null, null, Boolean.FALSE);
+            handle =
+                    tools.delegateTask(
+                            "slow goal",
+                            null,
+                            null,
+                            "test-model",
+                            null,
+                            java.util.Collections.<String>emptyList(),
+                            Boolean.FALSE);
         } finally {
             AgentRunContext.setCurrent(null);
         }
@@ -649,56 +699,6 @@ public class DelegationServiceTest {
         assertThat(channelDelivery.get().getChatId()).isEqualTo("room-a");
         assertThat(channelDelivery.get().getThreadId()).isEqualTo("thread-a");
         assertThat(channelDelivery.get().getUserId()).isEqualTo("user-a");
-    }
-
-    /** 一次性 CLI 的顶层委派必须同步返回最终结果，不能留下会被进程退出中断的后台任务。 */
-    @Test
-    void oneShotCliDelegationShouldWaitForFinalResult() throws Exception {
-        AtomicBoolean backgroundCalled = new AtomicBoolean(false);
-        DelegationService service =
-                new DelegationService() {
-                    @Override
-                    public boolean shouldRunInBackground() {
-                        return true;
-                    }
-
-                    @Override
-                    public List<DelegationResult> delegateBatch(
-                            String sourceKey, List<DelegationTask> tasks) {
-                        DelegationResult result = new DelegationResult();
-                        result.setContent("cli child result");
-                        return Arrays.asList(result);
-                    }
-
-                    @Override
-                    public DelegationResult delegateSingle(
-                            String sourceKey, String prompt, String context) {
-                        DelegationResult result = new DelegationResult();
-                        result.setContent("cli child result");
-                        return result;
-                    }
-
-                    @Override
-                    public DelegationResult delegateSingle(String sourceKey, DelegationTask task) {
-                        DelegationResult result = new DelegationResult();
-                        result.setContent("cli child result");
-                        return result;
-                    }
-
-                    @Override
-                    public Map<String, Object> delegateInBackground(
-                            String sourceKey, List<DelegationTask> tasks) {
-                        backgroundCalled.set(true);
-                        return Collections.emptyMap();
-                    }
-                };
-
-        String result =
-                new DelegateTools(service, "MEMORY:cli:default")
-                        .delegateTask("goal", null, null, null, Boolean.TRUE);
-
-        assertThat(result).isEqualTo("cli child result");
-        assertThat(backgroundCalled).isFalse();
     }
 
     /** 后台委派完成前父来源键切到新会话时，旧结果必须拒绝回流。 */
@@ -969,21 +969,11 @@ public class DelegationServiceTest {
         assertThat(bean.destroyMethod()).isEqualTo("shutdown");
     }
 
-    /** 子 Agent 内的 orchestrator 委派必须同步返回，便于在本轮汇总 worker 结果。 */
+    /** 子 Agent 即使直接调用服务层也不能继续创建子 Agent。 */
     @Test
-    void delegateToolShouldRemainSynchronousInsideSubagent() throws Exception {
-        CountDownLatch batchCalled = new CountDownLatch(1);
+    void delegateServiceShouldRejectNestedSubagent() throws Exception {
         DefaultDelegationService service =
-                new DefaultDelegationService(new ConversationOrchestratorHolder(), null, null) {
-                    @Override
-                    public List<DelegationResult> delegateBatch(
-                            String sourceKey, List<DelegationTask> tasks) {
-                        batchCalled.countDown();
-                        DelegationResult result = new DelegationResult();
-                        result.setContent("nested result");
-                        return Arrays.asList(result);
-                    }
-                };
+                new DefaultDelegationService(new ConversationOrchestratorHolder(), null, null);
         DelegateTools tools = new DelegateTools(service, "MEMORY:room-a:delegate-1:user-a");
         AgentRunContext child =
                 new AgentRunContext(
@@ -993,14 +983,20 @@ public class DelegationServiceTest {
         AgentRunContext.setCurrent(child);
         String result;
         try {
-            DelegateTools.DelegateTaskInput input = delegationInput("worker", null, "leaf");
-            result = tools.delegateTask(null, null, Arrays.asList(input), "orchestrator", true);
+            result =
+                    tools.delegateTask(
+                            "worker",
+                            null,
+                            null,
+                            "test-model",
+                            null,
+                            java.util.Collections.<String>emptyList(),
+                            true);
         } finally {
             AgentRunContext.setCurrent(null);
         }
 
-        assertThat(batchCalled.getCount()).isZero();
-        assertThat(result).contains("nested result").doesNotContain("\"status\":\"dispatched\"");
+        assertThat(result).contains("Subagents cannot create subagents");
     }
 
     @Test
@@ -1088,14 +1084,29 @@ public class DelegationServiceTest {
     void delegateToolShouldRedactErrors() throws Exception {
         DelegateTools missingService = new DelegateTools(null, "MEMORY:room-a:user-a");
         String notReady =
-                missingService.delegateTask("ghp_1234567890abcdef", null, null, null, null);
+                missingService.delegateTask(
+                        "ghp_1234567890abcdef",
+                        null,
+                        null,
+                        "test-model",
+                        null,
+                        java.util.Collections.<String>emptyList(),
+                        null);
         assertThat(notReady)
                 .contains("\"status\":\"error\"")
                 .doesNotContain("ghp_1234567890abcdef");
 
         DelegateTools failing =
                 new DelegateTools(new FailingDelegationService(), "MEMORY:room-a:user-a");
-        String failed = failing.delegateTask("prompt-ghp_1234567890abcdef", null, null, null, null);
+        String failed =
+                failing.delegateTask(
+                        "prompt-ghp_1234567890abcdef",
+                        null,
+                        null,
+                        "test-model",
+                        null,
+                        java.util.Collections.<String>emptyList(),
+                        null);
 
         assertThat(failed)
                 .contains("\"status\":\"error\"")
@@ -1111,10 +1122,25 @@ public class DelegationServiceTest {
         DelegateTools tools = new DelegateTools(service, "MEMORY:room-a:user-a");
 
         String single =
-                tools.delegateTask("prompt token=ghp_delegateprompt12345", null, null, null, null);
+                tools.delegateTask(
+                        "prompt token=ghp_delegateprompt12345",
+                        null,
+                        null,
+                        "test-model",
+                        null,
+                        java.util.Collections.<String>emptyList(),
+                        null);
         DelegateTools.DelegateTaskInput batchInput =
                 delegationInput("batch token=ghp_delegateprompt12345", null, null);
-        String batch = tools.delegateTask(null, null, Arrays.asList(batchInput), null, null);
+        String batch =
+                tools.delegateTask(
+                        null,
+                        null,
+                        Arrays.asList(batchInput),
+                        "test-model",
+                        null,
+                        java.util.Collections.<String>emptyList(),
+                        null);
 
         assertThat(single)
                 .contains("Authorization: Bearer ***")
@@ -1126,6 +1152,8 @@ public class DelegationServiceTest {
 
     private static class RecordingToolGateway extends FakeLlmGateway {
         private List<Object> lastToolObjects = new ArrayList<Object>();
+        private String lastSystemPrompt;
+        private String lastUserMessage;
 
         @Override
         public LlmResult chat(
@@ -1135,6 +1163,8 @@ public class DelegationServiceTest {
                 List<Object> toolObjects)
                 throws Exception {
             lastToolObjects = new ArrayList<Object>(toolObjects);
+            lastSystemPrompt = systemPrompt;
+            lastUserMessage = userMessage;
             return super.chat(session, systemPrompt, userMessage, toolObjects);
         }
     }
@@ -1178,15 +1208,16 @@ public class DelegationServiceTest {
      *
      * @param goal 子任务目标。
      * @param context 子任务上下文。
-     * @param role 子任务角色。
+     * @param model 子任务模型。
      * @return 返回委派工具输入。
      */
     private static DelegateTools.DelegateTaskInput delegationInput(
-            String goal, String context, String role) {
+            String goal, String context, String model) {
         DelegateTools.DelegateTaskInput input = new DelegateTools.DelegateTaskInput();
         input.setGoal(goal);
         input.setContext(context);
-        input.setRole(role);
+        input.setModel(model);
+        input.setAllowedTools(java.util.Collections.<String>emptyList());
         return input;
     }
 

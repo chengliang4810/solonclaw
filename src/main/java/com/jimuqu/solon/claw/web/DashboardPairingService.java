@@ -60,9 +60,7 @@ public class DashboardPairingService {
                             Map<String, Object> item = new LinkedHashMap<String, Object>();
                             item.put("platform", platform.name().toLowerCase());
                             item.put("admin", adminMap(authorization.platformAdmin(platform)));
-                            item.put(
-                                    "home_channel",
-                                    homeMap(authorization.homeChannel(platform)));
+                            item.put("home_channel", homeMap(authorization.homeChannel(platform)));
                             item.put(
                                     "pending",
                                     pendingMaps(authorization.pendingPairings(platform)));
@@ -76,8 +74,8 @@ public class DashboardPairingService {
     }
 
     /** 使用首次私聊 pairing code 绑定当前 Profile 的平台主人和默认通知私聊。 */
-    public Map<String, Object> claimOwner(
-            String requestedProfile, String platform, String code) throws Exception {
+    public Map<String, Object> claimOwner(String requestedProfile, String platform, String code)
+            throws Exception {
         final PlatformType target = requirePlatform(platform);
         final String candidate = requireText(code, "pairing code");
         DashboardProfileContext.Scope scope = profileContext.resolve(requestedProfile);
@@ -117,7 +115,8 @@ public class DashboardPairingService {
                 authorization -> {
                     Map<String, Object> result = new LinkedHashMap<String, Object>();
                     result.put("platform", target.name().toLowerCase());
-                    result.put("home_channel", homeMap(authorization.setPrimaryHomeChannel(target)));
+                    result.put(
+                            "home_channel", homeMap(authorization.setPrimaryHomeChannel(target)));
                     result.put("ok", Boolean.TRUE);
                     return result;
                 });
@@ -142,8 +141,8 @@ public class DashboardPairingService {
     }
 
     /** 在已解析的目标 Profile 授权服务上执行一次操作。 */
-    private <T> T withAuthorization(
-            DashboardProfileContext.Scope scope, PairingAction<T> action) throws Exception {
+    private <T> T withAuthorization(DashboardProfileContext.Scope scope, PairingAction<T> action)
+            throws Exception {
         if (scope.isCurrent()) {
             return action.run(currentAuthorization);
         }
@@ -181,8 +180,7 @@ public class DashboardPairingService {
     @SuppressWarnings("unchecked")
     private void deliverWelcome(
             DashboardProfileContext.Scope scope, Map<String, Object> claimResult) {
-        Map<String, Object> welcome =
-                (Map<String, Object>) claimResult.get("welcome_delivery");
+        Map<String, Object> welcome = (Map<String, Object>) claimResult.get("welcome_delivery");
         DeliveryService deliveryService;
         try {
             if (scope.isCurrent()) {

@@ -22,9 +22,10 @@ import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.media.VisionAnalysisService;
+import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
+import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.provider.BrowserProvider;
 import com.jimuqu.solon.claw.provider.WebSearchProvider;
-import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
@@ -67,7 +68,6 @@ import java.util.function.Supplier;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.talent.Talent;
 import org.noear.solon.ai.chat.tool.FunctionTool;
-import org.noear.solon.ai.chat.tool.FunctionToolDesc;
 import org.noear.solon.ai.chat.tool.MethodToolProvider;
 import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.ai.talents.gateway.ToolGatewayTalent;
@@ -209,7 +209,6 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     /** SQLite 数据库，用于给 Agent 暴露 Dashboard 媒体索引查询。 */
     private final SqliteDatabase sqliteDatabase;
-
 
     /**
      * 创建默认工具注册表实例，并注入完整运行依赖与 Web 搜索附加提供方。
@@ -444,6 +443,22 @@ public class DefaultToolRegistry implements ToolRegistry {
         PlatformToolsetsManageTools platformToolsetsManageTools =
                 new PlatformToolsetsManageTools(dashboardPlatformToolsetsService);
         ProviderManageTools providerManageTools = new ProviderManageTools(dashboardProviderService);
+        boolean defaultProfileRuntime =
+                "default"
+                        .equals(
+                                com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity.resolve(
+                                        appConfig));
+        ProfileManageTools profileManageTools =
+                defaultProfileRuntime
+                        ? new ProfileManageTools(
+                                appConfig,
+                                ProfileManager.current(),
+                                ProfileBeanResolver.getBean(
+                                        com.jimuqu.solon.claw.web.DashboardProfileService.class),
+                                ProfileBeanResolver.getBean(
+                                        com.jimuqu.solon.claw.core.repository.ProfileTaskRepository
+                                                .class))
+                        : null;
         StatusManageTools statusManageTools = new StatusManageTools(dashboardStatusService);
         DiagnosticsManageTools diagnosticsManageTools =
                 new DiagnosticsManageTools(dashboardDiagnosticsService);
@@ -463,6 +478,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         GatewaySetupManageTools gatewaySetupManageTools =
                 new GatewaySetupManageTools(weixinQrSetupService, domesticQrSetupService);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
+        ProfileTaskTools profileTaskTools = new ProfileTaskTools(appConfig, sourceKey);
         ConfigTools configTools =
                 new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
         String sysWorkDir = resolveWorkDir(agentScope);
@@ -549,6 +565,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         boolean webfetchToolAdded = false;
         boolean webExtractToolAdded = false;
         boolean mediaSpeechToolsAdded = false;
+        boolean profileManageToolsAdded = false;
         List<FunctionTool> dynamicTools = new ArrayList<FunctionTool>();
         List<Object> gatewayCandidates = new ArrayList<Object>();
         for (String toolName : enabledToolNames) {
@@ -607,6 +624,15 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(platformToolsetsManageTools);
             } else if (ToolNameConstants.PROVIDER_MANAGE.equals(toolName)) {
                 tools.add(providerManageTools);
+            } else if (ToolNameConstants.PROFILE_CREATE.equals(toolName)
+                    || ToolNameConstants.PROFILE_UPDATE.equals(toolName)
+                    || ToolNameConstants.PROFILE_DELETE.equals(toolName)
+                    || ToolNameConstants.PROFILE_GET.equals(toolName)
+                    || ToolNameConstants.PROFILE_LIST.equals(toolName)) {
+                if (!profileManageToolsAdded && defaultProfileRuntime) {
+                    tools.add(profileManageTools);
+                    profileManageToolsAdded = true;
+                }
             } else if (ToolNameConstants.MEMORY.equals(toolName)
                     || ToolNameConstants.MEMORY_SEARCH.equals(toolName)
                     || ToolNameConstants.MEMORY_GET.equals(toolName)) {
@@ -686,6 +712,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(runTools);
             } else if (ToolNameConstants.DELEGATE_TASK.equals(toolName)) {
                 tools.add(delegateTools);
+            } else if (ToolNameConstants.ASSIGN_PROFILE_TASK.equals(toolName)) {
+                tools.add(profileTaskTools);
             } else if (ToolNameConstants.WEBSEARCH.equals(toolName)) {
                 if (!websearchToolAdded) {
                     tools.add(websearchTool);

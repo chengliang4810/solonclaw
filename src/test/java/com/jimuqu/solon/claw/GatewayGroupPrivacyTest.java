@@ -15,10 +15,8 @@ import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
-
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
+import org.junit.jupiter.api.Test;
 
 /** 验证主人群聊连续性与访客群聊隐私隔离。 */
 public class GatewayGroupPrivacyTest {

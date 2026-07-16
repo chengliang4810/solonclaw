@@ -750,8 +750,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             List<Object> enabledTools =
                     toolRegistry.resolveEnabledTools(message.sourceKey(), agentScope);
             boolean groupGuest = message.isGroupGuest();
-            String systemPrompt = contextService.buildSystemPrompt(message.sourceKey(), agentScope);
-            if (!groupGuest) {
+            boolean minimalContext = StrUtil.isNotBlank(message.getSystemPromptOverride());
+            String systemPrompt =
+                    minimalContext
+                            ? message.getSystemPromptOverride().trim()
+                            : contextService.buildSystemPrompt(message.sourceKey(), agentScope);
+            if (!groupGuest && !minimalContext) {
                 systemPrompt +=
                         "\n\n"
                                 + runtimeSettingsService.buildAgentRuntimePrompt(
@@ -766,7 +770,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
 
             ConversationFeedbackSink feedbackSink = feedbackSinkFor(message);
             String memoryPrefetchContext =
-                    groupGuest ? "" : prefetchMemory(message.sourceKey(), effectiveUserText);
+                    groupGuest || minimalContext
+                            ? ""
+                            : prefetchMemory(message.sourceKey(), effectiveUserText);
             MessageDeliveryTracker.clearDirectDelivery(message.sourceKey());
             AgentRunOutcome outcome =
                     agentRunSupervisor.run(
@@ -798,7 +804,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             }
             feedbackSink.onFinalReply(finalReply);
             eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
-            if (!groupGuest) {
+            if (!groupGuest && !minimalContext) {
                 syncMemory(message.sourceKey(), effectiveUserText, finalReply, session, outcome);
             }
             GatewayReply reply = GatewayReply.ok(finalReply);

@@ -672,7 +672,9 @@ final class DangerousCommandTextSupport {
         }
         char current = command.charAt(index);
         if (quoteHolder[0] != null) {
-            if (current == '\\' && quoteHolder[0].charValue() == '"' && index + 1 < command.length()) {
+            if (current == '\\'
+                    && quoteHolder[0].charValue() == '"'
+                    && index + 1 < command.length()) {
                 return index + 2;
             }
             if (current == quoteHolder[0].charValue()) {
@@ -700,7 +702,7 @@ final class DangerousCommandTextSupport {
     private static CommandWordSpan readShellWord(String command, int position) {
         int start = skipShellWhitespace(command, position);
         int index = start;
-        Character[] quoteHolder = new Character[] { null };
+        Character[] quoteHolder = new Character[] {null};
         while (index < command.length()) {
             int skipped = skipQuoteOrEscape(command, index, quoteHolder);
             if (skipped >= 0) {
@@ -744,7 +746,7 @@ final class DangerousCommandTextSupport {
     private static int scanDollarParenEnd(String command, int start) {
         int depth = 1;
         int index = start + 2;
-        Character[] quoteHolder = new Character[] { null };
+        Character[] quoteHolder = new Character[] {null};
         while (index < command.length()) {
             int skipped = skipQuoteOrEscape(command, index, quoteHolder);
             if (skipped >= 0) {

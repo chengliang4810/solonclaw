@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
+import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -349,8 +350,61 @@ public class DangerousCommandApprovalService {
                         .onTool(
                                 ToolNameConstants.CODESEARCH,
                                 (trace, args) ->
-                                        evaluateUrlTool(trace, ToolNameConstants.CODESEARCH, args));
+                                        evaluateUrlTool(trace, ToolNameConstants.CODESEARCH, args))
+                        .onTool(
+                                ToolNameConstants.PROFILE_CREATE,
+                                (trace, args) ->
+                                        evaluateProfileMutation(
+                                                trace, ToolNameConstants.PROFILE_CREATE, args))
+                        .onTool(
+                                ToolNameConstants.PROFILE_UPDATE,
+                                (trace, args) ->
+                                        evaluateProfileMutation(
+                                                trace, ToolNameConstants.PROFILE_UPDATE, args))
+                        .onTool(
+                                ToolNameConstants.PROFILE_DELETE,
+                                (trace, args) ->
+                                        evaluateProfileMutation(
+                                                trace, ToolNameConstants.PROFILE_DELETE, args));
         return interceptor;
+    }
+
+    /** 强制 Profile 变更逐次审批，并把审批绑定到完整参数和目标当前版本。 */
+    private String evaluateProfileMutation(
+            ReActTrace trace, String toolName, Map<String, Object> args) {
+        String profile = stringValue(args == null ? null : args.get("name")).trim();
+        String version = "missing";
+        try {
+            ProfileManager manager = ProfileManager.current();
+            java.nio.file.Path home = manager.profileHome(profile);
+            long profilesVersion = modifiedAt(manager.root().resolve("profiles"));
+            long homeVersion = modifiedAt(home);
+            long metadataVersion = modifiedAt(home.resolve(".profile.json"));
+            long configVersion = modifiedAt(home.resolve("config.yml"));
+            version =
+                    profilesVersion
+                            + ":"
+                            + homeVersion
+                            + ":"
+                            + metadataVersion
+                            + ":"
+                            + configVersion;
+        } catch (Exception ignored) {
+            version = "invalid";
+        }
+        DetectionResult detection = new DetectionResult();
+        detection.setPatternKey("profile_mutation:" + toolName + ":" + profile);
+        detection.setDescription("修改长期智能体：" + toolName + " " + profile);
+        detection.setNormalizedCode(ONode.serialize(args) + "\nprofileVersion=" + version);
+        detection.setOnceOnly(true);
+        return evaluatePolicyApproval(trace, toolName, detection);
+    }
+
+    /** 返回路径的低成本版本戳，不存在时为零。 */
+    private long modifiedAt(java.nio.file.Path path) throws java.io.IOException {
+        return java.nio.file.Files.exists(path)
+                ? java.nio.file.Files.getLastModifiedTime(path).toMillis()
+                : 0L;
     }
 
     /**
@@ -1406,6 +1460,7 @@ public class DangerousCommandApprovalService {
         }
         return commandLikeArg(raw, depth + 1);
     }
+
     /** 将集合中的每个元素拼接为多行文本。 */
     private String collectionToString(Iterable<?> values, int depth) {
         StringBuilder buffer = new StringBuilder();

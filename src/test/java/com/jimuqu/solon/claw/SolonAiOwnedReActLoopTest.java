@@ -1466,13 +1466,13 @@ public class SolonAiOwnedReActLoopTest {
         config.getRuntime().setConfigFile(runtimeHome + "/config.yml");
 
         AppConfig.ProviderConfig primary = new AppConfig.ProviderConfig();
-        primary.setBaseUrl("https://primary.example.com");
+        primary.setBaseUrl("https://example.com");
         primary.setApiKey("primary-key");
         primary.setDefaultModel("primary-model");
         primary.setDialect("openai");
         config.getProviders().put("primary", primary);
         AppConfig.ProviderConfig backup = new AppConfig.ProviderConfig();
-        backup.setBaseUrl("https://backup.example.com");
+        backup.setBaseUrl("https://www.example.com");
         backup.setApiKey("backup-key");
         backup.setDefaultModel("backup-model");
         backup.setDialect("openai");

@@ -3,15 +3,13 @@ package com.jimuqu.solon.claw.web;
 import com.jimuqu.solon.claw.support.DashboardRequestBodies;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileNotFoundException;
-
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.MethodType;
-
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /** Dashboard Agent run 接口。 */
 @Controller

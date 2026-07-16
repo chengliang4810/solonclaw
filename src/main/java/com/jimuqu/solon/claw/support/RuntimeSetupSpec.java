@@ -7,7 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 定义本地初始化配置的模型和国内渠道字段范围，供 CLI/TUI/slash 共用。 */
+/** 定义本地初始化配置的模型和国内渠道字段范围，供 TUI 与 slash 共用。 */
 public final class RuntimeSetupSpec {
     /** 国内渠道顺序，和本项目已确认保留的渠道范围保持一致。 */
     private static final List<String> DOMESTIC_CHANNELS =

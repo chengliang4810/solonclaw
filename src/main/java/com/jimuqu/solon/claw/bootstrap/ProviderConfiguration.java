@@ -5,12 +5,12 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.media.OpenAiImageProvider;
 import com.jimuqu.solon.claw.media.XaiImageProvider;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.provider.BrowserProvider;
 import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.provider.SpeechProvider;
 import com.jimuqu.solon.claw.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.provider.WebSearchProvider;
-import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -61,5 +61,4 @@ public class ProviderConfiguration {
     public List<TranscriptionProvider> transcriptionProviders() {
         return Collections.emptyList();
     }
-
 }

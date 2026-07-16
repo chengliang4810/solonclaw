@@ -517,7 +517,10 @@ public class CronjobTools {
     /**
      * cronjob 便捷重载（无 limit/reason），其余参数同主入口。
      *
-     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object, Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String, Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String, String, Integer, String)
+     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object,
+     *     Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String,
+     *     Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String,
+     *     String, Integer, String)
      */
     public String cronjob(
             String action,
@@ -670,7 +673,10 @@ public class CronjobTools {
      * cronjob 便捷重载（带 limit，无 reason），其余参数同主入口。
      *
      * @param limit 最大返回数量。
-     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object, Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String, Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String, String, Integer, String)
+     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object,
+     *     Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String,
+     *     Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String,
+     *     String, Integer, String)
      */
     public String cronjob(
             String action,
@@ -726,7 +732,10 @@ public class CronjobTools {
      * @param dependsOn dependsOn 参数。
      * @param limit 最大返回数量。
      * @param reason 原因参数。
-     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object, Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String, Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String, String, Integer, String)
+     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object,
+     *     Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String,
+     *     Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String,
+     *     String, Integer, String)
      */
     public String cronjob(
             String action,
@@ -755,15 +764,34 @@ public class CronjobTools {
             String reason)
             throws Exception {
         return cronjob(
-                action, jobId, name, schedule, prompt,
-                deliver, deliverChatId, deliverThreadId,
-                skill, skills,
-                repeat, includeDisabled, wrapResponse,
-                script, workdir, noAgent,
-                contextFrom, dependsOn, enabledToolsets,
-                model, provider, baseUrl,
-                null, null, null, null,
-                limit, reason);
+                action,
+                jobId,
+                name,
+                schedule,
+                prompt,
+                deliver,
+                deliverChatId,
+                deliverThreadId,
+                skill,
+                skills,
+                repeat,
+                includeDisabled,
+                wrapResponse,
+                script,
+                workdir,
+                noAgent,
+                contextFrom,
+                dependsOn,
+                enabledToolsets,
+                model,
+                provider,
+                baseUrl,
+                null,
+                null,
+                null,
+                null,
+                limit,
+                reason);
     }
 
     /**
@@ -778,7 +806,10 @@ public class CronjobTools {
      * @param pausedReason paused原因参数。
      * @param limit 最大返回数量。
      * @param reason 原因参数。
-     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object, Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String, Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String, String, Integer, String)
+     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object,
+     *     Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String,
+     *     Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String,
+     *     String, Integer, String)
      */
     public String cronjob(
             String action,
@@ -811,16 +842,40 @@ public class CronjobTools {
             String reason)
             throws Exception {
         return cronjob(
-                action, jobId, name, schedule, prompt,
-                deliver, deliverChatId, deliverThreadId,
-                skill, skills,
-                null, null, null, null, null,
-                repeat, includeDisabled, wrapResponse,
-                script, workdir, noAgent,
-                contextFrom, dependsOn, enabledToolsets,
-                model, provider, baseUrl,
-                enabled, status, state, pausedReason,
-                null, limit, reason);
+                action,
+                jobId,
+                name,
+                schedule,
+                prompt,
+                deliver,
+                deliverChatId,
+                deliverThreadId,
+                skill,
+                skills,
+                null,
+                null,
+                null,
+                null,
+                null,
+                repeat,
+                includeDisabled,
+                wrapResponse,
+                script,
+                workdir,
+                noAgent,
+                contextFrom,
+                dependsOn,
+                enabledToolsets,
+                model,
+                provider,
+                baseUrl,
+                enabled,
+                status,
+                state,
+                pausedReason,
+                null,
+                limit,
+                reason);
     }
 
     /**
@@ -828,7 +883,10 @@ public class CronjobTools {
      *
      * @param limit 最大返回数量。
      * @param reason 原因参数。
-     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object, Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String, Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String, String, Integer, String)
+     * @see #cronjob(String, String, String, String, String, Object, String, String, Object, Object,
+     *     Object, Object, Object, Object, Boolean, Integer, Boolean, Boolean, String, String,
+     *     Boolean, Object, Object, Object, Object, String, String, Boolean, String, String, String,
+     *     String, Integer, String)
      */
     public String cronjob(
             String action,

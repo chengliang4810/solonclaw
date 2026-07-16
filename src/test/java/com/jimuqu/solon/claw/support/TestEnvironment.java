@@ -344,7 +344,7 @@ public class TestEnvironment {
         DashboardApprovalEventsService dashboardApprovalEventsService =
                 new DashboardApprovalEventsService(config);
         DashboardDiagnosticsService dashboardDiagnosticsService =
-                                        DashboardDiagnosticsService.builder()
+                DashboardDiagnosticsService.builder()
                         .appConfig(config)
                         .deliveryService(deliveryService)
                         .llmProviderService(llmProviderService)
@@ -602,14 +602,6 @@ public class TestEnvironment {
         config.getLlm().setTemperature(0.2D);
         config.getLlm().setMaxTokens(4096);
         config.getScheduler().setEnabled(false);
-        AppConfig.PersonalityConfig helpful = new AppConfig.PersonalityConfig();
-        helpful.setDescription("friendly default");
-        helpful.setSystemPrompt("You are a helpful assistant.");
-        config.getAgent().getPersonalities().put("helpful", helpful);
-        AppConfig.PersonalityConfig concise = new AppConfig.PersonalityConfig();
-        concise.setDescription("brief answers");
-        concise.setSystemPrompt("Be concise.");
-        config.getAgent().getPersonalities().put("concise", concise);
         return config;
     }
 }

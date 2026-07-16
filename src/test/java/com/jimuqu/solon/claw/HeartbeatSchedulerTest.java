@@ -131,8 +131,7 @@ public class HeartbeatSchedulerTest {
 
         assertThat(orchestrator.calls).isEqualTo(1);
         assertThat(deliveryService.requests).hasSize(1);
-        assertThat(deliveryService.requests.get(0).getPlatform())
-                .isEqualTo(PlatformType.DINGTALK);
+        assertThat(deliveryService.requests.get(0).getPlatform()).isEqualTo(PlatformType.DINGTALK);
         assertThat(deliveryService.requests.get(0).getChatId()).isEqualTo("dingtalk-primary");
     }
 

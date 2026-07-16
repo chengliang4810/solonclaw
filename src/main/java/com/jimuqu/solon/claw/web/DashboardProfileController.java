@@ -178,32 +178,6 @@ public class DashboardProfileController {
                 });
     }
 
-    /** 返回用于配置指定 Profile 的 CLI setup 命令。 */
-    @Mapping(value = "/api/profiles/{name}/setup-command", method = MethodType.GET)
-    public Map<String, Object> setupCommand(Context context, final String name) {
-        return execute(
-                context,
-                new ProfileAction() {
-                    @Override
-                    public Map<String, Object> run() throws Exception {
-                        return profileService.setupCommand(name);
-                    }
-                });
-    }
-
-    /** 在本机终端中打开指定 Profile 的 setup 命令。 */
-    @Mapping(value = "/api/profiles/{name}/open-terminal", method = MethodType.POST)
-    public Map<String, Object> openTerminal(Context context, final String name) {
-        return execute(
-                context,
-                new ProfileAction() {
-                    @Override
-                    public Map<String, Object> run() throws Exception {
-                        return profileService.openTerminal(name);
-                    }
-                });
-    }
-
     /** 写入或清空指定 Profile 的人工职责说明。 */
     @Mapping(value = "/api/profiles/{name}/description", method = MethodType.PUT)
     public Map<String, Object> updateDescription(final Context context, final String name) {

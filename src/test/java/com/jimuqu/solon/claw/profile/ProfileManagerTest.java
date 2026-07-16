@@ -495,7 +495,7 @@ class ProfileManagerTest {
         assertThat(view.getDescription()).isEqualTo("Routes focused tasks.");
         assertThat(view.isNoBundledSkills()).isTrue();
         assertThat(view.getSoul()).isRegularFile();
-        assertThat(Files.readString(view.getSoul())).contains("# SOUL.md");
+        assertThat(Files.readString(view.getSoul())).isEmpty();
         assertThat(view.getHome()).isEqualTo(manager.profileHome("router"));
         assertThat(view.getSessions().toString()).endsWith("data/state.db");
         assertThat(view.getMemoryDir().toString()).endsWith("memory");

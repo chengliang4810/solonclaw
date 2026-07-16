@@ -478,12 +478,10 @@ public class GatewayConfiguration {
                         }
                     }
                 });
-        if (StartupModeContext.shouldStartServerLifecycle()) {
-            GatewayOpenPolicyStartupGuard.requireAllowed(
-                    appConfig, ProfileRuntimeIdentity.resolve(appConfig));
-            channelConnectionManager.startAll();
-            gatewayRestartNotificationService.deliverPendingRestartOnlineNotification();
-        }
+        GatewayOpenPolicyStartupGuard.requireAllowed(
+                appConfig, ProfileRuntimeIdentity.resolve(appConfig));
+        channelConnectionManager.startAll();
+        gatewayRestartNotificationService.deliverPendingRestartOnlineNotification();
         return service;
     }
 
@@ -509,9 +507,7 @@ public class GatewayConfiguration {
                         gatewayService,
                         channelAdapters);
         gatewayRuntimeRefreshService.setProfileMultiplexRuntimeManager(manager);
-        if (StartupModeContext.shouldStartServerLifecycle()) {
-            manager.start();
-        }
+        manager.start();
         return manager;
     }
 

@@ -10,7 +10,6 @@ import com.jimuqu.solon.claw.core.service.ContextService;
 import com.jimuqu.solon.claw.core.service.MemoryManager;
 import com.jimuqu.solon.claw.support.BootstrapPromptBudgetSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
 
 /** 基于文件系统拼装系统提示词的上下文服务。 */
@@ -98,7 +97,6 @@ public class FileContextService implements ContextService {
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_TOOLS, "Tools");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_IDENTITY, "Identity");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_USER, "User");
-        appendPersonality(buffer);
 
         try {
             String skillPrompt =
@@ -222,32 +220,6 @@ public class FileContextService implements ContextService {
             return StrUtil.nullToEmpty(left);
         }
         return left.trim() + "\n\n" + right.trim();
-    }
-
-    /** 计算运行时上下文文件路径。 */
-    private void appendPersonality(StringBuilder buffer) {
-        try {
-            String active =
-                    globalSettingRepository == null
-                            ? null
-                            : globalSettingRepository.get(AgentSettingConstants.ACTIVE_PERSONALITY);
-            if (StrUtil.isBlank(active)) {
-                return;
-            }
-            AppConfig.PersonalityConfig personality =
-                    appConfig.getAgent().getPersonalities().get(active);
-            if (personality == null) {
-                return;
-            }
-            String personalityPrompt = personality.toPrompt();
-            if (StrUtil.isBlank(personalityPrompt)) {
-                return;
-            }
-            appendBlock(buffer, "Personality: " + active, personalityPrompt);
-        } catch (Exception e) {
-            appendBlock(
-                    buffer, "Personality", "Failed to load active personality: " + safeError(e));
-        }
     }
 
     /** 追加记忆管理器提供的系统提示块。 */

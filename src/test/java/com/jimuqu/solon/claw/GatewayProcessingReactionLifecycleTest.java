@@ -74,16 +74,11 @@ public class GatewayProcessingReactionLifecycleTest {
     }
 
     @Test
-    void shouldNotMarkProcessingForUnauthorizedOrDuplicateMessages() throws Exception {
+    void shouldNotMarkProcessingForDuplicateMessages() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         claimAdmin(env, "admin-room", "admin-user");
         TrackingChannelAdapter adapter = new TrackingChannelAdapter();
         DefaultGatewayService gatewayService = gatewayServiceWith(env, adapter);
-
-        GatewayMessage unauthorized =
-                env.message("group-room", "stranger", "group", "群聊", "陌生人", "hello");
-        unauthorized.setThreadId("msg-unauthorized");
-        assertThat(gatewayService.handle(unauthorized)).isNull();
 
         GatewayMessage first = env.message("admin-room", "admin-user", "dedupe");
         first.setThreadId("msg-duplicate");

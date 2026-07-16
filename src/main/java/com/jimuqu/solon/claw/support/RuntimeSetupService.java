@@ -10,7 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 统一承载模型、渠道和初始化命令的配置写入逻辑，避免 CLI/TUI/slash 各自复制一套规则。 */
+/** 统一承载模型、渠道和初始化命令的配置写入逻辑，避免 TUI 与 slash 各自复制一套规则。 */
 public class RuntimeSetupService {
     /** 应用配置，用于定位运行时目录和读取默认 provider 信息。 */
     private final AppConfig appConfig;

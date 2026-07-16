@@ -22,7 +22,7 @@ public final class CommandServiceTestSupport {
                 new AppUpdateService(env.appConfig, new AppVersionService(env.appConfig)));
     }
 
-    /** 创建覆盖应用更新服务的命令服务，用于验证 /version 与 /update 路由。 */
+    /** 创建覆盖应用更新服务的命令服务，用于验证 /version 路由。 */
     public static DefaultCommandService commandServiceWithUpdate(
             TestEnvironment env, AppUpdateService appUpdateService) {
         return commandService(env, env.skillHubService, appUpdateService);

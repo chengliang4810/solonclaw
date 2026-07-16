@@ -476,26 +476,34 @@ class ToolContractParityTest {
         assertThat(service.query.getProfile()).isEqualTo("work");
     }
 
-    /** delegate_task 应直接接收结构化 tasks，并传播顶层或逐项 role。 */
+    /** delegate_task 应直接接收结构化 tasks，并传播顶层或逐项模型。 */
     @Test
-    void shouldDelegateStructuredTasksAndRoles() throws Exception {
+    void shouldDelegateStructuredTasksAndModels() throws Exception {
         RecordingDelegationService service = new RecordingDelegationService();
         DelegateTools tools = new DelegateTools(service, "MEMORY:room:user");
         DelegateTools.DelegateTaskInput first = new DelegateTools.DelegateTaskInput();
         first.setGoal("first");
         first.setContext("ctx-1");
-        first.setRole("orchestrator");
+        first.setModel("model-a");
+        first.setAllowedTools(java.util.Collections.<String>emptyList());
         DelegateTools.DelegateTaskInput second = new DelegateTools.DelegateTaskInput();
         second.setGoal("second");
 
-        tools.delegateTask(null, "shared", Arrays.asList(first, second), "leaf", Boolean.TRUE);
+        tools.delegateTask(
+                null,
+                "shared",
+                Arrays.asList(first, second),
+                "model-main",
+                null,
+                java.util.Collections.<String>emptyList(),
+                Boolean.TRUE);
 
         assertThat(service.batchTasks).hasSize(2);
         assertThat(service.batchTasks.get(0).getPrompt()).isEqualTo("first");
         assertThat(service.batchTasks.get(0).getContext()).isEqualTo("ctx-1");
-        assertThat(service.batchTasks.get(0).getRole()).isEqualTo("orchestrator");
+        assertThat(service.batchTasks.get(0).getModel()).isEqualTo("model-a");
         assertThat(service.batchTasks.get(1).getContext()).isEqualTo("shared");
-        assertThat(service.batchTasks.get(1).getRole()).isEqualTo("leaf");
+        assertThat(service.batchTasks.get(1).getModel()).isEqualTo("model-main");
     }
 
     /** call_tool 的 tool_args 缺失或非对象时必须在包装边界拒绝，不能执行目标工具。 */

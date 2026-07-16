@@ -841,37 +841,6 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldDeliverCliMemoryOriginToBoundSessionWithoutChannelAdapter() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        String sourceKey = "MEMORY:cli:cli-cron-origin";
-        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
-
-        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
-        FileUtil.mkdir(scriptsDir);
-        File script = FileUtil.file(scriptsDir, "cli-origin.py");
-        FileUtil.writeString("print('cli origin ok')", script, StandardCharsets.UTF_8);
-
-        CronJobRecord job = job("job-cli-origin", sourceKey);
-        job.setDeliverPlatform("origin");
-        job.setOriginJson(
-                "{\"platform\":\"MEMORY\",\"chat_id\":\"cli\",\"user_id\":\"cli-cron-origin\"}");
-        job.setNoAgent(true);
-        job.setWrapResponse(false);
-        job.setScript(script.getName());
-        env.cronJobRepository.save(job);
-
-        DefaultCronScheduler scheduler = failingDeliveryScheduler(env);
-        scheduler.tick();
-
-        CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
-        assertThat(updated.getLastDeliveryError()).isNull();
-        List<ChatMessage> messages =
-                MessageSupport.loadMessages(
-                        env.sessionRepository.findById(session.getSessionId()).getNdjson());
-        assertThat(messages.get(messages.size() - 1).getContent()).contains("cli origin ok");
-    }
-
-    @Test
     void shouldKeepBareDashboardMemoryDeliveryInCronHistoryWithoutChannelAdapter()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

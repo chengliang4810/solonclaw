@@ -33,13 +33,13 @@ import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.media.VisionAnalysisService;
+import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
+import com.jimuqu.solon.claw.profile.ProfileChildRuntimeMarker;
 import com.jimuqu.solon.claw.provider.BrowserProvider;
 import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.provider.SpeechProvider;
 import com.jimuqu.solon.claw.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.provider.WebSearchProvider;
-import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
-import com.jimuqu.solon.claw.profile.ProfileChildRuntimeMarker;
 import com.jimuqu.solon.claw.scheduler.CronApprovalResumeObserver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -80,7 +80,6 @@ import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
 import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
-import java.util.Collections;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Condition;
@@ -429,9 +428,7 @@ public class ToolConfiguration {
                 .build();
     }
 
-    /**
-     * 将公共的工具注册表 Builder 设置应用到传入的 builder 上，供主机级和 Profile 子运行时复用。
-     */
+    /** 将公共的工具注册表 Builder 设置应用到传入的 builder 上，供主机级和 Profile 子运行时复用。 */
     static DefaultToolRegistryBuilder applyCommonToolRegistrySettings(
             DefaultToolRegistryBuilder builder,
             AppConfig appConfig,
@@ -455,8 +452,7 @@ public class ToolConfiguration {
             McpRuntimeService mcpRuntimeService,
             DashboardMcpService dashboardMcpService,
             DashboardCuratorService dashboardCuratorService) {
-        return builder
-                .appConfig(appConfig)
+        return builder.appConfig(appConfig)
                 .preferenceStore(preferenceStore)
                 .sessionRepository(sessionRepository)
                 .agentProfileService(agentProfileService)
