@@ -197,14 +197,9 @@ solonclaw:
     #     output_cost_per_million: "4.00"
     #     cache_read_cost_per_million: "0.50"
 
-  # 插件启停配置。enabled 允许指定插件加载；disabled 无条件跳过指定插件。
-  plugins:
-    enabled: []
-    disabled: []
-
-  # Web 工具配置。默认复用 Solon AI 内置 websearch/webfetch；可选 exa、brave-free 或 ddgs。
+  # Web 工具配置。默认复用 Solon AI 内置 websearch/webfetch；也可使用内置 Brave 或 DuckDuckGo 搜索。
   web:
-    # 搜索后端：solon-ai / exa / brave-free / ddgs；exa 由插件提供并读取 EXA_API_KEY。
+    # 搜索后端：solon-ai / brave-free / ddgs。
     searchBackend: solon-ai
     # Brave Search API key；也可通过环境变量 BRAVE_SEARCH_API_KEY 提供。
     braveSearchApiKey: ""

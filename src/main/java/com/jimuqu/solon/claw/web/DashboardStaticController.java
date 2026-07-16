@@ -68,17 +68,6 @@ public class DashboardStaticController {
     }
 
     /**
-     * 执行iconsSvg相关逻辑。
-     *
-     * @param context 当前请求或运行上下文。
-     * @return 返回icons Svg结果。
-     */
-    @Mapping("/icons.svg")
-    public Object iconsSvg(Context context) {
-        return renderResource(context, "static/icons.svg");
-    }
-
-    /**
      * 执行logo相关逻辑。
      *
      * @param context 当前请求或运行上下文。

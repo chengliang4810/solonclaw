@@ -731,7 +731,7 @@ public class SolonClawWebTools {
                 return delegate;
             } catch (Throwable e) {
                 throw new IllegalStateException(
-                        "Solon AI websearch backend is unavailable; configure searchBackend=exa, brave-free, or ddgs, then retry.",
+                        "Solon AI websearch backend is unavailable; configure searchBackend=brave-free or ddgs, then retry.",
                         e);
             }
         }
@@ -813,7 +813,7 @@ public class SolonClawWebTools {
                 throw e;
             } catch (Throwable e) {
                 throw new IllegalStateException(
-                        "Solon AI websearch backend is unavailable; configure searchBackend=exa, brave-free, or ddgs, then retry.",
+                        "Solon AI websearch backend is unavailable; configure searchBackend=brave-free or ddgs, then retry.",
                         e);
             }
         }

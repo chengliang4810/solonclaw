@@ -425,7 +425,6 @@ public class ToolConfiguration {
                 .agentRunRepository(agentRunRepository)
                 .cronJobRepository(cronJobRepository)
                 .usageEventRepository(usageEventRepository)
-                .pluginTools(Collections.emptyList())
                 .webSearchProviders(webSearchProviders)
                 .build();
     }

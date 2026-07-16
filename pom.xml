@@ -28,7 +28,6 @@
         <jacoco.argLine></jacoco.argLine>
         <lombok.version>1.18.46</lombok.version>
         <jline.version>4.2.1</jline.version>
-        <jansi.version>2.4.3</jansi.version>
         <jackson.version>2.21.4</jackson.version>
     </properties>
 
@@ -121,11 +120,6 @@
             <version>${sqlite.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.noear</groupId>
-            <artifactId>liquor</artifactId>
-            <version>1.6.8</version>
-        </dependency>
-        <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp-jvm</artifactId>
             <version>5.4.0</version>
@@ -149,11 +143,6 @@
             <groupId>org.yaml</groupId>
             <artifactId>snakeyaml</artifactId>
             <version>2.6</version>
-        </dependency>
-        <dependency>
-            <groupId>org.fusesource.jansi</groupId>
-            <artifactId>jansi</artifactId>
-            <version>${jansi.version}</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

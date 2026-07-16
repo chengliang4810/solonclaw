@@ -133,8 +133,6 @@ public class DefaultToolRegistryBuilder {
     private CronJobRepository cronJobRepository;
     /** 用量事件仓储。 */
     private UsageEventRepository usageEventRepository;
-    /** 插件附加工具。 */
-    private List<ToolRegistration> pluginTools;
     /** Web 搜索提供方。 */
     private List<WebSearchProvider> webSearchProviders;
 
@@ -384,12 +382,6 @@ public class DefaultToolRegistryBuilder {
         return this;
     }
 
-    /** 设置插件附加工具。 */
-    public DefaultToolRegistryBuilder pluginTools(List<ToolRegistration> pluginTools) {
-        this.pluginTools = pluginTools;
-        return this;
-    }
-
     /** 设置 Web 搜索提供方。 */
     public DefaultToolRegistryBuilder webSearchProviders(List<WebSearchProvider> webSearchProviders) {
         this.webSearchProviders = webSearchProviders;
@@ -444,7 +436,6 @@ public class DefaultToolRegistryBuilder {
                 agentRunRepository,
                 cronJobRepository,
                 usageEventRepository,
-                pluginTools,
                 webSearchProviders);
     }
 }
