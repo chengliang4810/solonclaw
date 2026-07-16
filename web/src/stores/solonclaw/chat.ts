@@ -1,12 +1,14 @@
 import { cancelRun, startRun, streamRunEvents, uploadChatFiles, type ChatMessage, type RunEvent } from '@/api/solonclaw/chat'
-import { getManagementProfile } from '@/api/client'
+import { getBaseUrlValue, getManagementProfile } from '@/api/client'
+import { getAuthScopeId, onAuthContextChange } from '@/api/sessionAuth'
 import { fetchRunDetail } from '@/api/solonclaw/runs'
 import { deleteSession as deleteSessionApi, fetchLatestSessionDescendant, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionGoalState, type SessionSummary } from '@/api/solonclaw/sessions'
 import { shouldUseServerMessages } from '@/shared/chatMessageMerge'
+import { chatCacheKey, recoverChatCacheQuota } from '@/shared/chatCacheScope'
 import { profileSessionIdentity } from '@/shared/profileScope'
 import { normalizeTimestampMs } from '@/shared/session-display'
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { computed, onScopeDispose, ref } from 'vue'
 import { useAppStore } from './app'
 import { useProfilesStore } from './profiles'
 
@@ -195,19 +197,27 @@ function mapSolonClawSession(s: SessionSummary, fallbackProfile: string): Sessio
 // Cache keys for stale-while-revalidate loading of sessions / messages.
 // Rendering from cache on boot avoids the multi-round-trip wait the user sees
 // every time they open the page (esp. noticeable on mobile).
-const STORAGE_KEY = 'solonclaw_active_session_v2'
-const SESSIONS_CACHE_KEY = 'solonclaw_sessions_cache_v2'
 const IN_FLIGHT_TTL_MS = 15 * 60 * 1000 // Give up after 15 minutes
 const POLL_INTERVAL_MS = 2000
 const POLL_STABLE_EXITS = 3 // 3 × 2s = 6s of no change → assume run finished
 
-function storageKey(): string { return STORAGE_KEY }
-function readActiveSessionKey(): string | null {
-  return localStorage.getItem(storageKey())
+/** 构造当前认证主体和服务端专属的缓存键。 */
+function scopedCacheKey(category: string, suffix = ''): string | null {
+  return chatCacheKey(getBaseUrlValue(), getAuthScopeId(), category, suffix)
 }
-function sessionsCacheKey(): string { return SESSIONS_CACHE_KEY }
-function msgsCacheKey(sessionKey: string): string { return `solonclaw_session_msgs_v2_${sessionKey}_` }
-function inFlightKey(sessionKey: string): string { return `solonclaw_in_flight_v2_${sessionKey}` }
+/** 返回活动会话缓存键。 */
+function storageKey(): string | null { return scopedCacheKey('active') }
+/** 读取当前认证作用域中的活动会话。 */
+function readActiveSessionKey(): string | null {
+  const key = storageKey()
+  return key ? localStorage.getItem(key) : null
+}
+/** 返回会话列表缓存键。 */
+function sessionsCacheKey(): string | null { return scopedCacheKey('sessions') }
+/** 返回指定会话的消息缓存键。 */
+function msgsCacheKey(sessionKey: string): string | null { return scopedCacheKey('messages', sessionKey) }
+/** 返回指定会话的运行恢复缓存键。 */
+function inFlightKey(sessionKey: string): string | null { return scopedCacheKey('in-flight', sessionKey) }
 
 interface InFlightRun {
   runId: string
@@ -215,7 +225,8 @@ interface InFlightRun {
   startedAt: number
 }
 
-function loadJson<T>(key: string): T | null {
+function loadJson<T>(key: string | null): T | null {
+  if (!key) return null
   try {
     const raw = localStorage.getItem(key)
     return raw ? (JSON.parse(raw) as T) : null
@@ -244,28 +255,11 @@ function isQuotaExceededError(error: unknown): boolean {
 }
 
 function recoverStorageQuota() {
-  try {
-    const prefixes = [
-      sessionsCacheKey(),
-      'solonclaw_session_msgs_v2_',
-      'solonclaw_in_flight_v2_',
-    ]
-    const keysToRemove: string[] = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (!key) continue
-      if (key === storageKey()) continue
-      if (prefixes.some(prefix => key.startsWith(prefix))) {
-        keysToRemove.push(key)
-      }
-    }
-    keysToRemove.forEach(key => removeItem(key))
-  } catch {
-    // ignore
-  }
+  recoverChatCacheQuota()
 }
 
-function setItemBestEffort(key: string, value: string) {
+function setItemBestEffort(key: string | null, value: string) {
+  if (!key) return
   try {
     localStorage.setItem(key, value)
     return
@@ -282,7 +276,8 @@ function setItemBestEffort(key: string, value: string) {
   }
 }
 
-function saveJson(key: string, value: unknown) {
+function saveJson(key: string | null, value: unknown) {
+  if (!key) return
   try {
     setItemBestEffort(key, JSON.stringify(value))
   } catch {
@@ -290,7 +285,8 @@ function saveJson(key: string, value: unknown) {
   }
 }
 
-function removeItem(key: string) {
+function removeItem(key: string | null) {
+  if (!key) return
   try {
     localStorage.removeItem(key)
   } catch {
@@ -334,10 +330,41 @@ export const useChatStore = defineStore('chat', () => {
   )
   const pollTimers = new Map<string, ReturnType<typeof setInterval>>()
   const pollSignatures = new Map<string, { sig: string, stableTicks: number }>()
+  let authContextVersion = 0
 
   const activeSession = ref<Session | null>(null)
   const activeSessionId = computed(() => activeSession.value?.id || null)
   const messages = computed<Message[]>(() => activeSession.value?.messages || [])
+
+  /** 认证主体或服务端变化时停止旧调用，并清空全部聊天内存态。 */
+  function resetForAuthContextChange(): void {
+    authContextVersion += 1
+    for (const controller of streamStates.value.values()) controller.abort()
+    for (const timer of pollTimers.values()) clearInterval(timer)
+    pollTimers.clear()
+    pollSignatures.clear()
+    streamStates.value = new Map()
+    runIds.value = new Map()
+    resumingRuns.value = new Set()
+    sessions.value = []
+    activeSessionKey.value = null
+    activeSession.value = null
+    focusMessageId.value = null
+    isLoadingSessions.value = false
+    sessionsLoaded.value = false
+    isLoadingMessages.value = false
+  }
+
+  const stopAuthContextListener = onAuthContextChange(resetForAuthContextChange)
+  onScopeDispose(() => {
+    stopAuthContextListener()
+    resetForAuthContextChange()
+  })
+
+  /** 判断异步操作是否仍属于发起时的认证主体和服务端。 */
+  function isCurrentAuthContext(version: number): boolean {
+    return version === authContextVersion
+  }
 
   function isSessionLive(sessionKey: string): boolean {
     if (streamStates.value.has(sessionKey) || resumingRuns.value.has(sessionKey)) return true
@@ -426,8 +453,10 @@ export const useChatStore = defineStore('chat', () => {
   // presumed done), TTL elapses, or the user explicitly starts streaming.
   function startPolling(sid: string) {
     if (pollTimers.has(sid)) return
+    const startingAuthContextVersion = authContextVersion
     resumingRuns.value = new Set([...resumingRuns.value, sid])
     const timer = setInterval(async () => {
+      if (!isCurrentAuthContext(startingAuthContextVersion)) return
       // If a fresh SSE stream started for this session, polling is redundant.
       if (streamStates.value.has(sid)) {
         stopPolling(sid)
@@ -441,6 +470,7 @@ export const useChatStore = defineStore('chat', () => {
       try {
         if (inFlight.agentRunId) {
           const runDetail = await fetchRunDetail(inFlight.agentRunId)
+          if (!isCurrentAuthContext(startingAuthContextVersion)) return
           if (!isTerminalRunStatus(runDetail.run?.status)) {
             return
           }
@@ -448,6 +478,7 @@ export const useChatStore = defineStore('chat', () => {
         const session = sessionForKey(sid)
         if (!session) return
         const detail = await fetchSession(session.id, session.profile)
+        if (!isCurrentAuthContext(startingAuthContextVersion)) return
         if (!detail) return
         const mapped = mapSolonClawMessages(detail.messages || [])
         const target = sessionForKey(sid)
@@ -513,6 +544,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function loadSessions(preferredSessionId?: string | null, preferredProfile?: string) {
+    const startingAuthContextVersion = authContextVersion
     isLoadingSessions.value = true
     try {
       // 从会话维度缓存中恢复，实现 instant render
@@ -532,6 +564,7 @@ export const useChatStore = defineStore('chat', () => {
       }
 
       const list = await fetchSessions()
+      if (!isCurrentAuthContext(startingAuthContextVersion)) return
       const fallbackProfile = useProfilesStore().managedProfileName || 'default'
       const fresh = list.map(session => mapSolonClawSession(session, fallbackProfile))
       const freshKeys = new Set(fresh.map(session => session.key))
@@ -559,6 +592,7 @@ export const useChatStore = defineStore('chat', () => {
         || (activeSessionKey.value && sessionForKey(activeSessionKey.value) ? activeSessionKey.value : null)
         || sessions.value[0]?.key
       const targetKey = candidateKey ? await resolveLatestDescendantKey(candidateKey) : candidateKey
+      if (!isCurrentAuthContext(startingAuthContextVersion)) return
       if (targetKey) {
         if (targetKey === activeSessionKey.value && activeSession.value && streamStates.value.has(targetKey)) {
           setItemBestEffort(storageKey(), targetKey)
@@ -572,10 +606,14 @@ export const useChatStore = defineStore('chat', () => {
         removeItem(storageKey())
       }
     } catch (err) {
-      console.error('Failed to load sessions:', err)
+      if (isCurrentAuthContext(startingAuthContextVersion)) {
+        console.error('Failed to load sessions:', err)
+      }
     } finally {
-      isLoadingSessions.value = false
-      sessionsLoaded.value = true
+      if (isCurrentAuthContext(startingAuthContextVersion)) {
+        isLoadingSessions.value = false
+        sessionsLoaded.value = true
+      }
     }
   }
 
@@ -583,11 +621,13 @@ export const useChatStore = defineStore('chat', () => {
   // SSE drop and on tab-visible events — mobile browsers kill EventSource
   // while backgrounded, but the backend run usually completes anyway.
   async function refreshActiveSession(): Promise<boolean> {
+    const startingAuthContextVersion = authContextVersion
     const sessionKey = activeSessionKey.value
     const target = sessionKey ? sessionForKey(sessionKey) : undefined
     if (!sessionKey || !target) return false
     try {
       const detail = await fetchSession(target.id, target.profile)
+      if (!isCurrentAuthContext(startingAuthContextVersion)) return false
       if (!detail) return false
       const mapped = mapSolonClawMessages(detail.messages || [])
       // SSE 断开后的主动刷新可能早于后端会话落库完成，不能用旧服务端视图
@@ -603,7 +643,9 @@ export const useChatStore = defineStore('chat', () => {
       persistSessionMessages(sessionKey)
       return true
     } catch (err) {
-      console.error('Failed to refresh active session:', err)
+      if (isCurrentAuthContext(startingAuthContextVersion)) {
+        console.error('Failed to refresh active session:', err)
+      }
       return false
     }
   }
@@ -634,6 +676,7 @@ export const useChatStore = defineStore('chat', () => {
     focusId?: string | null,
     profile?: string,
   ) {
+    const startingAuthContextVersion = authContextVersion
     const sessionKey = resolveSessionKey(sessionIdOrKey, profile)
     if (!sessionKey) return
     const target = sessionForKey(sessionKey)
@@ -660,6 +703,7 @@ export const useChatStore = defineStore('chat', () => {
 
     try {
       const detail = await fetchSession(target.id, target.profile)
+      if (!isCurrentAuthContext(startingAuthContextVersion)) return
       if (detail && detail.messages) {
         const mapped = mapSolonClawMessages(detail.messages)
         // Pick whichever view has more information. Simple length comparison
@@ -700,10 +744,16 @@ export const useChatStore = defineStore('chat', () => {
         persistSessionMessages(sessionKey)
       }
     } catch (err) {
-      console.error('Failed to load session messages:', err)
+      if (isCurrentAuthContext(startingAuthContextVersion)) {
+        console.error('Failed to load session messages:', err)
+      }
     } finally {
-      isLoadingMessages.value = false
+      if (isCurrentAuthContext(startingAuthContextVersion)) {
+        isLoadingMessages.value = false
+      }
     }
+
+    if (!isCurrentAuthContext(startingAuthContextVersion)) return
 
     // tmux-like resume: if this session has a recent in-flight run and we're
     // not currently streaming, start polling fetchSession to pick up progress
@@ -715,6 +765,7 @@ export const useChatStore = defineStore('chat', () => {
     // Fetch token usage for this session from web-ui DB
     try {
       const usage = await fetchSessionUsageSingle(target.id, target.profile)
+      if (!isCurrentAuthContext(startingAuthContextVersion)) return
       if (usage) {
         target.inputTokens = usage.input_tokens
         target.outputTokens = usage.output_tokens
@@ -743,9 +794,11 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function deleteSession(sessionKey: string): Promise<boolean> {
+    const startingAuthContextVersion = authContextVersion
     const target = sessionForKey(sessionKey)
     if (!target) return false
     const ok = await deleteSessionApi(target.id, target.profile)
+    if (!isCurrentAuthContext(startingAuthContextVersion)) return false
     if (!ok) return false
     sessions.value = sessions.value.filter(session => session.key !== sessionKey)
     removeItem(msgsCacheKey(sessionKey))
@@ -852,6 +905,7 @@ export const useChatStore = defineStore('chat', () => {
     const startingSessionId = startingSession.id
     const startingProfile = startingSession.profile
     const startingRouteToken = chatRouteToken()
+    const startingAuthContextVersion = authContextVersion
     const startingModel = startingSession.model || useAppStore().selectedModel || undefined
     const previousTitle = startingSession.title
     const previousUpdatedAt = startingSession.updatedAt
@@ -873,9 +927,12 @@ export const useChatStore = defineStore('chat', () => {
     persistSessionsList()
 
     const sessionContextDrifted = () =>
-      activeSessionKey.value !== startingSessionKey || chatRouteToken() !== startingRouteToken
+      !isCurrentAuthContext(startingAuthContextVersion)
+      || activeSessionKey.value !== startingSessionKey
+      || chatRouteToken() !== startingRouteToken
 
     const abortForSessionSwitch = (): false => {
+      if (!isCurrentAuthContext(startingAuthContextVersion)) return false
       const target = sessionForKey(startingSessionKey)
       if (target) {
         target.messages = target.messages.filter(message => message.id !== userMsg.id)
@@ -911,6 +968,8 @@ export const useChatStore = defineStore('chat', () => {
         model: startingModel,
         attachments: uploadedAttachments,
       })
+
+      if (sessionContextDrifted()) return abortForSessionSwitch()
 
       const runId = (run as any).run_id || (run as any).id
       if (!runId) {
@@ -962,6 +1021,7 @@ export const useChatStore = defineStore('chat', () => {
         runId,
         // onEvent
         (evt: RunEvent) => {
+          if (!isCurrentAuthContext(startingAuthContextVersion)) return
           switch (evt.event) {
             case 'run.started':
               break
@@ -1198,6 +1258,7 @@ export const useChatStore = defineStore('chat', () => {
         },
         // onDone
         () => {
+          if (!isCurrentAuthContext(startingAuthContextVersion)) return
           const msgs = getSessionMsgs(sid)
           const last = msgs[msgs.length - 1]
           if (last?.isStreaming) {
@@ -1214,6 +1275,7 @@ export const useChatStore = defineStore('chat', () => {
         // text streaming and silently re-sync from the server. 工具状态在服务端
         // 确认前保持运行中，避免把未知结果误标为成功。
         (err) => {
+          if (!isCurrentAuthContext(startingAuthContextVersion)) return
           console.warn('SSE connection dropped, resyncing from server:', err.message)
           const msgs = getSessionMsgs(sid)
           const last = msgs[msgs.length - 1]
@@ -1257,6 +1319,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function stopStreaming() {
+    const startingAuthContextVersion = authContextVersion
     const sid = activeSessionKey.value
     if (!sid) return
     const runId = runIds.value.get(sid)
@@ -1267,6 +1330,7 @@ export const useChatStore = defineStore('chat', () => {
         // ignore best-effort cancel failure
       }
     }
+    if (!isCurrentAuthContext(startingAuthContextVersion)) return
     const ctrl = streamStates.value.get(sid)
     if (ctrl) {
       ctrl.abort()
@@ -1283,16 +1347,20 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /** 页面重新可见时恢复活动会话；Store 销毁后必须移除该监听器。 */
+  function handleVisibilityChange(): void {
+    if (document.visibilityState === 'visible' && activeSessionKey.value && !isStreaming.value) {
+      void refreshActiveSession()
+      if (readInFlight(activeSessionKey.value)) {
+        startPolling(activeSessionKey.value)
+      }
+    }
+  }
+
   // Tab visibility: re-sync when returning to foreground
   if (typeof document !== 'undefined') {
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && activeSessionKey.value && !isStreaming.value) {
-        void refreshActiveSession()
-        if (readInFlight(activeSessionKey.value)) {
-          startPolling(activeSessionKey.value)
-        }
-      }
-    })
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    onScopeDispose(() => document.removeEventListener('visibilitychange', handleVisibilityChange))
   }
 
   return {

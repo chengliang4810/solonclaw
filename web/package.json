@@ -12,6 +12,7 @@
     "test:model-provider-catalog": "node --experimental-strip-types tests/modelProviderCatalogStatic.test.ts",
     "test:panel-navigation": "node --experimental-strip-types tests/panelNavigation.test.ts",
     "test:chat-message-merge": "node --experimental-strip-types tests/chatMessageMerge.test.ts",
+    "test:chat-cache-scope": "node --experimental-strip-types tests/chatCacheScope.test.ts && node --experimental-strip-types tests/sessionAuthClearInjectedToken.test.ts && node --experimental-strip-types tests/chatAuthContextStore.test.ts",
     "test:chat-api-model-catalog": "node --experimental-strip-types tests/chatApiModelCatalogStatic.test.ts",
     "test:chat-prestream-error-persistence": "node --experimental-strip-types tests/chatPreStreamErrorPersistenceStatic.test.ts",
     "test:session-selection": "node --experimental-strip-types tests/sessionSelection.test.ts",
