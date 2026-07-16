@@ -1,8 +1,10 @@
 package com.jimuqu.solon.claw.gateway.service;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -74,6 +76,18 @@ public final class ProfileRuntimeBundle implements AutoCloseable {
      */
     public AppContext appContext() {
         return appContext;
+    }
+
+    /** 停止当前 Profile 中指定来源的 Agent 运行。 */
+    public AgentRunStopResult stopRun(String sourceKey) {
+        AgentRunControlService controlService = appContext.getBean(AgentRunControlService.class);
+        if (controlService == null) {
+            return AgentRunStopResult.none();
+        }
+        GatewayMessage message = new GatewayMessage();
+        message.setProfile(profile);
+        message.setSourceKeyOverride(sourceKey);
+        return controlService.stop(message.sourceKey());
     }
 
     /**

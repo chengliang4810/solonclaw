@@ -36,7 +36,6 @@ public class ProfileTaskConfiguration {
         ProfileTaskCoordinator coordinator =
                 new ProfileTaskCoordinator(
                         repository, runtimeManager, defaultGatewayService, appConfig);
-        ProfileTaskSubmissionBridge.installCoordinator(coordinator);
         coordinator.start();
         return coordinator;
     }

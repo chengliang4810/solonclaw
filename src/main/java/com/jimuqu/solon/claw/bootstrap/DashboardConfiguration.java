@@ -27,6 +27,7 @@ import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.profile.ProfileManager;
+import com.jimuqu.solon.claw.profile.task.ProfileTaskCoordinator;
 import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
@@ -85,8 +86,11 @@ public class DashboardConfiguration {
     /** 创建协作任务 Dashboard 应用服务。 */
     @Bean
     public DashboardProfileTaskService dashboardProfileTaskService(
-            ProfileTaskRepository profileTaskRepository, AppConfig appConfig) {
-        return new DashboardProfileTaskService(profileTaskRepository, appConfig);
+            ProfileTaskRepository profileTaskRepository,
+            ProfileTaskCoordinator profileTaskCoordinator,
+            AppConfig appConfig) {
+        return new DashboardProfileTaskService(
+                profileTaskRepository, profileTaskCoordinator, appConfig);
     }
 
     /**

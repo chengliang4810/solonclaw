@@ -5,7 +5,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ProfileTaskAttemptRecord;
 import com.jimuqu.solon.claw.core.model.ProfileTaskRecord;
 import com.jimuqu.solon.claw.core.repository.ProfileTaskRepository;
-import com.jimuqu.solon.claw.profile.task.ProfileTaskSubmissionBridge;
+import com.jimuqu.solon.claw.profile.task.ProfileTaskCoordinator;
 import com.jimuqu.solon.claw.support.IdSupport;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,12 +16,19 @@ public class DashboardProfileTaskService {
     /** 共享任务仓储。 */
     private final ProfileTaskRepository repository;
 
+    /** 协作任务执行协调器，统一线性化取消状态与运行调用。 */
+    private final ProfileTaskCoordinator coordinator;
+
     /** 协作任务默认值和上限。 */
     private final AppConfig.TaskConfig config;
 
     /** 创建应用服务。 */
-    public DashboardProfileTaskService(ProfileTaskRepository repository, AppConfig appConfig) {
+    public DashboardProfileTaskService(
+            ProfileTaskRepository repository,
+            ProfileTaskCoordinator coordinator,
+            AppConfig appConfig) {
         this.repository = repository;
+        this.coordinator = coordinator;
         this.config = appConfig.getTask();
     }
 
@@ -89,11 +96,10 @@ public class DashboardProfileTaskService {
 
     /** 取消任务。 */
     public TaskDetail cancel(String taskId) throws Exception {
-        if (!repository.cancel(taskId)) {
+        if (!coordinator.cancelTask(taskId)) {
             throw new IllegalStateException(
                     "Profile task cannot be cancelled in its current state");
         }
-        ProfileTaskSubmissionBridge.cancelExecution(taskId);
         return get(taskId);
     }
 
