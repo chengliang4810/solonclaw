@@ -184,27 +184,6 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'switch personality for this session',
-    name: 'personality',
-    run: (arg, ctx) => {
-      if (!arg) {
-        return
-      }
-
-      ctx.gateway.rpc<ConfigSetResponse>('config.set', { key: 'personality', session_id: ctx.sid, value: arg }).then(
-        ctx.guarded<ConfigSetResponse>(r => {
-          if (r.history_reset) {
-            ctx.session.resetVisibleHistory(r.info ?? null)
-          }
-
-          ctx.transcript.sys(`personality: ${r.value || 'default'}${r.history_reset ? ' · transcript cleared' : ''}`)
-          ctx.local.maybeWarn(r)
-        })
-      ).catch(ctx.guardedErr)
-    }
-  },
-
-  {
     aliases: ['compact'],
     help: 'compress transcript',
     name: 'compress',
@@ -383,24 +362,6 @@ export const sessionCommands: SlashCommand[] = [
           }
         })
       ).catch(ctx.guardedErr)
-    }
-  },
-
-  {
-    help: 'switch theme skin (fires skin.changed)',
-    name: 'skin',
-    run: (arg, ctx) => {
-      if (!arg) {
-        return ctx.gateway
-          .rpc<ConfigGetValueResponse>('config.get', { key: 'skin' })
-          .then(ctx.guarded<ConfigGetValueResponse>(r => ctx.transcript.sys(`skin: ${r.value || 'default'}`)))
-          .catch(ctx.guardedErr)
-      }
-
-      ctx.gateway
-        .rpc<ConfigSetResponse>('config.set', { key: 'skin', value: arg })
-        .then(ctx.guarded<ConfigSetResponse>(r => r.value && ctx.transcript.sys(`skin → ${r.value}`)))
-        .catch(ctx.guardedErr)
     }
   },
 

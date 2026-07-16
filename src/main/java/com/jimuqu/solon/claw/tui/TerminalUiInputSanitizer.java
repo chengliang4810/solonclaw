@@ -1,10 +1,10 @@
-package com.jimuqu.solon.claw.cli;
+package com.jimuqu.solon.claw.tui;
 
 import cn.hutool.core.util.StrUtil;
 import java.util.regex.Pattern;
 
 /** 承载终端输入清理器相关状态和辅助逻辑。 */
-public class TerminalInputSanitizer {
+public class TerminalUiInputSanitizer {
     /** DSR响应的统一常量值。 */
     private static final Pattern DSR_RESPONSE =
             Pattern.compile("(?:\\u001B\\[|\\^\\[\\[|\\u009B)\\d{1,5};\\d{1,5}R");
@@ -31,7 +31,7 @@ public class TerminalInputSanitizer {
             Pattern.compile("(?:\\u001B\\[|\\^\\[\\[|\\u009B)(?:200|201)~");
 
     /** 创建终端输入清理器实例。 */
-    private TerminalInputSanitizer() {}
+    private TerminalUiInputSanitizer() {}
 
     /**
      * 剥离Leaked终端Responses。

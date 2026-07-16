@@ -1,4 +1,4 @@
-package com.jimuqu.solon.claw.cli;
+package com.jimuqu.solon.claw.tui;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -18,62 +18,31 @@ import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import java.util.List;
 import java.util.Locale;
 
-/** 承载CLI运行时相关状态和辅助逻辑。 */
-public class CliRuntime {
-    /** CLI 运行时默认的来源键前缀，绑定到 MEMORY 渠道的 cli 子命名空间。 */
-    private static final String DEFAULT_SOURCE_KEY_PREFIX = "MEMORY:cli:";
+/** 承载终端 UI 会话和命令执行逻辑。 */
+public class TerminalUiRuntime {
+    /** 终端 UI 默认来源键前缀。 */
+    private static final String DEFAULT_SOURCE_KEY_PREFIX = "MEMORY:terminal-ui:";
 
     /** 注入命令服务，用于调用对应业务能力。 */
     private final CommandService commandService;
 
-    /** 记录CLI运行时中的对话编排器。 */
+    /** 终端 UI 使用的对话编排器。 */
     private final ConversationOrchestrator conversationOrchestrator;
 
     /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
 
-    /** 会话仓储，用于在真实 CLI/TUI 回复完成后定位学习目标会话。 */
+    /** 会话仓储，用于在回复完成后定位学习目标会话。 */
     private final SessionRepository sessionRepository;
 
-    /** 任务后学习服务，由 CLI 与 TUI 共用的运行时统一触发。 */
+    /** 任务后学习服务，由 TUI 运行时统一触发。 */
     private final SkillLearningService skillLearningService;
 
-    /** 来源键前缀，决定 send/stop 把会话绑定到哪个 source 命名空间；默认 cli，终端 UI 注入 terminal-ui。 */
+    /** 来源键前缀，决定 send/stop 把会话绑定到哪个终端 UI 命名空间。 */
     private final String sourceKeyPrefix;
 
     /**
-     * 创建Cli运行时实例，并注入运行所需依赖。
-     *
-     * @param commandService 命令服务依赖。
-     * @param conversationOrchestrator conversationOrchestrator 参数。
-     */
-    public CliRuntime(
-            CommandService commandService, ConversationOrchestrator conversationOrchestrator) {
-        this(commandService, conversationOrchestrator, null);
-    }
-
-    /**
-     * 创建Cli运行时实例，并注入运行所需依赖。
-     *
-     * @param commandService 命令服务依赖。
-     * @param conversationOrchestrator conversationOrchestrator 参数。
-     * @param agentRunControlService Agent运行控制服务依赖。
-     */
-    public CliRuntime(
-            CommandService commandService,
-            ConversationOrchestrator conversationOrchestrator,
-            AgentRunControlService agentRunControlService) {
-        this(
-                commandService,
-                conversationOrchestrator,
-                agentRunControlService,
-                DEFAULT_SOURCE_KEY_PREFIX,
-                null,
-                null);
-    }
-
-    /**
-     * 创建带自定义来源键前缀的Cli运行时实例。
+     * 创建带自定义来源键前缀的终端 UI 运行时。
      *
      * <p>终端 UI 通过 /ws/tui 发起 prompt.submit 时，必须与自身的会话管理（MEMORY:terminal-ui:*） 使用同一来源键前缀，否则后端会按 cli
      * 前缀查不到会话而新建，导致回复事件的 session_id 与 前端当前会话不匹配，被前端按 session_id 过滤丢弃，表现为"一直运行中不回复"。
@@ -81,9 +50,9 @@ public class CliRuntime {
      * @param commandService 命令服务依赖。
      * @param conversationOrchestrator conversationOrchestrator 参数。
      * @param agentRunControlService Agent运行控制服务依赖。
-     * @param sourceKeyPrefix 来源键前缀，例如 "MEMORY:cli:" 或 "MEMORY:terminal-ui:"。
+     * @param sourceKeyPrefix 来源键前缀。
      */
-    public CliRuntime(
+    public TerminalUiRuntime(
             CommandService commandService,
             ConversationOrchestrator conversationOrchestrator,
             AgentRunControlService agentRunControlService,
@@ -98,7 +67,7 @@ public class CliRuntime {
     }
 
     /**
-     * 创建可在回复后触发技能学习的 CLI/TUI 共享运行时。
+     * 创建可在回复后触发技能学习的终端 UI 运行时。
      *
      * @param commandService 命令服务依赖。
      * @param conversationOrchestrator 对话编排器。
@@ -107,7 +76,7 @@ public class CliRuntime {
      * @param sessionRepository 会话仓储依赖。
      * @param skillLearningService 任务后学习服务。
      */
-    public CliRuntime(
+    public TerminalUiRuntime(
             CommandService commandService,
             ConversationOrchestrator conversationOrchestrator,
             AgentRunControlService agentRunControlService,
@@ -121,25 +90,6 @@ public class CliRuntime {
         this.skillLearningService = skillLearningService;
         this.sourceKeyPrefix =
                 StrUtil.isBlank(sourceKeyPrefix) ? DEFAULT_SOURCE_KEY_PREFIX : sourceKeyPrefix;
-    }
-
-    /**
-     * 派生一个仅替换来源键前缀的 CliRuntime，复用同一套命令服务、对话编排器与运行控制服务。
-     *
-     * <p>终端 UI 需要用 terminal-ui 前缀与自身会话管理对齐，但不应改动全局共享的 CLI 运行时， 因此通过本方法派生独立的实例注入到
-     * TerminalUiWebSocketListener。
-     *
-     * @param newSourceKeyPrefix 新的来源键前缀。
-     * @return 返回使用指定前缀的新 CliRuntime 实例。
-     */
-    public CliRuntime withSourceKeyPrefix(String newSourceKeyPrefix) {
-        return new CliRuntime(
-                this.commandService,
-                this.conversationOrchestrator,
-                this.agentRunControlService,
-                newSourceKeyPrefix,
-                this.sessionRepository,
-                this.skillLearningService);
     }
 
     /**
@@ -190,7 +140,7 @@ public class CliRuntime {
             ConversationEventSink eventSink,
             String workspaceDir)
             throws Exception {
-        String sanitized = TerminalInputSanitizer.stripLeakedTerminalResponses(input);
+        String sanitized = TerminalUiInputSanitizer.stripLeakedTerminalResponses(input);
         ConversationEventSink sink = eventSink == null ? ConversationEventSink.noop() : eventSink;
         GatewayMessage message = message(sessionId, sanitized, attachments, workspaceDir);
         String text = StrUtil.nullToEmpty(sanitized).trim();
@@ -298,7 +248,7 @@ public class CliRuntime {
         String sid = StrUtil.blankToDefault(sessionId, "cli");
         GatewayMessage message = new GatewayMessage(PlatformType.MEMORY, "cli", "local", input);
         message.setChatType(GatewayBehaviorConstants.CHAT_TYPE_DM);
-        message.setChatName("CLI");
+        message.setChatName("TUI");
         message.setUserName("local");
         message.setSourceKeyOverride(sourceKey(sid));
         if (StrUtil.isNotBlank(workspaceDir)) {

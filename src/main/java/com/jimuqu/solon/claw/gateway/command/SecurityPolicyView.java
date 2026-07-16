@@ -1,4 +1,4 @@
-package com.jimuqu.solon.claw.cli;
+package com.jimuqu.solon.claw.gateway.command;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -23,9 +23,9 @@ import com.jimuqu.solon.claw.web.McpPackageSecurityService;
 import java.util.Map;
 
 /** 呈现终端安全策略交互视图，封装终端侧输入输出细节。 */
-public final class TerminalSecurityPolicyView {
+public final class SecurityPolicyView {
     /** 创建终端安全策略视图实例。 */
-    private TerminalSecurityPolicyView() {}
+    private SecurityPolicyView() {}
 
     /**
      * 判断是否安全命令。

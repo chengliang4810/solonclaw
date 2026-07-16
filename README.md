@@ -95,16 +95,6 @@ java -Dsolonclaw.dashboard.accessToken=your-token -jar target/solonclaw-0.0.1.ja
 
 运行后会在当前目录创建 `workspace/`，用于保存 Agent 工作区、配置、SQLite 数据库、缓存、日志、技能和上下文文件。运行态子目录由程序内置派生：`context/`、`skills/`、`cache/`、`logs/` 和 `data/state.db`。
 
-### 终端一次性命令与 Profile
-
-```bash
-solonclaw --cli -p /help
-solonclaw --tui -p /help
-solonclaw --profile work --cli -p /help
-```
-
-`--cli` 或 `--tui` 之后的 `-p` 表示一次性提示词，等同于 `--ask`；选择 Profile 请使用无歧义的 `--profile <name>`。短选项 `-p <name>` 仅在终端模式参数之前表示 Profile 选择。
-
 ### Docker Compose
 
 ```bash

@@ -1,4 +1,4 @@
-package com.jimuqu.solon.claw.cli;
+package com.jimuqu.solon.claw.tui;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -24,7 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 终端 setup/config 命令渲染服务，保证 CLI 与 TUI 复用同一套配置展示逻辑。 */
+/** 终端 UI setup/config 命令渲染服务。 */
 public class TerminalSetupCommands {
     /** 国内渠道顺序，和本项目已确认保留的渠道范围保持一致。 */
     private static final List<String> DOMESTIC_CHANNELS = RuntimeSetupSpec.domesticChannels();
@@ -246,7 +246,7 @@ public class TerminalSetupCommands {
      * @return 属于本地说明命令返回 true。
      */
     private boolean isLocalGuidanceCommand(String value) {
-        for (String command : LocalGuidanceCommands.COMMANDS) {
+        for (String command : SetupGuidanceCommands.COMMANDS) {
             if (command.equals(value) || value.startsWith(command + " ")) {
                 return true;
             }
@@ -375,14 +375,13 @@ public class TerminalSetupCommands {
                 + "\nnext=solonclaw setup model";
     }
 
-    /** 渲染终端初始化分节，说明当前 Java CLI/TUI 的可用入口。 */
+    /** 渲染终端 UI 初始化分节。 */
     private String renderSetupTerminal() {
         return "终端初始化\n"
-                + "1. solonclaw - 启动本地 TUI/CLI 入口，按当前启动模式进入交互界面\n"
-                + "2. solonclaw --cli -p /help - 查看 CLI 本地命令\n"
-                + "3. solonclaw --tui -p /help - 查看 TUI 本地命令\n"
+                + "1. solonclaw - 启动本地 TUI 入口\n"
+                + "2. 在终端 UI 中输入 /help 查看可用命令\n"
                 + "4. solonclaw completion <bash|zsh|fish> - 输出补全脚本\n"
-                + "可在终端内继续使用 /help、/tips、/skin、/sessions、/history。";
+                + "可在终端内继续使用 /help、/tips、/sessions、/history。";
     }
 
     /** 渲染工具初始化分节，聚焦安全策略、MCP 与内置工具可见性。 */
@@ -630,7 +629,7 @@ public class TerminalSetupCommands {
         return resolver.configFile().getPath();
     }
 
-    /** 渲染配置编辑引导，不在 CLI/TUI 自动拉起外部编辑器，避免阻塞本地终端流程。 */
+    /** 渲染配置编辑引导，不自动拉起外部编辑器，避免阻塞终端 UI。 */
     private String renderConfigEdit() {
         RuntimeConfigResolver resolver = configResolver();
         return "配置文件\n"
@@ -1461,7 +1460,7 @@ public class TerminalSetupCommands {
         return result.toString();
     }
 
-    /** 校验 CLI 仅管理已确认保留的国内渠道。 */
+    /** 校验 TUI 仅管理已确认保留的国内渠道。 */
     private PlatformType requireDomesticPlatform(String value) {
         PlatformType platform = PlatformType.fromName(value);
         if (!PlatformType.DOMESTIC_PLATFORMS.contains(platform)) {
@@ -1542,13 +1541,13 @@ public class TerminalSetupCommands {
     private String renderGatewayStop() {
         return "Gateway Stop\n"
                 + "本地终端不会直接杀死外部 Java 进程。\n"
-                + "在 CLI/TUI 会话中使用 /stop 停止当前会话运行中的任务；停止服务请结束启动该 jar 的进程。";
+                + "在终端 UI 会话中使用 /stop 停止当前会话运行中的任务；停止服务请结束启动该 jar 的进程。";
     }
 
     /** 渲染 restart 命令说明。 */
     private String renderGatewayRestart() {
         return "Gateway Restart\n"
-                + "在 CLI/TUI 会话中使用 /restart 请求当前运行实例重载网关。\n"
+                + "在终端 UI 会话中使用 /restart 请求当前运行实例重载网关。\n"
                 + "如果服务未启动，请重新执行 java -jar 启动命令。";
     }
 

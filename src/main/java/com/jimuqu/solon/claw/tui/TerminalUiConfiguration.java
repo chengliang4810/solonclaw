@@ -1,6 +1,5 @@
 package com.jimuqu.solon.claw.tui;
 
-import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
@@ -8,9 +7,12 @@ import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
+import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ContextCompressionService;
+import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
+import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
@@ -34,7 +36,8 @@ public class TerminalUiConfiguration {
     /** 注册终端 UI WebSocket 监听器到固定协议路径。 */
     @Bean
     public TerminalUiWebSocketListener terminalUiWebSocketListener(
-            CliRuntime runtime,
+            CommandService commandService,
+            ConversationOrchestrator conversationOrchestrator,
             AppConfig appConfig,
             SessionRepository sessionRepository,
             SecurityPolicyService securityPolicyService,
@@ -51,18 +54,21 @@ public class TerminalUiConfiguration {
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             DelegationService delegationService,
             AgentRunControlService agentRunControlService,
+            SkillLearningService skillLearningService,
             AgentRunRepository agentRunRepository,
             RuntimeSettingsService runtimeSettingsService,
             GlobalSettingRepository globalSettingRepository,
             WeixinQrSetupService weixinQrSetupService,
             DomesticQrSetupService domesticQrSetupService,
             DangerousCommandApprovalService approvalService) {
-        // 终端 UI 的 prompt.submit 必须使用 terminal-ui 来源键前缀，与会话管理
-        // (TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX) 对齐；否则后端会按 cli 前缀
-        // 查不到会话而新建，回复事件 session_id 与前端当前会话不匹配而被丢弃，表现为
-        // "一直运行中不回复"。这里从共享 CLI 运行时派生一个独立前缀实例注入监听器。
-        CliRuntime terminalRuntime =
-                runtime.withSourceKeyPrefix(TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiRuntime terminalRuntime =
+                new TerminalUiRuntime(
+                        commandService,
+                        conversationOrchestrator,
+                        agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX,
+                        sessionRepository,
+                        skillLearningService);
         TerminalUiWebSocketListener listener =
                 new TerminalUiWebSocketListener(
                         terminalRuntime,

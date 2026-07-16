@@ -739,8 +739,6 @@ public class TerminalUiRpcService {
         } else if ("reasoning".equals(normalized)) {
             result.put("value", reasoningEffort());
             result.put("display", "show");
-        } else if ("skin".equals(normalized)) {
-            result.put("value", textPreference("skin", "default"));
         } else if ("indicator".equals(normalized)) {
             result.put("value", textPreference("indicator", "kaomoji"));
         } else if ("details_mode".equals(normalized)) {
@@ -1794,11 +1792,6 @@ public class TerminalUiRpcService {
             writePreference("indicator", indicator);
             return indicator;
         }
-        if ("skin".equals(normalized)) {
-            String skin = StrUtil.blankToDefault(raw, "default");
-            writePreference("skin", skin);
-            return skin;
-        }
         if ("statusbar".equals(normalized)) {
             String statusbar = normalizeStatusbar(raw);
             writePreference("statusbar", statusbar);
@@ -2627,13 +2620,11 @@ public class TerminalUiRpcService {
         appendLocalSlashCompletion(items, query, "session", "浏览或切换会话");
         appendLocalSlashCompletion(items, query, "resume", "恢复会话");
         appendLocalSlashCompletion(items, query, "image", "附加图片");
-        appendLocalSlashCompletion(items, query, "personality", "切换当前会话人格");
         appendLocalSlashCompletion(items, query, "compress", "压缩当前上下文");
         appendLocalSlashCompletion(items, query, "compact", "压缩当前上下文");
         appendLocalSlashCompletion(items, query, "branch", "分支当前会话");
         appendLocalSlashCompletion(items, query, "fork", "分支当前会话");
         appendLocalSlashCompletion(items, query, "voice", "查看或切换语音能力");
-        appendLocalSlashCompletion(items, query, "skin", "切换界面皮肤");
         appendLocalSlashCompletion(items, query, "indicator", "切换忙碌指示器");
         appendLocalSlashCompletion(items, query, "yolo", "切换会话级跳过危险命令审批");
         appendLocalSlashCompletion(items, query, "reasoning", "查看或设置推理展示");
@@ -2719,7 +2710,7 @@ public class TerminalUiRpcService {
         sessionRepository.bindSource(terminalSourceKey(sessionId), boundSessionId);
     }
 
-    /** 终端 UI 会话来源键前缀，必须与 CliRuntime 在 TUI 场景下使用的前缀保持一致。 */
+    /** 终端 UI 会话来源键前缀，必须与 TerminalUiRuntime 使用的前缀保持一致。 */
     public static final String TERMINAL_SOURCE_KEY_PREFIX = "MEMORY:terminal-ui:";
 
     /** 构造本地 TUI 会话专用 source key，保持前端会话 ID 与后端绑定关系稳定。 */

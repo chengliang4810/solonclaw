@@ -384,12 +384,6 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
         return
 
-      case 'skin.changed':
-        if (ev.payload) {
-          applySkin(ev.payload)
-        }
-
-        return
       case 'session.info': {
         const info = ev.payload
 

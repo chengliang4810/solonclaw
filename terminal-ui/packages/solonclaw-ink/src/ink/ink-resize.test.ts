@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import Text from './components/Text.js'
 import Ink from './ink.js'
-import { CURSOR_HOME, ERASE_SCREEN } from './termio/csi.js'
+import { CURSOR_HOME, ERASE_SCREEN, ERASE_SCROLLBACK } from './termio/csi.js'
 
 class FakeTty extends EventEmitter {
   chunks: string[] = []
@@ -46,7 +46,7 @@ describe('Ink resize healing', () => {
     ink.onRender()
     await tick()
 
-    expect(stdout.chunks.join('')).toContain(ERASE_SCREEN + CURSOR_HOME)
+    expect(stdout.chunks.join('')).toContain(ERASE_SCREEN + ERASE_SCROLLBACK + CURSOR_HOME)
 
     ink.unmount()
   })

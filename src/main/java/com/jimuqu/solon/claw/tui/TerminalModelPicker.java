@@ -1,4 +1,4 @@
-package com.jimuqu.solon.claw.cli;
+package com.jimuqu.solon.claw.tui;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;

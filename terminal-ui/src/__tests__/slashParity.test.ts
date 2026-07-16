@@ -16,7 +16,6 @@ const MUTATING_COMMANDS = [
   'fast',
   'model',
   'new',
-  'personality',
   'queue',
   'reasoning',
   'reload-mcp',
@@ -80,5 +79,11 @@ describe('slash parity matrix', () => {
     const cmd = findSlashCommand('q')
     expect(cmd, '/q must resolve to a command').toBeDefined()
     expect(cmd!.name).toBe('queue')
+  })
+
+  it('does not expose removed commands', () => {
+    for (const name of ['fortune', 'personality', 'skin', 'update']) {
+      expect(findSlashCommand(name)).toBeUndefined()
+    }
   })
 })

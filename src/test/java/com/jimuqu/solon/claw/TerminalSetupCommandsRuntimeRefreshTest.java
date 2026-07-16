@@ -3,9 +3,9 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
-import com.jimuqu.solon.claw.cli.TerminalSetupCommands;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.tui.TerminalSetupCommands;
 import java.io.File;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;

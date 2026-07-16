@@ -2,7 +2,6 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -12,6 +11,7 @@ import com.jimuqu.solon.claw.tool.runtime.ClarifyRequestCoordinator;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
+import com.jimuqu.solon.claw.tui.TerminalUiRuntime;
 import com.jimuqu.solon.claw.tui.TerminalUiWebSocketEventSink;
 import com.jimuqu.solon.claw.tui.TerminalUiWebSocketListener;
 import java.io.File;
@@ -565,8 +565,8 @@ class TerminalUiApprovalRespondTest {
     /** 构造 TUI WebSocket 监听器，允许单个测试按需注入安全策略服务。 */
     private static TerminalUiWebSocketListener newTuiListener(
             TestEnvironment env, SecurityPolicyService securityPolicyService) {
-        CliRuntime runtime =
-                new CliRuntime(
+        TerminalUiRuntime runtime =
+                new TerminalUiRuntime(
                         env.commandService,
                         env.conversationOrchestrator,
                         env.agentRunControlService,

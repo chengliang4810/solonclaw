@@ -1,7 +1,6 @@
 import { forceRedraw, type MouseTrackingMode } from '@solonclaw/ink'
 
 import { NO_CONFIRM_DESTRUCTIVE } from '../../../config/env.js'
-import { dailyFortune, randomFortune } from '../../../content/fortunes.js'
 import { HOTKEYS } from '../../../content/hotkeys.js'
 import { isSectionName, nextDetailsMode, parseDetailsMode, SECTION_NAMES } from '../../../domain/details.js'
 import { parsePositiveIntegerArg } from '../../../domain/slash.js'
@@ -112,8 +111,7 @@ export const coreCommands: SlashCommand[] = [
             ],
             ['/mouse [off|wheel|buttons|all]', 'set terminal mouse tracking preset'],
             ['/terminal-setup [auto|vscode|cursor|windsurf]', 'configure IDE terminal keybindings'],
-            ['/voice [status]', 'show local voice availability'],
-            ['/fortune [random|daily]', 'show a random or daily local fortune']
+            ['/voice [status]', 'show local voice availability']
           ],
           title: 'TUI'
         },
@@ -129,17 +127,6 @@ export const coreCommands: SlashCommand[] = [
     help: 'exit solonclaw',
     name: 'quit',
     run: (_arg, ctx) => ctx.session.die()
-  },
-
-  {
-    help: 'update solonclaw Agent to the latest version (exits TUI)',
-    name: 'update',
-    run: (_arg, ctx) => {
-      ctx.transcript.sys('exiting TUI to run update...')
-      // Exit code 42 signals the Python wrapper to exec `solonclaw update`.
-      // Use dieWithCode for proper cleanup (gateway kill + Ink unmount).
-      setTimeout(() => ctx.session.dieWithCode(42), 100)
-    }
   },
 
   {
@@ -345,24 +332,6 @@ export const coreCommands: SlashCommand[] = [
         .rpc<ConfigSetResponse>('config.set', { key: 'details_mode', value: next })
         .catch(warnConfigSaveFailed(ctx, 'details'))
       transcript.sys(`details: ${next}`)
-    }
-  },
-
-  {
-    help: 'local fortune',
-    name: 'fortune',
-    run: (arg, ctx) => {
-      const key = arg.trim().toLowerCase()
-
-      if (!arg || key === 'random') {
-        return ctx.transcript.sys(randomFortune())
-      }
-
-      if (['daily', 'stable', 'today'].includes(key)) {
-        return ctx.transcript.sys(dailyFortune(ctx.sid))
-      }
-
-      ctx.transcript.sys('usage: /fortune [random|daily]')
     }
   },
 

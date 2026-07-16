@@ -45,8 +45,24 @@ class TerminalUiRpcServiceTest {
             SqliteSessionRepository sessions,
             RecordingCompressionService compression) {
         return new TerminalUiRpcService(
-                config, sessions, null, null, null, null, null, null, compression, null, null, null,
-                null, null, null, null, null, null);
+                config,
+                sessions,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                compression,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     /** 使用 TestEnvironment 全部服务创建 TerminalUiRpcService。 */

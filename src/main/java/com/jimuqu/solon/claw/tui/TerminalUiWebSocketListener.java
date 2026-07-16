@@ -1,9 +1,6 @@
 package com.jimuqu.solon.claw.tui;
 
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.cli.CliRuntime;
-import com.jimuqu.solon.claw.cli.TerminalModelPicker;
-import com.jimuqu.solon.claw.cli.TerminalSetupCommands;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -60,7 +57,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     private final ExecutorService promptExecutor;
 
     /** 复用本地终端运行时执行会话命令与用户输入。 */
-    private final CliRuntime runtime;
+    private final TerminalUiRuntime runtime;
 
     /** 构造终端 UI RPC 响应的服务。 */
     private final TerminalUiRpcService rpcService;
@@ -94,18 +91,18 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             new java.util.concurrent.ConcurrentHashMap<WebSocket, TerminalUiApprovalObserver>();
 
     /** 创建终端 UI WebSocket 协议监听器。 */
-    public TerminalUiWebSocketListener(CliRuntime runtime) {
+    public TerminalUiWebSocketListener(TerminalUiRuntime runtime) {
         this(runtime, null, null);
     }
 
     /** 创建带应用配置的终端 UI WebSocket 协议监听器。 */
-    public TerminalUiWebSocketListener(CliRuntime runtime, AppConfig appConfig) {
+    public TerminalUiWebSocketListener(TerminalUiRuntime runtime, AppConfig appConfig) {
         this(runtime, appConfig, null);
     }
 
     /** 创建带应用配置与会话仓储的终端 UI WebSocket 协议监听器。 */
     public TerminalUiWebSocketListener(
-            CliRuntime runtime, AppConfig appConfig, SessionRepository sessionRepository) {
+            TerminalUiRuntime runtime, AppConfig appConfig, SessionRepository sessionRepository) {
         this(
                 runtime,
                 appConfig,
@@ -116,7 +113,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
 
     /** 创建带安全策略与进程注册表的终端 UI WebSocket 协议监听器。 */
     public TerminalUiWebSocketListener(
-            CliRuntime runtime,
+            TerminalUiRuntime runtime,
             AppConfig appConfig,
             SessionRepository sessionRepository,
             SecurityPolicyService securityPolicyService,
@@ -149,7 +146,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
 
     /** 创建带完整后端服务适配的终端 UI WebSocket 协议监听器。 */
     public TerminalUiWebSocketListener(
-            CliRuntime runtime,
+            TerminalUiRuntime runtime,
             AppConfig appConfig,
             SessionRepository sessionRepository,
             SecurityPolicyService securityPolicyService,
@@ -198,7 +195,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
 
     /** 创建带完整后端服务适配和渠道扫码能力的终端 UI WebSocket 协议监听器。 */
     public TerminalUiWebSocketListener(
-            CliRuntime runtime,
+            TerminalUiRuntime runtime,
             AppConfig appConfig,
             SessionRepository sessionRepository,
             SecurityPolicyService securityPolicyService,
@@ -447,7 +444,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
     }
 
-    /** 处理配置写入，并补齐终端 UI 对 skin.changed 事件的期待。 */
+    /** 处理配置写入。 */
     private void handleConfigSet(WebSocket socket, String id, ONode params) throws Exception {
         Object result =
                 rpcService.configSet(
@@ -455,9 +452,6 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                         params.get("value").getString(),
                         params.get("session_id").getString());
         sendRpcResult(socket, id, result);
-        if ("skin".equals(params.get("key").getString())) {
-            send(socket, "skin.changed", rpcService.skinPayload(params.get("value").getString()));
-        }
     }
 
     /** 根据 RPC 方法名生成终端 UI 前端所需的响应载荷。 */
@@ -704,7 +698,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         return "approve".equals(first) || "deny".equals(first) || "cancel".equals(first);
     }
 
-    /** 通过统一 CliRuntime 执行 slash 命令并转换为 RPC 输出。 */
+    /** 通过终端 UI 运行时执行 slash 命令并转换为 RPC 输出。 */
     private Map<String, Object> runSlash(String sessionId, String command) throws Exception {
         return runSlash(sessionId, command, ConversationEventSink.noop());
     }
@@ -787,7 +781,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     }
 
     /**
-     * 通过统一 CliRuntime 执行 slash 命令并转换为 RPC 输出，同时把长运行事件推给终端 UI。
+     * 通过终端 UI 运行时执行 slash 命令并转换为 RPC 输出，同时把长运行事件推给终端 UI。
      *
      * @param sessionId 当前会话标识。
      * @param command 命令正文。
@@ -833,7 +827,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         return 0;
     }
 
-    /** 审批响应会复用 slash 命令链，执行前需要确保 TUI 会话 ID 可被 CliRuntime 找到。 */
+    /** 审批响应会复用 slash 命令链，执行前需要确保 TUI 会话 ID 可被终端 UI 运行时找到。 */
     private void bindRuntimeSource(String sessionId) throws Exception {
         if (sessionRepository == null || StrUtil.isBlank(sessionId)) {
             return;

@@ -109,8 +109,7 @@ class TerminalUiHandshakeServiceTest {
     @Test
     @DisplayName("带自定义端口供应商时应替换端口")
     void handshake_withCustomPortSupplier_shouldReplacePort() {
-        TerminalUiHandshakeService customService =
-                new TerminalUiHandshakeService(() -> 9090);
+        TerminalUiHandshakeService customService = new TerminalUiHandshakeService(() -> 9090);
 
         Map<String, Object> result = customService.handshake("http://localhost:8080");
 
