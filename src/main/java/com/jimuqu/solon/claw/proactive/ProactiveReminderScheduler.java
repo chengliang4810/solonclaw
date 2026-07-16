@@ -123,6 +123,8 @@ public class ProactiveReminderScheduler {
         }
         SessionRecord session = mainSession();
         if (session == null) {
+            log.info(
+                    "Notification skipped: component=proactive, strategy=PRIMARY_CHANNEL, reason=CHANNEL_MISSING_OR_ADMIN_UNBOUND");
             return;
         }
         ReminderState state = loadState();
