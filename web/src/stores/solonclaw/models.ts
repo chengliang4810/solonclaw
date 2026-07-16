@@ -13,6 +13,7 @@ import type {
 } from '@/api/solonclaw/system'
 import { LLM_DIALECT_OPTIONS, normalizeDialectCatalog } from '@/shared/providerDisplay'
 import { useAppStore } from './app'
+import { useProfileContextGuard } from '@/composables/useProfileContextGuard'
 
 export const useModelsStore = defineStore('models', () => {
   const providers = ref<AvailableModelGroup[]>([])
@@ -25,6 +26,22 @@ export const useModelsStore = defineStore('models', () => {
   const providerHealth = ref<Record<string, ModelsHealthProvider>>({})
   const runtimeModels = ref<RuntimeModelStatus[]>([])
   const dialectCatalog = ref<DialectCatalogItem[]>([...LLM_DIALECT_OPTIONS])
+
+  /** 清空当前 Profile 的模型管理状态。 */
+  function resetProfileState(): void {
+    providers.value = []
+    allProviders.value = []
+    fallbackProviders.value = []
+    defaultModel.value = ''
+    defaultProvider.value = ''
+    loading.value = false
+    loadError.value = null
+    providerHealth.value = {}
+    runtimeModels.value = []
+    dialectCatalog.value = [...LLM_DIALECT_OPTIONS]
+  }
+
+  const profileContext = useProfileContextGuard(resetProfileState)
 
   const allModels = computed(() =>
     providers.value.flatMap(g =>
@@ -40,10 +57,12 @@ export const useModelsStore = defineStore('models', () => {
   )
 
   async function fetchProviders() {
+    const contextVersion = profileContext.capture()
     loading.value = true
     loadError.value = null
     try {
       const res = await systemApi.fetchAvailableModels()
+      if (!profileContext.isCurrent(contextVersion)) return
       providers.value = res.groups
       allProviders.value = res.allProviders
       defaultModel.value = res.default
@@ -51,22 +70,28 @@ export const useModelsStore = defineStore('models', () => {
       fallbackProviders.value = res.fallbackProviders
       dialectCatalog.value = normalizeDialectCatalog(res.dialectCatalog)
     } catch (err) {
-      console.error('Failed to fetch providers:', err)
-      loadError.value = err instanceof Error ? err.message : String(err || 'Failed to fetch providers')
+      if (profileContext.isCurrent(contextVersion)) {
+        console.error('Failed to fetch providers:', err)
+        loadError.value = err instanceof Error ? err.message : String(err || 'Failed to fetch providers')
+      }
     } finally {
-      loading.value = false
+      if (profileContext.isCurrent(contextVersion)) loading.value = false
     }
   }
 
   async function setDefaultModel(modelId: string, provider: string) {
+    const contextVersion = profileContext.capture()
     await systemApi.updateDefaultModel({ default: modelId, provider })
+    if (!profileContext.isCurrent(contextVersion)) return
     defaultModel.value = modelId
     const appStore = useAppStore()
     appStore.loadModels()
   }
 
   async function addProvider(data: CustomProvider) {
+    const contextVersion = profileContext.capture()
     await systemApi.addCustomProvider(data)
+    if (!profileContext.isCurrent(contextVersion)) return
     await fetchProviders()
     const appStore = useAppStore()
     appStore.loadModels()
@@ -84,12 +109,16 @@ export const useModelsStore = defineStore('models', () => {
   }
 
   async function fetchModelsHealth() {
+    const contextVersion = profileContext.capture()
     const res = await systemApi.fetchModelsHealth()
+    if (!profileContext.isCurrent(contextVersion)) return
     providerHealth.value = Object.fromEntries(res.providers.map(item => [item.provider, item]))
   }
 
   async function fetchRuntimeModels() {
+    const contextVersion = profileContext.capture()
     const res = await systemApi.fetchRuntimeModels()
+    if (!profileContext.isCurrent(contextVersion)) return
     runtimeModels.value = res.models || []
   }
 
@@ -104,20 +133,26 @@ export const useModelsStore = defineStore('models', () => {
     defaultModel?: string
     dialect?: string
   }) {
+    const contextVersion = profileContext.capture()
     await systemApi.updateProvider(providerKey, data)
+    if (!profileContext.isCurrent(contextVersion)) return
     await fetchProviders()
     const appStore = useAppStore()
     appStore.loadModels()
   }
 
   async function saveFallbackProviders(next: FallbackProvider[]) {
+    const contextVersion = profileContext.capture()
     await systemApi.updateFallbackProviders(next)
+    if (!profileContext.isCurrent(contextVersion)) return
     fallbackProviders.value = next
     await fetchProviders()
   }
 
   async function removeProvider(providerKey: string) {
+    const contextVersion = profileContext.capture()
     await systemApi.removeCustomProvider(providerKey)
+    if (!profileContext.isCurrent(contextVersion)) return
     await fetchProviders()
     const appStore = useAppStore()
     appStore.loadModels()

@@ -4,9 +4,10 @@ import { getAuthScopeId, onAuthContextChange } from '@/api/sessionAuth'
 import { fetchRunDetail } from '@/api/solonclaw/runs'
 import { deleteSession as deleteSessionApi, fetchLatestSessionDescendant, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionGoalState, type SessionSummary } from '@/api/solonclaw/sessions'
 import { shouldUseServerMessages } from '@/shared/chatMessageMerge'
-import { chatCacheKey, recoverChatCacheQuota } from '@/shared/chatCacheScope'
+import { chatCacheKey, clearChatCacheStorage, recoverChatCacheQuota } from '@/shared/chatCacheScope'
 import { profileSessionIdentity } from '@/shared/profileScope'
 import { normalizeTimestampMs } from '@/shared/session-display'
+import { onProfileContextChange } from '@/shared/profileContext'
 import { defineStore } from 'pinia'
 import { computed, onScopeDispose, ref } from 'vue'
 import { useAppStore } from './app'
@@ -356,8 +357,13 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   const stopAuthContextListener = onAuthContextChange(resetForAuthContextChange)
+  const stopProfileContextListener = onProfileContextChange(() => {
+    resetForAuthContextChange()
+    clearChatCacheStorage()
+  })
   onScopeDispose(() => {
     stopAuthContextListener()
+    stopProfileContextListener()
     resetForAuthContextChange()
   })
 

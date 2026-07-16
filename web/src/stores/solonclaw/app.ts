@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { checkHealth, fetchAvailableModels, updateDefaultModel, type AvailableModelGroup } from '@/api/solonclaw/system'
+import { useProfileContextGuard } from '@/composables/useProfileContextGuard'
 
 const WEB_UI_VERSION = __APP_VERSION__
 
@@ -27,6 +28,15 @@ export const useAppStore = defineStore('app', () => {
   const sessionPersistence = ref(true)
   const maxTokens = ref(4096)
 
+  /** 清空当前 Profile 的模型选择，不影响全局连接和侧栏状态。 */
+  function resetProfileState(): void {
+    modelGroups.value = []
+    selectedModel.value = ''
+    selectedProvider.value = ''
+  }
+
+  const profileContext = useProfileContextGuard(resetProfileState)
+
   async function checkConnection() {
     try {
       const res = await checkHealth()
@@ -42,8 +52,10 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function loadModels() {
+    const contextVersion = profileContext.capture()
     try {
       const res = await fetchAvailableModels()
+      if (!profileContext.isCurrent(contextVersion)) return
       modelGroups.value = res.groups
       selectedModel.value = res.default
       selectedProvider.value = res.default_provider || ''
@@ -53,11 +65,13 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function switchModel(modelId: string, providerOverride?: string) {
+    const contextVersion = profileContext.capture()
     try {
       // Find the group containing this model to get provider info
       const group = modelGroups.value.find(g => g.models.includes(modelId))
       const provider = providerOverride || group?.provider || ''
       await updateDefaultModel({ default: modelId, provider })
+      if (!profileContext.isCurrent(contextVersion)) return
       selectedModel.value = modelId
       selectedProvider.value = provider || ''
     } catch (err: any) {

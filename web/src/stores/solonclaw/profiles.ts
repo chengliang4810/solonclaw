@@ -12,6 +12,7 @@ import type {
   SolonClawProfile,
 } from '@/api/solonclaw/profiles'
 import { normalizeManagementProfile } from '@/shared/profileScope'
+import { currentProfileContextVersion, updateProfileContext } from '@/shared/profileContext'
 
 export const useProfilesStore = defineStore('profiles', () => {
   const profiles = ref<SolonClawProfile[]>([])
@@ -29,6 +30,7 @@ export const useProfilesStore = defineStore('profiles', () => {
     const normalized = normalizeManagementProfile(name, currentProfileName.value)
     managementProfile.value = normalized
     setApiManagementProfile(normalized)
+    updateProfileContext(normalized || currentProfileName.value)
   }
 
   async function fetchProfiles(alignWithActive = false): Promise<void> {
@@ -150,11 +152,12 @@ export const useProfilesStore = defineStore('profiles', () => {
   }
 
   async function setActiveProfile(name: string): Promise<void> {
+    const contextVersion = currentProfileContextVersion()
     await mutate(async () => {
       const result = await profilesApi.setActiveProfile(name)
       activeProfileName.value = result.active
       currentProfileName.value = result.current
-      setManagementProfile(name)
+      if (currentProfileContextVersion() === contextVersion) setManagementProfile(name)
       await fetchProfiles()
     })
   }

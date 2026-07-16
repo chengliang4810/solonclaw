@@ -93,6 +93,10 @@ export function normalizeDialectCatalog(value) {
     .replace(/import type \{([\s\S]*?)\} from '@\/api\/solonclaw\/system'/, "import type {$1} from './mock-system-api.ts'")
     .replace("import { LLM_DIALECT_OPTIONS, normalizeDialectCatalog } from '@/shared/providerDisplay'", "import { LLM_DIALECT_OPTIONS, normalizeDialectCatalog } from './mock-provider-display.ts'")
     .replace("import { useAppStore } from './app'", "import { useAppStore } from './mock-app-store.ts'")
+    .replace(
+      "import { useProfileContextGuard } from '@/composables/useProfileContextGuard'",
+      "function useProfileContextGuard() { return { capture: () => 0, isCurrent: () => true } }",
+    )
   writeFileSync(modelsStorePath, storeSource)
 
   const mockSystemApi = await import(pathToFileURL(mockSystemApiPath).href)

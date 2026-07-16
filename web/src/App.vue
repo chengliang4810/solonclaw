@@ -80,6 +80,10 @@ function syncAppRuntime() {
 
 watch([isLoginPage, ready], syncAppRuntime)
 
+watch(() => profilesStore.managedProfileName, () => {
+  if (ready.value && !isLoginPage.value) void appStore.loadModels()
+})
+
 onMounted(syncAppRuntime)
 
 onUnmounted(() => {
@@ -102,7 +106,7 @@ useKeyboard()
         <div v-if="!isLoginPage && appStore.sidebarOpen" class="mobile-backdrop" @click="appStore.closeSidebar" />
         <AppSidebar v-if="!isLoginPage" />
         <main class="app-main">
-          <router-view :key="profilesStore.managementProfile || '__current_profile__'" />
+          <router-view :key="profilesStore.managedProfileName" />
         </main>
       </div>
       <SessionSearchModal />

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as filesApi from '@/api/solonclaw/files'
 import type { FileEntry } from '@/api/solonclaw/files'
+import { useProfileContextGuard } from '@/composables/useProfileContextGuard'
 import {
   getLanguageFromPath,
   isImageFile,
@@ -52,12 +53,26 @@ export const useFilesStore = defineStore('files', () => {
     return copy
   })
 
+  /** 清空仅属于当前 Profile 的工作区状态。 */
+  function resetProfileState(): void {
+    currentPath.value = ''
+    entries.value = []
+    loading.value = false
+    loadError.value = null
+    editingFile.value = null
+    previewFile.value = null
+  }
+
+  const profileContext = useProfileContextGuard(resetProfileState)
+
   async function fetchEntries(path?: string) {
+    const contextVersion = profileContext.capture()
     const nextPath = path !== undefined ? path : currentPath.value
     loading.value = true
     loadError.value = null
     try {
       const result = await filesApi.listFiles(nextPath)
+      if (!profileContext.isCurrent(contextVersion)) return
       if (nextPath !== currentPath.value) {
         // Switching directory invalidates the current preview; close it so the
         // file list becomes visible again. The editor has its own dirty-check
@@ -67,11 +82,12 @@ export const useFilesStore = defineStore('files', () => {
       currentPath.value = result.path ?? nextPath
       entries.value = result.entries
     } catch (err) {
+      if (!profileContext.isCurrent(contextVersion)) return
       console.error('Failed to fetch files:', err)
       loadError.value = err instanceof Error ? err.message : String(err || 'Failed to fetch files')
       throw err
     } finally {
-      loading.value = false
+      if (profileContext.isCurrent(contextVersion)) loading.value = false
     }
   }
 
@@ -83,7 +99,9 @@ export const useFilesStore = defineStore('files', () => {
   }
 
   async function openEditor(filePath: string) {
+    const contextVersion = profileContext.capture()
     const result = await filesApi.readFile(filePath)
+    if (!profileContext.isCurrent(contextVersion)) return
     editingFile.value = {
       path: filePath,
       content: result.content,
@@ -94,12 +112,18 @@ export const useFilesStore = defineStore('files', () => {
 
   async function saveEditor() {
     if (!editingFile.value) return
-    await filesApi.writeFile(editingFile.value.path, editingFile.value.content)
-    editingFile.value.originalContent = editingFile.value.content
+    const contextVersion = profileContext.capture()
+    const editor = editingFile.value
+    const content = editor.content
+    await filesApi.writeFile(editor.path, content)
+    if (!profileContext.isCurrent(contextVersion) || editingFile.value !== editor) return
+    editor.originalContent = content
   }
 
   async function restoreFile(filePath: string) {
+    const contextVersion = profileContext.capture()
     const restored = await filesApi.restoreFile(filePath)
+    if (!profileContext.isCurrent(contextVersion)) return restored
     const content = restored.content || ''
     if (editingFile.value?.path === filePath) {
       editingFile.value.content = content
@@ -112,10 +136,13 @@ export const useFilesStore = defineStore('files', () => {
   function closeEditor() { editingFile.value = null }
 
   async function openPreview(entry: FileEntry) {
+    const contextVersion = profileContext.capture()
     if (isImageFile(entry.name)) {
+      if (!profileContext.isCurrent(contextVersion)) return
       previewFile.value = { path: entry.path, type: 'image' }
     } else if (isMarkdownFile(entry.name)) {
       const result = await filesApi.readFile(entry.path)
+      if (!profileContext.isCurrent(contextVersion)) return
       previewFile.value = { path: entry.path, type: 'markdown', content: result.content }
     }
   }
