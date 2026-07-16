@@ -146,6 +146,42 @@ public class MemoryApprovalGateTest {
         assertThat(service.read("memory")).doesNotContain("不得绕过损坏门禁");
     }
 
+    /** 验证可直接复制 memory read 的 Markdown 单行执行替换。 */
+    @Test
+    void shouldReplaceEntryCopiedFromMemoryRead() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileMemoryService service = new FileMemoryService(env.appConfig);
+        service.add("memory", "项目约定：版本为 v1");
+
+        assertThat(service.replace("memory", "- 项目约定：版本为 v1", "项目约定：版本为 v2"))
+                .contains("已更新");
+        assertThat(service.read("memory")).contains("版本为 v2").doesNotContain("版本为 v1");
+    }
+
+    /** 验证从 memory read 复制的连续多行可作为一个区间替换或删除。 */
+    @Test
+    void shouldReplaceAndRemoveMultipleEntriesCopiedFromMemoryRead() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileMemoryService service = new FileMemoryService(env.appConfig);
+        service.add("memory", "项目约定：第一条");
+        service.add("memory", "项目约定：第二条");
+        service.add("memory", "项目约定：第三条");
+
+        assertThat(
+                        service.replace(
+                                "memory",
+                                "- 项目约定：第一条\n- 项目约定：第二条",
+                                "项目约定：已合并"))
+                .contains("已更新");
+        assertThat(service.remove("memory", "- 项目约定：已合并\n- 项目约定：第三条"))
+                .contains("已删除");
+        assertThat(service.read("memory"))
+                .doesNotContain("项目约定：第一条")
+                .doesNotContain("项目约定：第二条")
+                .doesNotContain("项目约定：第三条")
+                .doesNotContain("项目约定：已合并");
+    }
+
     /** 创建等待同一闸门后并发暂存记忆的测试线程。 */
     private Thread stageThread(
             FileMemoryService service,

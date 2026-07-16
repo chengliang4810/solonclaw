@@ -26,4 +26,13 @@ class SolonAiLlmGatewayToolEventTest {
                                 ToolResult.success(observation), observation))
                 .isEqualTo("command failed");
     }
+
+    /** 记忆工具使用 message 返回业务失败原因时也必须标记为失败。 */
+    @Test
+    void errorEnvelopeAcceptsMessageAsStructuredFailureReason() {
+        String observation = "{\"status\":\"error\",\"message\":\"未找到可替换的记忆条目。\"}";
+
+        assertThat(SolonAiLlmGateway.structuredToolError(null, observation))
+                .isEqualTo("未找到可替换的记忆条目。");
+    }
 }

@@ -297,18 +297,16 @@ public class FileMemoryService implements MemoryService {
             throws Exception {
         String normalizedNew = normalizeEntry(newContent);
         List<String> entries = readEntries(target);
-        boolean replaced = false;
-        for (int i = 0; i < entries.size(); i++) {
-            if (entries.get(i).contains(oldText.trim())) {
-                entries.set(i, normalizedNew);
-                replaced = true;
-                break;
-            }
-        }
-
-        if (!replaced) {
+        List<String> matches = normalizeMatchEntries(oldText);
+        int matchIndex = findEntrySequence(entries, matches, 0);
+        if (matchIndex < 0) {
             return "未找到可替换的记忆条目。";
         }
+
+        for (int i = 0; i < matches.size(); i++) {
+            entries.remove(matchIndex);
+        }
+        entries.add(matchIndex, normalizedNew);
 
         writeEntries(target, entries);
         return "已更新 " + normalizeTarget(target) + "。";
@@ -340,12 +338,16 @@ public class FileMemoryService implements MemoryService {
     /** 绕过审批边界直接删除匹配的记忆内容。 */
     private String removeDirect(String target, String matchText) throws Exception {
         List<String> entries = readEntries(target);
+        List<String> matches = normalizeMatchEntries(matchText);
         boolean removed = false;
-        for (int i = entries.size() - 1; i >= 0; i--) {
-            if (entries.get(i).contains(matchText.trim())) {
-                entries.remove(i);
-                removed = true;
+        int searchFrom = 0;
+        int matchIndex;
+        while ((matchIndex = findEntrySequence(entries, matches, searchFrom)) >= 0) {
+            for (int i = 0; i < matches.size(); i++) {
+                entries.remove(matchIndex);
             }
+            removed = true;
+            searchFrom = matchIndex;
         }
 
         if (!removed) {
@@ -816,6 +818,43 @@ public class FileMemoryService implements MemoryService {
                 .replace('\n', ' ')
                 .replaceAll("\\s+", " ")
                 .trim();
+    }
+
+    /** 将 memory read 输出或普通文本统一解析为可与内部条目比较的序列。 */
+    private List<String> normalizeMatchEntries(String content) {
+        List<String> entries = new ArrayList<String>();
+        for (String line : StrUtil.nullToEmpty(content).split("\\R")) {
+            String normalized = line.trim();
+            if (normalized.startsWith("- ")) {
+                normalized = normalized.substring(2).trim();
+            }
+            normalized = normalizeEntry(normalized);
+            if (StrUtil.isNotBlank(normalized)) {
+                entries.add(normalized);
+            }
+        }
+        return entries;
+    }
+
+    /** 查找连续匹配的记忆条目；每个查询条目沿用既有的包含匹配语义。 */
+    private int findEntrySequence(List<String> entries, List<String> matches, int fromIndex) {
+        if (matches.isEmpty() || entries.size() < matches.size()) {
+            return -1;
+        }
+        int lastStart = entries.size() - matches.size();
+        for (int i = Math.max(0, fromIndex); i <= lastStart; i++) {
+            boolean matched = true;
+            for (int j = 0; j < matches.size(); j++) {
+                if (!entries.get(i + j).contains(matches.get(j))) {
+                    matched = false;
+                    break;
+                }
+            }
+            if (matched) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** 判断内容是否像短期状态。 */

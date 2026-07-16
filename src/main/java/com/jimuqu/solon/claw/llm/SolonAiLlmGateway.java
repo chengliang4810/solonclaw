@@ -2147,8 +2147,13 @@ public class SolonAiLlmGateway implements LlmGateway {
                     || !"error".equalsIgnoreCase(envelope.get("status").getString())) {
                 return null;
             }
+            String reason =
+                    StrUtil.blankToDefault(
+                            envelope.get("error").getString(), envelope.get("message").getString());
             return StrUtil.blankToDefault(
-                    envelope.get("error").getString(), envelope.get("summary").getString());
+                    reason,
+                    StrUtil.blankToDefault(
+                            envelope.get("summary").getString(), "Tool execution failed"));
         } catch (RuntimeException ignored) {
             return null;
         }
