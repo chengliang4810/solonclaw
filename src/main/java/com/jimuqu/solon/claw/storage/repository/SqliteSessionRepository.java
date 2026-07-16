@@ -414,8 +414,11 @@ public class SqliteSessionRepository implements SessionRepository {
             connection.rollback();
             throw e;
         } finally {
-            connection.setAutoCommit(true);
-            connection.close();
+            try {
+                connection.setAutoCommit(true);
+            } finally {
+                connection.close();
+            }
         }
     }
 
@@ -483,8 +486,11 @@ public class SqliteSessionRepository implements SessionRepository {
             connection.rollback();
             throw e;
         } finally {
-            connection.setAutoCommit(true);
-            connection.close();
+            try {
+                connection.setAutoCommit(true);
+            } finally {
+                connection.close();
+            }
         }
     }
 
@@ -999,8 +1005,11 @@ public class SqliteSessionRepository implements SessionRepository {
             connection.rollback();
             throw e;
         } finally {
-            connection.setAutoCommit(true);
-            connection.close();
+            try {
+                connection.setAutoCommit(true);
+            } finally {
+                connection.close();
+            }
         }
     }
 
