@@ -161,49 +161,26 @@ public class ProfileRuntimeSupportConfiguration {
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
             List<WebSearchProvider> webSearchProviders) {
-        return new DefaultToolRegistry(
-                appConfig,
-                preferenceStore,
-                sessionRepository,
-                agentProfileService,
-                cronJobService,
-                deliveryService,
-                memoryService,
-                sessionSearchService,
-                localSkillService,
-                skillHubService,
-                checkpointService,
-                delegationService,
-                attachmentCacheService,
-                runtimeSettingsService,
-                gatewayRuntimeRefreshService,
-                securityPolicyService,
-                dangerousCommandApprovalService,
-                processRegistry,
-                mcpRuntimeService,
-                dashboardMcpService,
-                dashboardCuratorService,
-                null,
-                dashboardProviderService,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                dashboardConfigService,
-                dashboardRuntimeConfigService,
-                null,
-                null,
-                browserRuntimeService,
-                imageGenerationService,
-                speechService,
-                null,
-                sqliteDatabase,
-                agentRunRepository,
-                cronJobRepository,
-                usageEventRepository,
-                Collections.emptyList(),
-                webSearchProviders);
+        return ToolConfiguration.applyCommonToolRegistrySettings(
+                        DefaultToolRegistry.builder(),
+                        appConfig, preferenceStore, sessionRepository, agentProfileService,
+                        cronJobService, deliveryService, memoryService, sessionSearchService,
+                        localSkillService, skillHubService, checkpointService, delegationService,
+                        attachmentCacheService, runtimeSettingsService, gatewayRuntimeRefreshService,
+                        securityPolicyService, dangerousCommandApprovalService, processRegistry,
+                        mcpRuntimeService, dashboardMcpService, dashboardCuratorService)
+                .dashboardProviderService(dashboardProviderService)
+                .dashboardConfigService(dashboardConfigService)
+                .dashboardRuntimeConfigService(dashboardRuntimeConfigService)
+                .browserRuntimeService(browserRuntimeService)
+                .imageGenerationService(imageGenerationService)
+                .speechService(speechService)
+                .sqliteDatabase(sqliteDatabase)
+                .agentRunRepository(agentRunRepository)
+                .cronJobRepository(cronJobRepository)
+                .usageEventRepository(usageEventRepository)
+                .pluginTools(Collections.emptyList())
+                .webSearchProviders(webSearchProviders)
+                .build();
     }
 }

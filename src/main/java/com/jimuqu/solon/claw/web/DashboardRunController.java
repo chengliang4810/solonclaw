@@ -1,27 +1,23 @@
 package com.jimuqu.solon.claw.web;
 
-import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.DashboardRequestBodies;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileNotFoundException;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+
 import org.noear.solon.annotation.Controller;
-import org.noear.solon.annotation.Inject;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.MethodType;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /** Dashboard Agent run 接口。 */
 @Controller
-public class DashboardRunController {
+public class DashboardRunController extends AbstractDashboardProfileController {
     /** 注入控制台运行服务，用于调用对应业务能力。 */
     private final DashboardRunService dashboardRunService;
-
-    /** 解析请求指定的 Profile；旧构造路径为空时保持当前运行仓储。 */
-    @Inject(required = false)
-    private DashboardProfileContext profileContext;
 
     /**
      * 创建控制台运行控制器实例，并注入运行所需依赖。
@@ -30,6 +26,13 @@ public class DashboardRunController {
      */
     public DashboardRunController(DashboardRunService dashboardRunService) {
         this.dashboardRunService = dashboardRunService;
+    }
+
+    /** 创建显式注入 Profile 上下文的运行控制器，供嵌入式运行和隔离测试使用。 */
+    public DashboardRunController(
+            DashboardRunService dashboardRunService, DashboardProfileContext profileContext) {
+        this.dashboardRunService = dashboardRunService;
+        this.profileContext = profileContext;
     }
 
     /**
@@ -129,17 +132,10 @@ public class DashboardRunController {
                     @Override
                     public Map<String, Object> run() throws Exception {
                         Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
-                        DashboardProfileContext.Scope scope = resolve(context, body);
-                        if (isTarget(scope)) {
-                            return client(context, scope)
-                                    .request(
-                                            "POST",
-                                            Collections.<String, String>emptyMap(),
-                                            withoutProfile(body),
-                                            "api",
-                                            "runs",
-                                            runId,
-                                            "control");
+                        Map<String, Object> forwarded =
+                                forwardPost(context, body, "api", "runs", runId, "control");
+                        if (forwarded != null) {
+                            return forwarded;
                         }
                         return dashboardRunService.control(runId, text(body.get("command")), body);
                     }
@@ -255,18 +251,17 @@ public class DashboardRunController {
                     @Override
                     public Map<String, Object> run() throws Exception {
                         Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
-                        DashboardProfileContext.Scope scope = resolve(context, body);
-                        if (isTarget(scope)) {
-                            return client(context, scope)
-                                    .request(
-                                            "POST",
-                                            Collections.<String, String>emptyMap(),
-                                            withoutProfile(body),
-                                            "api",
-                                            "runs",
-                                            "subagents",
-                                            subagentId,
-                                            "control");
+                        Map<String, Object> forwarded =
+                                forwardPost(
+                                        context,
+                                        body,
+                                        "api",
+                                        "runs",
+                                        "subagents",
+                                        subagentId,
+                                        "control");
+                        if (forwarded != null) {
+                            return forwarded;
                         }
                         return dashboardRunService.controlSubagent(
                                 subagentId, text(body.get("command")));
@@ -293,6 +288,20 @@ public class DashboardRunController {
         } catch (IllegalStateException e) {
             return DashboardResponse.error(context, 400, "RUN_BAD_REQUEST", e);
         }
+    }
+
+    /** 将目标 Profile 的写请求转发到其独立网关；当前 Profile 返回 null。 */
+    private Map<String, Object> forwardPost(
+            Context context, Map<String, Object> body, String... path) throws Exception {
+        DashboardProfileContext.Scope scope = resolve(context, body);
+        return isTarget(scope)
+                ? client(context, scope)
+                        .request(
+                                "POST",
+                                Collections.<String, String>emptyMap(),
+                                withoutProfile(body),
+                                path)
+                : null;
     }
 
     /** 读取单个 run 子资源；非当前 Profile 由其独立网关提供。 */
@@ -345,40 +354,6 @@ public class DashboardRunController {
                         return dashboardRunService.commands(runId);
                     }
                 });
-    }
-
-    /** 解析 query 或非空 body.profile，body 优先。 */
-    private DashboardProfileContext.Scope resolve(Context context, Map<String, Object> body) {
-        String requested = DashboardProfileContext.requestedProfile(context, body);
-        if (profileContext == null) {
-            if (StrUtil.isBlank(requested) || "current".equalsIgnoreCase(requested)) {
-                return null;
-            }
-            throw new IllegalStateException("Dashboard Profile scope is unavailable.");
-        }
-        return profileContext.resolve(requested);
-    }
-
-    /** 判断请求是否需要交给目标 Profile 独立网关。 */
-    private boolean isTarget(DashboardProfileContext.Scope scope) {
-        return scope != null && !scope.isCurrent();
-    }
-
-    /** 创建绑定目标 Profile 的回环客户端。 */
-    private DashboardProfileGatewayClient client(
-            Context context, DashboardProfileContext.Scope scope) {
-        return new DashboardProfileGatewayClient(
-                profileContext, scope, context == null ? null : context.header("Authorization"));
-    }
-
-    /** 复制写请求并移除机器级路由字段。 */
-    private Map<String, Object> withoutProfile(Map<String, Object> body) {
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        if (body != null) {
-            result.putAll(body);
-        }
-        result.remove("profile");
-        return result;
     }
 
     /** 创建固定查询参数映射。 */

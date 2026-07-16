@@ -1391,61 +1391,46 @@ public class DangerousCommandApprovalService {
             return String.valueOf(raw);
         }
         if (raw instanceof Iterable) {
-            StringBuilder buffer = new StringBuilder();
-            for (Object value : (Iterable<?>) raw) {
-                if (value == null) {
-                    continue;
-                }
-                if (value instanceof CharSequence
-                        || value instanceof Number
-                        || value instanceof Boolean) {
-                    if (buffer.length() > 0) {
-                        buffer.append('\n');
-                    }
-                    buffer.append(String.valueOf(value));
-                    continue;
-                }
-                String nested = commandLikeArg(value, depth + 1);
-                if (StrUtil.isNotBlank(nested)) {
-                    if (buffer.length() > 0) {
-                        buffer.append('\n');
-                    }
-                    buffer.append(nested);
-                }
-            }
-            return buffer.length() == 0 ? null : buffer.toString();
+            return collectionToString((Iterable<?>) raw, depth);
         }
         if (raw.getClass().isArray()) {
-            StringBuilder buffer = new StringBuilder();
             int length = java.lang.reflect.Array.getLength(raw);
+            java.util.List<Object> list = new java.util.ArrayList<>(length);
             for (int i = 0; i < length; i++) {
-                Object value = java.lang.reflect.Array.get(raw, i);
-                if (value == null) {
-                    continue;
-                }
-                if (value instanceof CharSequence
-                        || value instanceof Number
-                        || value instanceof Boolean) {
-                    if (buffer.length() > 0) {
-                        buffer.append('\n');
-                    }
-                    buffer.append(String.valueOf(value));
-                    continue;
-                }
-                String nested = commandLikeArg(value, depth + 1);
-                if (StrUtil.isNotBlank(nested)) {
-                    if (buffer.length() > 0) {
-                        buffer.append('\n');
-                    }
-                    buffer.append(nested);
-                }
+                list.add(java.lang.reflect.Array.get(raw, i));
             }
-            return buffer.length() == 0 ? null : buffer.toString();
+            return collectionToString(list, depth);
         }
         if (raw instanceof Number || raw instanceof Boolean) {
             return String.valueOf(raw);
         }
         return commandLikeArg(raw, depth + 1);
+    }
+    /** 将集合中的每个元素拼接为多行文本。 */
+    private String collectionToString(Iterable<?> values, int depth) {
+        StringBuilder buffer = new StringBuilder();
+        for (Object value : values) {
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof CharSequence
+                    || value instanceof Number
+                    || value instanceof Boolean) {
+                if (buffer.length() > 0) {
+                    buffer.append('\n');
+                }
+                buffer.append(String.valueOf(value));
+                continue;
+            }
+            String nested = commandLikeArg(value, depth + 1);
+            if (StrUtil.isNotBlank(nested)) {
+                if (buffer.length() > 0) {
+                    buffer.append('\n');
+                }
+                buffer.append(nested);
+            }
+        }
+        return buffer.length() == 0 ? null : buffer.toString();
     }
 
     /**
@@ -2526,7 +2511,7 @@ public class DangerousCommandApprovalService {
     }
 
     /** 判断是否已通过环境变量或运行配置提供受管 sudo 密码。 */
-    private boolean isSudoPasswordConfigured() {
+    boolean isSudoPasswordConfigured() {
         return StrUtil.isNotBlank(ProfileRuntimeScope.environmentValue("SOLONCLAW_SUDO_PASSWORD"))
                 || (appConfig != null
                         && appConfig.getTerminal() != null
@@ -2556,7 +2541,7 @@ public class DangerousCommandApprovalService {
      *
      * @return 返回max Foreground Timeout Seconds结果。
      */
-    private int maxForegroundTimeoutSeconds() {
+    int maxForegroundTimeoutSeconds() {
         return appConfig == null || appConfig.getTerminal() == null
                 ? 0
                 : appConfig.getTerminal().getMaxForegroundTimeoutSeconds();
@@ -2567,7 +2552,7 @@ public class DangerousCommandApprovalService {
      *
      * @return 返回foreground Max Retries结果。
      */
-    private int foregroundMaxRetries() {
+    int foregroundMaxRetries() {
         return appConfig == null || appConfig.getTerminal() == null
                 ? 0
                 : appConfig.getTerminal().getForegroundMaxRetries();
@@ -2578,7 +2563,7 @@ public class DangerousCommandApprovalService {
      *
      * @return 返回foreground Retry Base Delay Seconds结果。
      */
-    private int foregroundRetryBaseDelaySeconds() {
+    int foregroundRetryBaseDelaySeconds() {
         return appConfig == null || appConfig.getTerminal() == null
                 ? 0
                 : appConfig.getTerminal().getForegroundRetryBaseDelaySeconds();

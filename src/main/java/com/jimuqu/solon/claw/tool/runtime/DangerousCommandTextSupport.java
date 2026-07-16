@@ -659,6 +659,38 @@ final class DangerousCommandTextSupport {
     }
 
     /**
+     * 跳过引号或转义字符，返回新的索引位置；当前字符不属于引号/转义时返回 -1。
+     *
+     * @param command 命令文本。
+     * @param index 当前偏移。
+     * @param quote 当前引号状态（可为 null）。
+     * @return 更新后的引号状态和索引，-1 表示未消费。
+     */
+    private static int skipQuoteOrEscape(String command, int index, Character[] quoteHolder) {
+        if (index >= command.length()) {
+            return -1;
+        }
+        char current = command.charAt(index);
+        if (quoteHolder[0] != null) {
+            if (current == '\\' && quoteHolder[0].charValue() == '"' && index + 1 < command.length()) {
+                return index + 2;
+            }
+            if (current == quoteHolder[0].charValue()) {
+                quoteHolder[0] = null;
+            }
+            return index + 1;
+        }
+        if (current == '\'' || current == '"') {
+            quoteHolder[0] = Character.valueOf(current);
+            return index + 1;
+        }
+        if (current == '\\' && index + 1 < command.length()) {
+            return index + 2;
+        }
+        return -1;
+    }
+
+    /**
      * 从指定位置读取一个 shell 词，不执行任何展开。
      *
      * @param command 命令文本。
@@ -668,29 +700,14 @@ final class DangerousCommandTextSupport {
     private static CommandWordSpan readShellWord(String command, int position) {
         int start = skipShellWhitespace(command, position);
         int index = start;
-        Character quote = null;
+        Character[] quoteHolder = new Character[] { null };
         while (index < command.length()) {
+            int skipped = skipQuoteOrEscape(command, index, quoteHolder);
+            if (skipped >= 0) {
+                index = skipped;
+                continue;
+            }
             char current = command.charAt(index);
-            if (quote != null) {
-                if (current == '\\' && quote.charValue() == '"' && index + 1 < command.length()) {
-                    index += 2;
-                    continue;
-                }
-                if (current == quote.charValue()) {
-                    quote = null;
-                }
-                index++;
-                continue;
-            }
-            if (current == '\'' || current == '"') {
-                quote = Character.valueOf(current);
-                index++;
-                continue;
-            }
-            if (current == '\\' && index + 1 < command.length()) {
-                index += 2;
-                continue;
-            }
             if (command.startsWith("$(", index)) {
                 int end = scanDollarParenEnd(command, index);
                 index = end < 0 ? index + 2 : end;
@@ -726,30 +743,15 @@ final class DangerousCommandTextSupport {
      */
     private static int scanDollarParenEnd(String command, int start) {
         int depth = 1;
-        Character quote = null;
         int index = start + 2;
+        Character[] quoteHolder = new Character[] { null };
         while (index < command.length()) {
+            int skipped = skipQuoteOrEscape(command, index, quoteHolder);
+            if (skipped >= 0) {
+                index = skipped;
+                continue;
+            }
             char current = command.charAt(index);
-            if (quote != null) {
-                if (current == '\\' && quote.charValue() == '"' && index + 1 < command.length()) {
-                    index += 2;
-                    continue;
-                }
-                if (current == quote.charValue()) {
-                    quote = null;
-                }
-                index++;
-                continue;
-            }
-            if (current == '\'' || current == '"') {
-                quote = Character.valueOf(current);
-                index++;
-                continue;
-            }
-            if (current == '\\' && index + 1 < command.length()) {
-                index += 2;
-                continue;
-            }
             if (command.startsWith("$(", index)) {
                 depth++;
                 index += 2;

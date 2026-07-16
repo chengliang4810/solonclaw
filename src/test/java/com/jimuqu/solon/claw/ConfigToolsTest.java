@@ -9,21 +9,23 @@ import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
 public class ConfigToolsTest {
+
+    /** 从 toolRegistry 中按方法名查找第一个包含该方法的工具对象。 */
+    private static Object findToolByName(TestEnvironment env, String methodName) {
+        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
+            for (Method m : tool.getClass().getMethods()) {
+                if (methodName.equals(m.getName())) {
+                    return tool;
+                }
+            }
+        }
+        return null;
+    }
+
     @Test
     void shouldExposeConfigSetToolAndUpdateRuntimeConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        Object configSetTool = null;
-        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
-            for (Method method : tool.getClass().getMethods()) {
-                if ("configSet".equals(method.getName())) {
-                    configSetTool = tool;
-                    break;
-                }
-            }
-            if (configSetTool != null) {
-                break;
-            }
-        }
+        Object configSetTool = findToolByName(env, "configSet");
 
         assertThat(configSetTool).isNotNull();
         Method method = configSetTool.getClass().getMethod("configSet", String.class, String.class);
@@ -45,18 +47,7 @@ public class ConfigToolsTest {
     @Test
     void shouldRejectHighRiskEnvPassthroughFromConfigSetTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        Object configSetTool = null;
-        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
-            for (Method method : tool.getClass().getMethods()) {
-                if ("configSet".equals(method.getName())) {
-                    configSetTool = tool;
-                    break;
-                }
-            }
-            if (configSetTool != null) {
-                break;
-            }
-        }
+        Object configSetTool = findToolByName(env, "configSet");
 
         assertThat(configSetTool).isNotNull();
         Method method = configSetTool.getClass().getMethod("configSet", String.class, String.class);
@@ -96,18 +87,7 @@ public class ConfigToolsTest {
     @Test
     void shouldRejectPlaceholderSecretsFromConfigTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        Object configSetSecretTool = null;
-        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
-            for (Method method : tool.getClass().getMethods()) {
-                if ("configSetSecret".equals(method.getName())) {
-                    configSetSecretTool = tool;
-                    break;
-                }
-            }
-            if (configSetSecretTool != null) {
-                break;
-            }
-        }
+        Object configSetSecretTool = findToolByName(env, "configSetSecret");
 
         assertThat(configSetSecretTool).isNotNull();
         Method method =
@@ -134,18 +114,7 @@ public class ConfigToolsTest {
     @Test
     void shouldRejectPlaceholderSecretsFromConfigSetTool() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        Object configSetTool = null;
-        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
-            for (Method method : tool.getClass().getMethods()) {
-                if ("configSet".equals(method.getName())) {
-                    configSetTool = tool;
-                    break;
-                }
-            }
-            if (configSetTool != null) {
-                break;
-            }
-        }
+        Object configSetTool = findToolByName(env, "configSet");
 
         assertThat(configSetTool).isNotNull();
         Method method = configSetTool.getClass().getMethod("configSet", String.class, String.class);
@@ -165,18 +134,7 @@ public class ConfigToolsTest {
     @Test
     void shouldRedactSecretsFromConfigToolErrors() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        Object configGetTool = null;
-        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
-            for (Method method : tool.getClass().getMethods()) {
-                if ("configGet".equals(method.getName())) {
-                    configGetTool = tool;
-                    break;
-                }
-            }
-            if (configGetTool != null) {
-                break;
-            }
-        }
+        Object configGetTool = findToolByName(env, "configGet");
 
         assertThat(configGetTool).isNotNull();
         Method method = configGetTool.getClass().getMethod("configGet", String.class);
@@ -192,18 +150,7 @@ public class ConfigToolsTest {
     @Test
     void shouldRedactSecretsFromConfigToolSuccessKeys() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        Object configSetSecretTool = null;
-        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
-            for (Method method : tool.getClass().getMethods()) {
-                if ("configSetSecret".equals(method.getName())) {
-                    configSetSecretTool = tool;
-                    break;
-                }
-            }
-            if (configSetSecretTool != null) {
-                break;
-            }
-        }
+        Object configSetSecretTool = findToolByName(env, "configSetSecret");
 
         assertThat(configSetSecretTool).isNotNull();
         Method method =
@@ -226,20 +173,15 @@ public class ConfigToolsTest {
     @Test
     void shouldExposeCurrentConfigToolsAndRedactSecretReads() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        Object configGetTool = null;
-        Object configSetTool = null;
-        Object configSetSecretTool = null;
+        Object configGetTool = findToolByName(env, "configGet");
+        Object configSetTool = findToolByName(env, "configSet");
+        Object configSetSecretTool = findToolByName(env, "configSetSecret");
+
+        /* 验证不再暴露旧方法名 */
         for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
             for (Method method : tool.getClass().getMethods()) {
                 assertThat(method.getName())
                         .isNotIn("configRead", "configWrite", "configUpdateSecret");
-                if ("configGet".equals(method.getName())) {
-                    configGetTool = tool;
-                } else if ("configSet".equals(method.getName())) {
-                    configSetTool = tool;
-                } else if ("configSetSecret".equals(method.getName())) {
-                    configSetSecretTool = tool;
-                }
             }
         }
 
@@ -310,26 +252,16 @@ public class ConfigToolsTest {
     @Test
     void shouldExposeConfigEnvProbeToolWithoutLeakingSecretLikeNames() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        Object configGetTool = null;
-        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
-            for (Method method : tool.getClass().getMethods()) {
-                if ("configEnvProbe".equals(method.getName())) {
-                    configGetTool = tool;
-                    break;
-                }
-            }
-            if (configGetTool != null) {
-                break;
-            }
-        }
+        Object configEnvProbeTool = findToolByName(env, "configEnvProbe");
 
-        assertThat(configGetTool).isNotNull();
-        Method method = configGetTool.getClass().getMethod("configEnvProbe", String.class);
+        assertThat(configEnvProbeTool).isNotNull();
+        Method method =
+                configEnvProbeTool.getClass().getMethod("configEnvProbe", String.class);
         ONode response =
                 ONode.ofJson(
                         (String)
                                 method.invoke(
-                                        configGetTool,
+                                        configEnvProbeTool,
                                         "[\"PATH\",\"TENOR_API_KEY\",\"OPENAI_API_KEY\",\"_SOLONCLAW_FORCE_CUSTOM_TOKEN\",\"ghp_probe1234567890\"]"));
 
         assertThat(response.get("status").getString()).isEqualTo("success");
@@ -351,20 +283,9 @@ public class ConfigToolsTest {
     @Test
     void shouldKeepRegularWritesSeparateFromSecretUpdates() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        Object configSetTool = null;
-        Object configSetSecretTool = null;
-        Object configGetTool = null;
-        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:chat-1:user-1")) {
-            for (Method method : tool.getClass().getMethods()) {
-                if ("configSet".equals(method.getName())) {
-                    configSetTool = tool;
-                } else if ("configSetSecret".equals(method.getName())) {
-                    configSetSecretTool = tool;
-                } else if ("configGet".equals(method.getName())) {
-                    configGetTool = tool;
-                }
-            }
-        }
+        Object configSetTool = findToolByName(env, "configSet");
+        Object configSetSecretTool = findToolByName(env, "configSetSecret");
+        Object configGetTool = findToolByName(env, "configGet");
 
         assertThat(configSetTool).isNotNull();
         assertThat(configSetSecretTool).isNotNull();

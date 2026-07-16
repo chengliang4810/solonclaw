@@ -25,9 +25,6 @@ public class SolonClawPatchTools {
     /** 记录补丁工具中的可降级异常，日志不输出路径、补丁正文或文件内容。 */
     private static final Logger log = LoggerFactory.getLogger(SolonClawPatchTools.class);
 
-    /** UTF8BOM的统一常量值。 */
-    private static final String UTF8_BOM = "\ufeff";
-
     /** 记录Solon项目补丁中的根用户路径。 */
     private final Path rootPath;
 
@@ -1086,7 +1083,8 @@ public class SolonClawPatchTools {
      * @return 返回read结果。
      */
     private String read(Path target) throws IOException {
-        return stripLeadingBom(new String(Files.readAllBytes(target), StandardCharsets.UTF_8));
+        return BomFileSupport.stripLeadingBom(
+                new String(Files.readAllBytes(target), StandardCharsets.UTF_8));
     }
 
     /**
@@ -1097,37 +1095,13 @@ public class SolonClawPatchTools {
      */
     private void write(Path target, String content) throws IOException {
         String value = StrUtil.nullToEmpty(content);
-        String oldContent = Files.exists(target) && !Files.isDirectory(target) ? read(target) : "";
+        String oldContent = BomFileSupport.readContentStripBom(target);
         ConfigSecretWriteGuard.assertNoPlaceholderSecretDowngrade(target, oldContent, value);
-        if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
-            value = UTF8_BOM + value;
-        }
+        value = BomFileSupport.preserveBomIfNeeded(target, value);
         if (target.getParent() != null) {
             Files.createDirectories(target.getParent());
         }
         AtomicFileWriteSupport.writeUtf8(target, value);
-    }
-
-    /**
-     * 判断是否存在Leading Bom。
-     *
-     * @param target target 参数。
-     * @return 如果Leading Bom满足条件则返回 true，否则返回 false。
-     */
-    private boolean hasLeadingBom(Path target) {
-        if (target == null || !Files.exists(target) || Files.isDirectory(target)) {
-            return false;
-        }
-        try {
-            byte[] bytes = Files.readAllBytes(target);
-            return bytes.length >= 3
-                    && (bytes[0] & 0xFF) == 0xEF
-                    && (bytes[1] & 0xFF) == 0xBB
-                    && (bytes[2] & 0xFF) == 0xBF;
-        } catch (Exception e) {
-            logRecoverableFailure("detect-leading-bom", e);
-            return false;
-        }
     }
 
     /**
@@ -1159,10 +1133,7 @@ public class SolonClawPatchTools {
      * @return 返回strip Leading Bom结果。
      */
     private String stripLeadingBom(String value) {
-        if (value != null && value.startsWith(UTF8_BOM)) {
-            return value.substring(UTF8_BOM.length());
-        }
-        return value;
+        return BomFileSupport.stripLeadingBom(value);
     }
 
     /**

@@ -1,30 +1,26 @@
 package com.jimuqu.solon.claw.web;
 
-import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.DashboardRequestBodies;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileNotFoundException;
-import java.io.IOException;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
+
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
-import org.noear.solon.annotation.Inject;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.MethodType;
 import org.noear.solon.core.handle.UploadedFile;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /** Dashboard chat 运行接口。 */
 @Controller
-public class DashboardChatController {
+public class DashboardChatController extends AbstractDashboardProfileController {
     /** 注入聊天服务，用于调用对应业务能力。 */
     private final DashboardChatService chatService;
-
-    /** 解析请求指定的 Profile；旧构造路径为空时保持当前聊天运行。 */
-    @Inject(required = false)
-    private DashboardProfileContext profileContext;
 
     /**
      * 创建控制台Chat控制器实例，并注入运行所需依赖。
@@ -167,40 +163,6 @@ public class DashboardChatController {
         } catch (IllegalArgumentException e) {
             return DashboardResponse.error(context, 404, "CHAT_NOT_FOUND", e);
         }
-    }
-
-    /** 解析 query 或非空 body.profile，body 优先。 */
-    private DashboardProfileContext.Scope resolve(Context context, Map<String, Object> body) {
-        String requested = DashboardProfileContext.requestedProfile(context, body);
-        if (profileContext == null) {
-            if (StrUtil.isBlank(requested) || "current".equalsIgnoreCase(requested)) {
-                return null;
-            }
-            throw new IllegalStateException("Dashboard Profile scope is unavailable.");
-        }
-        return profileContext.resolve(requested);
-    }
-
-    /** 判断请求是否需要交给目标 Profile 独立网关。 */
-    private boolean isTarget(DashboardProfileContext.Scope scope) {
-        return scope != null && !scope.isCurrent();
-    }
-
-    /** 创建绑定目标 Profile 的回环客户端。 */
-    private DashboardProfileGatewayClient client(
-            Context context, DashboardProfileContext.Scope scope) {
-        return new DashboardProfileGatewayClient(
-                profileContext, scope, context == null ? null : context.header("Authorization"));
-    }
-
-    /** 复制 JSON 写请求并移除机器级路由字段。 */
-    private Map<String, Object> withoutProfile(Map<String, Object> body) {
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        if (body != null) {
-            result.putAll(body);
-        }
-        result.remove("profile");
-        return result;
     }
 
     /** 把 Profile SSE 路由错误写成普通 JSON 错误响应。 */

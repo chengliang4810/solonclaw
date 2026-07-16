@@ -61,6 +61,24 @@ import org.noear.solon.ai.chat.tool.FunctionToolDesc;
 import org.noear.solon.ai.chat.tool.ToolProvider;
 
 public class DefaultCronSchedulerTest {
+
+    /** 使用 FailingDeliveryService 构建默认定时调度器。 */
+    private DefaultCronScheduler failingDeliveryScheduler(TestEnvironment env) {
+        return new DefaultCronScheduler(
+                env.appConfig,
+                env.cronJobRepository,
+                new CronJobService(env.appConfig, env.cronJobRepository),
+                env.conversationOrchestrator,
+                new FailingDeliveryService("MEMORY adapter should not be called"),
+                env.gatewayPolicyRepository,
+                env.dangerousCommandApprovalService,
+                new AttachmentCacheService(env.appConfig),
+                env.localSkillService,
+                env.agentRunControlService,
+                null,
+                env.sessionRepository);
+    }
+
     @Test
     void shouldAdvanceBeforeRunAndDeliverToSamePlatformOrigin() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -841,20 +859,7 @@ public class DefaultCronSchedulerTest {
         job.setScript(script.getName());
         env.cronJobRepository.save(job);
 
-        DefaultCronScheduler scheduler =
-                new DefaultCronScheduler(
-                        env.appConfig,
-                        env.cronJobRepository,
-                        new CronJobService(env.appConfig, env.cronJobRepository),
-                        env.conversationOrchestrator,
-                        new FailingDeliveryService("MEMORY adapter should not be called"),
-                        env.gatewayPolicyRepository,
-                        env.dangerousCommandApprovalService,
-                        new AttachmentCacheService(env.appConfig),
-                        env.localSkillService,
-                        env.agentRunControlService,
-                        null,
-                        env.sessionRepository);
+        DefaultCronScheduler scheduler = failingDeliveryScheduler(env);
         scheduler.tick();
 
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
@@ -881,20 +886,7 @@ public class DefaultCronSchedulerTest {
         job.setScript(script.getName());
         env.cronJobRepository.save(job);
 
-        DefaultCronScheduler scheduler =
-                new DefaultCronScheduler(
-                        env.appConfig,
-                        env.cronJobRepository,
-                        new CronJobService(env.appConfig, env.cronJobRepository),
-                        env.conversationOrchestrator,
-                        new FailingDeliveryService("MEMORY adapter should not be called"),
-                        env.gatewayPolicyRepository,
-                        env.dangerousCommandApprovalService,
-                        new AttachmentCacheService(env.appConfig),
-                        env.localSkillService,
-                        env.agentRunControlService,
-                        null,
-                        env.sessionRepository);
+        DefaultCronScheduler scheduler = failingDeliveryScheduler(env);
         scheduler.tick();
 
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());

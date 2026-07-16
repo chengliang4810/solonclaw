@@ -139,26 +139,18 @@ public class McpRuntimeServiceTest {
                 .contains("mcp_local-docs_docs_fetch");
 
         DefaultToolRegistry registry =
-                new DefaultToolRegistry(
-                        env.appConfig,
-                        new SqlitePreferenceStore(env.sqliteDatabase),
-                        env.sessionRepository,
-                        null,
-                        new com.jimuqu.solon.claw.scheduler.CronJobService(
-                                env.appConfig, env.cronJobRepository),
-                        env.deliveryService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.gatewayRuntimeRefreshService,
-                        new SecurityPolicyService(env.appConfig),
-                        env.processRegistry,
-                        mcpRuntimeService);
+                DefaultToolRegistry.builder()
+                        .appConfig(env.appConfig)
+                        .preferenceStore(new SqlitePreferenceStore(env.sqliteDatabase))
+                        .sessionRepository(env.sessionRepository)
+                        .cronJobService(new com.jimuqu.solon.claw.scheduler.CronJobService(
+                                env.appConfig, env.cronJobRepository))
+                        .deliveryService(env.deliveryService)
+                        .gatewayRuntimeRefreshService(env.gatewayRuntimeRefreshService)
+                        .securityPolicyService(new SecurityPolicyService(env.appConfig))
+                        .processRegistry(env.processRegistry)
+                        .mcpRuntimeService(mcpRuntimeService)
+                        .build();
         List<Object> tools = registry.resolveEnabledTools("MEMORY:room-1:user-1");
         assertThat(tools)
                 .filteredOn(FunctionTool.class::isInstance)

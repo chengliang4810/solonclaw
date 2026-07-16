@@ -322,26 +322,27 @@ public class DashboardConfiguration {
             ProcessRegistry processRegistry,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             ProactiveDiagnosticsService proactiveDiagnosticsService) {
-        return new DashboardDiagnosticsService(
-                appConfig,
-                deliveryService,
-                llmProviderService,
-                toolRegistry,
-                sessionRepository,
-                conversationOrchestrator,
-                approvalAuditRepository,
-                slashConfirmService,
-                commandService,
-                dangerousCommandApprovalService,
-                securityPolicyService,
-                tirithSecurityService,
-                toolResultStorageService,
-                shutdownForensicsService,
-                runtimeMemoryMonitorService,
-                agentRunRepository,
-                processRegistry,
-                gatewayRuntimeRefreshService,
-                proactiveDiagnosticsService);
+        return DashboardDiagnosticsService.builder()
+                .appConfig(appConfig)
+                .deliveryService(deliveryService)
+                .llmProviderService(llmProviderService)
+                .toolRegistry(toolRegistry)
+                .sessionRepository(sessionRepository)
+                .conversationOrchestrator(conversationOrchestrator)
+                .approvalAuditRepository(approvalAuditRepository)
+                .slashConfirmService(slashConfirmService)
+                .commandService(commandService)
+                .approvalService(dangerousCommandApprovalService)
+                .securityPolicyService(securityPolicyService)
+                .tirithSecurityService(tirithSecurityService)
+                .toolResultStorageService(toolResultStorageService)
+                .shutdownForensicsService(shutdownForensicsService)
+                .runtimeMemoryMonitorService(runtimeMemoryMonitorService)
+                .agentRunRepository(agentRunRepository)
+                .processRegistry(processRegistry)
+                .gatewayRuntimeRefreshService(gatewayRuntimeRefreshService)
+                .proactiveDiagnosticsService(proactiveDiagnosticsService)
+                .build();
     }
 
     /**

@@ -58,6 +58,7 @@ import com.jimuqu.solon.claw.tool.runtime.ApprovalAuditObserver;
 import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
+import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistryBuilder;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
@@ -382,50 +383,101 @@ public class ToolConfiguration {
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
             List<WebSearchProvider> webSearchProviders) {
-        return new DefaultToolRegistry(
-                appConfig,
-                preferenceStore,
-                sessionRepository,
-                agentProfileService,
-                cronJobService,
-                deliveryService,
-                memoryService,
-                sessionSearchService,
-                localSkillService,
-                skillHubService,
-                checkpointService,
-                delegationService,
-                attachmentCacheService,
-                runtimeSettingsService,
-                gatewayRuntimeRefreshService,
-                securityPolicyService,
-                dangerousCommandApprovalService,
-                processRegistry,
-                mcpRuntimeService,
-                dashboardMcpService,
-                dashboardCuratorService,
-                dashboardPlatformToolsetsService,
-                dashboardProviderService,
-                dashboardStatusService,
-                dashboardGatewayDoctorService,
-                dashboardInsightsService,
-                dashboardApprovalEventsService,
-                null,
-                dashboardWorkspaceService,
-                dashboardConfigService,
-                dashboardRuntimeConfigService,
-                weixinQrSetupService,
-                domesticQrSetupService,
-                browserRuntimeService,
-                imageGenerationService,
-                speechService,
-                dashboardRunService,
-                sqliteDatabase,
-                agentRunRepository,
-                cronJobRepository,
-                usageEventRepository,
-                Collections.emptyList(),
-                webSearchProviders);
+        return applyCommonToolRegistrySettings(
+                        DefaultToolRegistry.builder(),
+                        appConfig,
+                        preferenceStore,
+                        sessionRepository,
+                        agentProfileService,
+                        cronJobService,
+                        deliveryService,
+                        memoryService,
+                        sessionSearchService,
+                        localSkillService,
+                        skillHubService,
+                        checkpointService,
+                        delegationService,
+                        attachmentCacheService,
+                        runtimeSettingsService,
+                        gatewayRuntimeRefreshService,
+                        securityPolicyService,
+                        dangerousCommandApprovalService,
+                        processRegistry,
+                        mcpRuntimeService,
+                        dashboardMcpService,
+                        dashboardCuratorService)
+                .dashboardPlatformToolsetsService(dashboardPlatformToolsetsService)
+                .dashboardProviderService(dashboardProviderService)
+                .dashboardStatusService(dashboardStatusService)
+                .dashboardGatewayDoctorService(dashboardGatewayDoctorService)
+                .dashboardInsightsService(dashboardInsightsService)
+                .dashboardApprovalEventsService(dashboardApprovalEventsService)
+                .dashboardWorkspaceService(dashboardWorkspaceService)
+                .dashboardConfigService(dashboardConfigService)
+                .dashboardRuntimeConfigService(dashboardRuntimeConfigService)
+                .weixinQrSetupService(weixinQrSetupService)
+                .domesticQrSetupService(domesticQrSetupService)
+                .browserRuntimeService(browserRuntimeService)
+                .imageGenerationService(imageGenerationService)
+                .speechService(speechService)
+                .dashboardRunService(dashboardRunService)
+                .sqliteDatabase(sqliteDatabase)
+                .agentRunRepository(agentRunRepository)
+                .cronJobRepository(cronJobRepository)
+                .usageEventRepository(usageEventRepository)
+                .pluginTools(Collections.emptyList())
+                .webSearchProviders(webSearchProviders)
+                .build();
+    }
+
+    /**
+     * 将公共的工具注册表 Builder 设置应用到传入的 builder 上，供主机级和 Profile 子运行时复用。
+     */
+    static DefaultToolRegistryBuilder applyCommonToolRegistrySettings(
+            DefaultToolRegistryBuilder builder,
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            DashboardMcpService dashboardMcpService,
+            DashboardCuratorService dashboardCuratorService) {
+        return builder
+                .appConfig(appConfig)
+                .preferenceStore(preferenceStore)
+                .sessionRepository(sessionRepository)
+                .agentProfileService(agentProfileService)
+                .cronJobService(cronJobService)
+                .deliveryService(deliveryService)
+                .memoryService(memoryService)
+                .sessionSearchService(sessionSearchService)
+                .localSkillService(localSkillService)
+                .skillHubService(skillHubService)
+                .checkpointService(checkpointService)
+                .delegationService(delegationService)
+                .attachmentCacheService(attachmentCacheService)
+                .runtimeSettingsService(runtimeSettingsService)
+                .gatewayRuntimeRefreshService(gatewayRuntimeRefreshService)
+                .securityPolicyService(securityPolicyService)
+                .approvalService(dangerousCommandApprovalService)
+                .processRegistry(processRegistry)
+                .mcpRuntimeService(mcpRuntimeService)
+                .dashboardMcpService(dashboardMcpService)
+                .dashboardCuratorService(dashboardCuratorService);
     }
 
     /**

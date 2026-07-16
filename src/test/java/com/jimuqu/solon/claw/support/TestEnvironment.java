@@ -344,19 +344,20 @@ public class TestEnvironment {
         DashboardApprovalEventsService dashboardApprovalEventsService =
                 new DashboardApprovalEventsService(config);
         DashboardDiagnosticsService dashboardDiagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        deliveryService,
-                        llmProviderService,
-                        null,
-                        sessionRepository,
-                        null,
-                        null,
-                        new SlashConfirmService(globalSettingRepository),
-                        null,
-                        dangerousCommandApprovalService,
-                        securityPolicyService,
-                        new TirithSecurityService(config));
+                                        DashboardDiagnosticsService.builder()
+                        .appConfig(config)
+                        .deliveryService(deliveryService)
+                        .llmProviderService(llmProviderService)
+                        .toolRegistry(null)
+                        .sessionRepository(sessionRepository)
+                        .conversationOrchestrator(null)
+                        .approvalAuditRepository(null)
+                        .slashConfirmService(new SlashConfirmService(globalSettingRepository))
+                        .commandService(null)
+                        .approvalService(dangerousCommandApprovalService)
+                        .securityPolicyService(securityPolicyService)
+                        .tirithSecurityService(new TirithSecurityService(config))
+                        .build();
         DashboardWorkspaceService dashboardWorkspaceService =
                 new DashboardWorkspaceService(personaWorkspaceService);
         WeixinQrSetupService weixinQrSetupService =
@@ -373,49 +374,46 @@ public class TestEnvironment {
                         securityPolicyService);
         DashboardRunService dashboardRunService = new DashboardRunService(agentRunRepository);
         ToolRegistry toolRegistry =
-                new DefaultToolRegistry(
-                        config,
-                        preferenceStore,
-                        sessionRepository,
-                        agentProfileService,
-                        cronJobService,
-                        deliveryService,
-                        memoryService,
-                        sessionSearchService,
-                        localSkillService,
-                        skillHubService,
-                        checkpointService,
-                        delegationService,
-                        attachmentCacheService,
-                        runtimeSettingsService,
-                        refreshService,
-                        securityPolicyService,
-                        dangerousCommandApprovalService,
-                        processRegistry,
-                        null,
-                        dashboardMcpService,
-                        dashboardCuratorService,
-                        dashboardPlatformToolsetsService,
-                        dashboardProviderService,
-                        dashboardStatusService,
-                        dashboardGatewayDoctorService,
-                        dashboardInsightsService,
-                        dashboardApprovalEventsService,
-                        () -> dashboardDiagnosticsService,
-                        dashboardWorkspaceService,
-                        dashboardConfigService,
-                        dashboardRuntimeConfigService,
-                        weixinQrSetupService,
-                        domesticQrSetupService,
-                        browserRuntimeService,
-                        null,
-                        null,
-                        dashboardRunService,
-                        database,
-                        agentRunRepository,
-                        cronJobRepository,
-                        usageEventRepository,
-                        null);
+                DefaultToolRegistry.builder()
+                        .appConfig(config)
+                        .preferenceStore(preferenceStore)
+                        .sessionRepository(sessionRepository)
+                        .agentProfileService(agentProfileService)
+                        .cronJobService(cronJobService)
+                        .deliveryService(deliveryService)
+                        .memoryService(memoryService)
+                        .sessionSearchService(sessionSearchService)
+                        .localSkillService(localSkillService)
+                        .skillHubService(skillHubService)
+                        .checkpointService(checkpointService)
+                        .delegationService(delegationService)
+                        .attachmentCacheService(attachmentCacheService)
+                        .runtimeSettingsService(runtimeSettingsService)
+                        .gatewayRuntimeRefreshService(refreshService)
+                        .securityPolicyService(securityPolicyService)
+                        .approvalService(dangerousCommandApprovalService)
+                        .processRegistry(processRegistry)
+                        .dashboardMcpService(dashboardMcpService)
+                        .dashboardCuratorService(dashboardCuratorService)
+                        .dashboardPlatformToolsetsService(dashboardPlatformToolsetsService)
+                        .dashboardProviderService(dashboardProviderService)
+                        .dashboardStatusService(dashboardStatusService)
+                        .dashboardGatewayDoctorService(dashboardGatewayDoctorService)
+                        .dashboardInsightsService(dashboardInsightsService)
+                        .dashboardApprovalEventsService(dashboardApprovalEventsService)
+                        .dashboardDiagnosticsService(() -> dashboardDiagnosticsService)
+                        .dashboardWorkspaceService(dashboardWorkspaceService)
+                        .dashboardConfigService(dashboardConfigService)
+                        .dashboardRuntimeConfigService(dashboardRuntimeConfigService)
+                        .weixinQrSetupService(weixinQrSetupService)
+                        .domesticQrSetupService(domesticQrSetupService)
+                        .browserRuntimeService(browserRuntimeService)
+                        .dashboardRunService(dashboardRunService)
+                        .sqliteDatabase(database)
+                        .agentRunRepository(agentRunRepository)
+                        .cronJobRepository(cronJobRepository)
+                        .usageEventRepository(usageEventRepository)
+                        .build();
         ContextBudgetService contextBudgetService = new DefaultContextBudgetService(config);
         AgentRunSupervisor agentRunSupervisor =
                 new AgentRunSupervisor(

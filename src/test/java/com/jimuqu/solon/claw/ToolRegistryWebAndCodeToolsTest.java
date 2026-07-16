@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.react.task.ToolExchanger;
-import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.talent.Talent;
 import org.noear.solon.ai.chat.tool.FunctionTool;
@@ -296,30 +295,25 @@ class ToolRegistryWebAndCodeToolsTest {
                     }
                 };
         DefaultToolRegistry registry =
-                new DefaultToolRegistry(
-                        env.appConfig,
-                        new SqlitePreferenceStore(env.sqliteDatabase),
-                        env.sessionRepository,
-                        env.agentProfileService,
-                        null,
-                        env.deliveryService,
-                        env.memoryService,
-                        env.sessionSearchService,
-                        env.localSkillService,
-                        env.skillHubService,
-                        env.checkpointService,
-                        env.delegationService,
-                        null,
-                        env.runtimeSettingsService,
-                        env.gatewayRuntimeRefreshService,
-                        new SecurityPolicyService(env.appConfig),
-                        env.processRegistry,
-                        null,
-                        null,
-                        null,
-                        null,
-                        java.util.Collections.emptyList(),
-                        providers);
+                DefaultToolRegistry.builder()
+                        .appConfig(env.appConfig)
+                        .preferenceStore(new SqlitePreferenceStore(env.sqliteDatabase))
+                        .sessionRepository(env.sessionRepository)
+                        .agentProfileService(env.agentProfileService)
+                        .deliveryService(env.deliveryService)
+                        .memoryService(env.memoryService)
+                        .sessionSearchService(env.sessionSearchService)
+                        .localSkillService(env.localSkillService)
+                        .skillHubService(env.skillHubService)
+                        .checkpointService(env.checkpointService)
+                        .delegationService(env.delegationService)
+                        .runtimeSettingsService(env.runtimeSettingsService)
+                        .gatewayRuntimeRefreshService(env.gatewayRuntimeRefreshService)
+                        .securityPolicyService(new SecurityPolicyService(env.appConfig))
+                        .processRegistry(env.processRegistry)
+                        .pluginTools(java.util.Collections.emptyList())
+                        .webSearchProviders(providers)
+                        .build();
         providers.add(exaProvider);
 
         SolonClawWebTools.SafeWebsearchTool websearch = null;
@@ -1688,49 +1682,6 @@ class ToolRegistryWebAndCodeToolsTest {
 
     private ToolExchanger exchange(String toolName, Map<String, Object> args) {
         return new ToolExchanger(toolName, args);
-    }
-
-    /** 提供审批拦截器测试需要的最小 ReActTrace 实现。 */
-    static class TestTrace extends org.noear.solon.ai.agent.react.ReActTrace {
-        /** 承载测试中的会话上下文和一次性审批状态。 */
-        private final InMemoryAgentSession session;
-
-        /** 记录拦截器写入的路由标识，便于断言流程是否被终止。 */
-        private String route;
-
-        /** 创建默认测试 Trace。 */
-        TestTrace() {
-            this(new InMemoryAgentSession("tool-registry-exposure-test"));
-        }
-
-        /**
-         * 用已有会话创建 Trace，用于模拟审批后的恢复执行。
-         *
-         * @param session 已经保存审批状态的测试会话。
-         */
-        TestTrace(InMemoryAgentSession session) {
-            this.session = session;
-        }
-
-        @Override
-        public InMemoryAgentSession getSession() {
-            return session;
-        }
-
-        @Override
-        public org.noear.solon.flow.FlowContext getContext() {
-            return session.getContext();
-        }
-
-        @Override
-        public void setRoute(String route) {
-            this.route = route;
-        }
-
-        @Override
-        public String getRoute() {
-            return route;
-        }
     }
 
     public static class ReturnedPojo {

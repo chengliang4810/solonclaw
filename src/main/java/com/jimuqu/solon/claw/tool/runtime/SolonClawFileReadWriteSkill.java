@@ -41,9 +41,6 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
     /** 默认READ限制的统一常量值。 */
     private static final int DEFAULT_READ_LIMIT = 500;
 
-    /** UTF8BOM的统一常量值。 */
-    private static final String UTF8_BOM = "\ufeff";
-
     /** READDEDUP状态消息的统一常量值。 */
     private static final String READ_DEDUP_STATUS_MESSAGE =
             "文件未变化：这一段内容已经读取过，本次不再重复返回正文。请使用之前的 read_file 结果继续任务。";
@@ -1089,42 +1086,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      */
     private void writeTextPreservingBom(Path target, String content) throws Exception {
         String value = StrUtil.nullToEmpty(content);
-        String oldContent =
-                Files.exists(target) && !Files.isDirectory(target)
-                        ? stripLeadingBom(
-                                new String(Files.readAllBytes(target), StandardCharsets.UTF_8))
-                        : "";
+        String oldContent = BomFileSupport.readContentStripBom(target);
         ConfigSecretWriteGuard.assertNoPlaceholderSecretDowngrade(target, oldContent, value);
-        if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
-            value = UTF8_BOM + value;
-        }
+        value = BomFileSupport.preserveBomIfNeeded(target, value);
         if (target.getParent() != null) {
             Files.createDirectories(target.getParent());
         }
         AtomicFileWriteSupport.writeUtf8(target, value);
-    }
-
-    /**
-     * 判断是否存在Leading Bom。
-     *
-     * @param target target 参数。
-     * @return 如果Leading Bom满足条件则返回 true，否则返回 false。
-     */
-    private boolean hasLeadingBom(Path target) {
-        if (target == null || !Files.exists(target) || Files.isDirectory(target)) {
-            return false;
-        }
-        try {
-            byte[] bytes = Files.readAllBytes(target);
-            return bytes.length >= 3
-                    && (bytes[0] & 0xFF) == 0xEF
-                    && (bytes[1] & 0xFF) == 0xBB
-                    && (bytes[2] & 0xFF) == 0xBF;
-        } catch (Exception e) {
-            log.warn(
-                    "检查文件BOM失败，按无BOM处理 path={} error={}", safeLogPath(target), exceptionSummary(e));
-            return false;
-        }
     }
 
     /**
@@ -1134,10 +1102,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      * @return 返回strip Leading Bom结果。
      */
     private String stripLeadingBom(String value) {
-        if (value != null && value.startsWith(UTF8_BOM)) {
-            return value.substring(UTF8_BOM.length());
-        }
-        return value;
+        return BomFileSupport.stripLeadingBom(value);
     }
 
     /**
