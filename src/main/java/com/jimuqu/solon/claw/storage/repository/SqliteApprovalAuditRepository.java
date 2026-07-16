@@ -5,15 +5,20 @@ import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.ArrayList;
+import java.sql.SQLException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
 /** SQLite 危险命令审批审计仓储。 */
 @RequiredArgsConstructor
-public class SqliteApprovalAuditRepository implements ApprovalAuditRepository {
+public class SqliteApprovalAuditRepository extends SqliteRepositorySupport implements ApprovalAuditRepository {
     /** 记录SQLite审批审计中的数据库。 */
     private final SqliteDatabase database;
+
+    @Override
+    protected Connection getConnection() throws SQLException {
+        return database.openConnection();
+    }
 
     /**
      * 执行append相关逻辑。
@@ -21,38 +26,33 @@ public class SqliteApprovalAuditRepository implements ApprovalAuditRepository {
      * @param event 事件参数。
      */
     @Override
-    public void append(ApprovalAuditEvent event) throws Exception {
+    public void append(ApprovalAuditEvent event) throws SQLException {
         if (event == null || event.getEventId() == null) {
             return;
         }
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "insert or replace into approval_audit_events (event_id, session_id, event_type, choice, outcome, status, approved, approver, tool_name, approval_id, approval_key, command_hash, command_preview, description, pattern_keys_json, created_at, approval_created_at, approval_expires_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            statement.setString(1, event.getEventId());
-            statement.setString(2, event.getSessionId());
-            statement.setString(3, event.getEventType());
-            statement.setString(4, event.getChoice());
-            statement.setString(5, event.getOutcome());
-            statement.setString(6, event.getStatus());
-            statement.setInt(7, event.isApproved() ? 1 : 0);
-            statement.setString(8, event.getApprover());
-            statement.setString(9, event.getToolName());
-            statement.setString(10, event.getApprovalId());
-            statement.setString(11, event.getApprovalKey());
-            statement.setString(12, event.getCommandHash());
-            statement.setString(13, event.getCommandPreview());
-            statement.setString(14, event.getDescription());
-            statement.setString(15, event.getPatternKeysJson());
-            statement.setLong(16, event.getCreatedAt());
-            statement.setLong(17, event.getApprovalCreatedAt());
-            statement.setLong(18, event.getApprovalExpiresAt());
-            statement.executeUpdate();
-            statement.close();
-        } finally {
-            connection.close();
-        }
+        executeUpdate(
+                "insert or replace into approval_audit_events (event_id, session_id, event_type, choice, outcome, status, approved, approver, tool_name, approval_id, approval_key, command_hash, command_preview, description, pattern_keys_json, created_at, approval_created_at, approval_expires_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                stmt -> {
+                    stmt.setString(1, event.getEventId());
+                    stmt.setString(2, event.getSessionId());
+                    stmt.setString(3, event.getEventType());
+                    stmt.setString(4, event.getChoice());
+                    stmt.setString(5, event.getOutcome());
+                    stmt.setString(6, event.getStatus());
+                    stmt.setInt(7, event.isApproved() ? 1 : 0);
+                    stmt.setString(8, event.getApprover());
+                    stmt.setString(9, event.getToolName());
+                    stmt.setString(10, event.getApprovalId());
+                    stmt.setString(11, event.getApprovalKey());
+                    stmt.setString(12, event.getCommandHash());
+                    stmt.setString(13, event.getCommandPreview());
+                    stmt.setString(14, event.getDescription());
+                    stmt.setString(15, event.getPatternKeysJson());
+                    stmt.setLong(16, event.getCreatedAt());
+                    stmt.setLong(17, event.getApprovalCreatedAt());
+                    stmt.setLong(18, event.getApprovalExpiresAt());
+                }
+        );
     }
 
     /**
@@ -62,28 +62,13 @@ public class SqliteApprovalAuditRepository implements ApprovalAuditRepository {
      * @return 返回Recent列表。
      */
     @Override
-    public List<ApprovalAuditEvent> listRecent(int limit) throws Exception {
+    public List<ApprovalAuditEvent> listRecent(int limit) throws SQLException {
         int effectiveLimit = Math.max(1, Math.min(limit <= 0 ? 100 : limit, 500));
-        List<ApprovalAuditEvent> items = new ArrayList<ApprovalAuditEvent>();
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "select event_id, session_id, event_type, choice, outcome, status, approved, approver, tool_name, approval_id, approval_key, command_hash, command_preview, description, pattern_keys_json, created_at, approval_created_at, approval_expires_at from approval_audit_events order by created_at desc limit ?");
-            statement.setInt(1, effectiveLimit);
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                while (resultSet.next()) {
-                    items.add(map(resultSet));
-                }
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
-        } finally {
-            connection.close();
-        }
-        return items;
+        return queryList(
+                "select event_id, session_id, event_type, choice, outcome, status, approved, approver, tool_name, approval_id, approval_key, command_hash, command_preview, description, pattern_keys_json, created_at, approval_created_at, approval_expires_at from approval_audit_events order by created_at desc limit ?",
+                stmt -> stmt.setInt(1, effectiveLimit),
+                this::map
+        );
     }
 
     /**
@@ -92,7 +77,7 @@ public class SqliteApprovalAuditRepository implements ApprovalAuditRepository {
      * @param resultSet 结果Set响应或执行结果。
      * @return 返回map结果。
      */
-    private ApprovalAuditEvent map(ResultSet resultSet) throws Exception {
+    private ApprovalAuditEvent map(ResultSet resultSet) throws SQLException {
         ApprovalAuditEvent event = new ApprovalAuditEvent();
         event.setEventId(resultSet.getString("event_id"));
         event.setSessionId(resultSet.getString("session_id"));

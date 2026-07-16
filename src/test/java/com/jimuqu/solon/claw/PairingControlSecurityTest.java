@@ -95,9 +95,9 @@ public class PairingControlSecurityTest {
         }
     }
 
-    /** 清除主人时必须删除旧私聊，并把主要通知渠道交给仍有效的平台主人。 */
+    /** 清除主人时必须删除旧私聊，且不得自动改选其他通知渠道。 */
     @Test
-    void shouldRemoveOwnerHomeAndPromoteRemainingPrimaryChannel() throws Exception {
+    void shouldRemoveOwnerHomeWithoutPromotingAnotherChannel() throws Exception {
         AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-owner-clear"));
         SqliteDatabase database = new SqliteDatabase(config);
         try {
@@ -114,9 +114,30 @@ public class PairingControlSecurityTest {
 
             assertThat(repository.getPlatformAdmin(PlatformType.WEIXIN)).isNull();
             assertThat(repository.getHomeChannel(PlatformType.WEIXIN)).isNull();
-            assertThat(repository.getPrimaryHomeChannel().getPlatform())
-                    .isEqualTo(PlatformType.FEISHU);
-            assertThat(repository.getPrimaryHomeChannel().isPrimary()).isTrue();
+            assertThat(repository.getPrimaryHomeChannel()).isNull();
+            assertThat(repository.getHomeChannel(PlatformType.FEISHU).isPrimary()).isFalse();
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** 未绑定平台管理员的孤立渠道不得成为任何通知策略的投递目标。 */
+    @Test
+    void shouldHideHomeChannelWithoutPlatformAdmin() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-orphan-home"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            HomeChannelRecord orphan = new HomeChannelRecord();
+            orphan.setPlatform(PlatformType.FEISHU);
+            orphan.setChatId("orphan-chat");
+            orphan.setPrimary(true);
+            orphan.setUpdatedAt(System.currentTimeMillis());
+            repository.saveHomeChannel(orphan);
+
+            assertThat(repository.getHomeChannel(PlatformType.FEISHU)).isNull();
+            assertThat(repository.getPrimaryHomeChannel()).isNull();
+            assertThat(repository.listHomeChannels()).isEmpty();
         } finally {
             database.shutdown();
         }
@@ -477,6 +498,53 @@ public class PairingControlSecurityTest {
         } finally {
             executor.shutdownNow();
             shutdown(databases);
+        }
+    }
+
+    /** 同一用户再次申请时只保留最新请求。 */
+    @Test
+    void shouldReplaceExistingPairingRequestForSameUser() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-replace"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            long now = System.currentTimeMillis();
+
+            assertThat(repository.trySavePairingRequest(request("FIRST234"), now, 3)).isTrue();
+            assertThat(repository.trySavePairingRequest(request("SECOND23"), now, 3)).isTrue();
+
+            assertThat(repository.listPairingRequests(PlatformType.WEIXIN)).hasSize(1);
+            assertThat(repository.getPairingRequest(PlatformType.WEIXIN, "FIRST234")).isNull();
+            assertThat(repository.getPairingRequest(PlatformType.WEIXIN, "SECOND23")).isNotNull();
+        } finally {
+            database.shutdown();
+        }
+    }
+
+    /** 已存在的摘要冲突不得被另一用户静默覆盖。 */
+    @Test
+    void shouldNotOverwriteAnotherUserWhenPairingCodeHashCollides() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-code-collision"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            PairingRequestRecord owner = request("OWNER234", "first-user");
+            repository.savePairingRequest(owner);
+            String storedHash = repository.listPairingRequests(PlatformType.WEIXIN).get(0).getCode();
+            PairingRequestRecord collision = request(storedHash, "second-user");
+
+            assertThatThrownBy(
+                            () ->
+                                    repository.trySavePairingRequest(
+                                            collision, System.currentTimeMillis(), 3))
+                    .isInstanceOf(java.sql.SQLException.class);
+
+            assertThat(repository.listPairingRequests(PlatformType.WEIXIN))
+                    .singleElement()
+                    .extracting(PairingRequestRecord::getUserId)
+                    .isEqualTo("first-user");
+        } finally {
+            database.shutdown();
         }
     }
 

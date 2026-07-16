@@ -7,15 +7,20 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.ArrayList;
+import java.sql.SQLException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
 /** SqliteCronJobRepository 实现。 */
 @RequiredArgsConstructor
-public class SqliteCronJobRepository implements CronJobRepository {
+public class SqliteCronJobRepository extends SqliteRepositorySupport implements CronJobRepository {
     /** 记录SQLite定时任务任务中的数据库。 */
     private final SqliteDatabase database;
+
+    @Override
+    protected Connection getConnection() throws SQLException {
+        return database.openConnection();
+    }
 
     /**
      * 执行save，服务于SQLite定时任务任务主流程相关逻辑。
@@ -23,51 +28,46 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @param job job 参数。
      * @return 返回save结果。
      */
-    public CronJobRecord save(CronJobRecord job) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "insert or replace into cron_jobs (job_id, name, cron_expr, prompt, source_key, deliver_platform, deliver_chat_id, deliver_thread_id, origin_json, skills_json, repeat_times, repeat_completed, script, workdir, no_agent, context_from_json, enabled_toolsets_json, model, provider, base_url, wrap_response, last_status, last_error, last_delivery_error, pending_trigger_type, paused_at, paused_reason, last_output, status, next_run_at, last_run_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            statement.setString(1, job.getJobId());
-            statement.setString(2, job.getName());
-            statement.setString(3, job.getCronExpr());
-            statement.setString(4, job.getPrompt());
-            statement.setString(5, job.getSourceKey());
-            statement.setString(6, job.getDeliverPlatform());
-            statement.setString(7, job.getDeliverChatId());
-            statement.setString(8, job.getDeliverThreadId());
-            statement.setString(9, job.getOriginJson());
-            statement.setString(10, job.getSkillsJson());
-            statement.setInt(11, job.getRepeatTimes());
-            statement.setInt(12, job.getRepeatCompleted());
-            statement.setString(13, job.getScript());
-            statement.setString(14, job.getWorkdir());
-            statement.setInt(15, job.isNoAgent() ? 1 : 0);
-            statement.setString(16, job.getContextFromJson());
-            statement.setString(17, job.getEnabledToolsetsJson());
-            statement.setString(18, job.getModel());
-            statement.setString(19, job.getProvider());
-            statement.setString(20, job.getBaseUrl());
-            statement.setInt(21, job.isWrapResponse() ? 1 : 0);
-            statement.setString(22, job.getLastStatus());
-            statement.setString(23, redact(job.getLastError(), 2000));
-            statement.setString(24, redact(job.getLastDeliveryError(), 2000));
-            statement.setString(25, job.getPendingTriggerType());
-            statement.setLong(26, job.getPausedAt());
-            statement.setString(27, job.getPausedReason());
-            statement.setString(28, redact(job.getLastOutput(), 8000));
-            statement.setString(29, job.getStatus());
-            statement.setLong(30, job.getNextRunAt());
-            statement.setLong(31, job.getLastRunAt());
-            statement.setLong(32, job.getCreatedAt());
-            statement.setLong(33, job.getUpdatedAt());
-            statement.executeUpdate();
-            statement.close();
-            return job;
-        } finally {
-            connection.close();
-        }
+    public CronJobRecord save(CronJobRecord job) throws SQLException {
+        executeUpdate(
+                "insert or replace into cron_jobs (job_id, name, cron_expr, prompt, source_key, deliver_platform, deliver_chat_id, deliver_thread_id, origin_json, skills_json, repeat_times, repeat_completed, script, workdir, no_agent, context_from_json, enabled_toolsets_json, model, provider, base_url, wrap_response, last_status, last_error, last_delivery_error, pending_trigger_type, paused_at, paused_reason, last_output, status, next_run_at, last_run_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                stmt -> {
+                    stmt.setString(1, job.getJobId());
+                    stmt.setString(2, job.getName());
+                    stmt.setString(3, job.getCronExpr());
+                    stmt.setString(4, job.getPrompt());
+                    stmt.setString(5, job.getSourceKey());
+                    stmt.setString(6, job.getDeliverPlatform());
+                    stmt.setString(7, job.getDeliverChatId());
+                    stmt.setString(8, job.getDeliverThreadId());
+                    stmt.setString(9, job.getOriginJson());
+                    stmt.setString(10, job.getSkillsJson());
+                    stmt.setInt(11, job.getRepeatTimes());
+                    stmt.setInt(12, job.getRepeatCompleted());
+                    stmt.setString(13, job.getScript());
+                    stmt.setString(14, job.getWorkdir());
+                    stmt.setInt(15, job.isNoAgent() ? 1 : 0);
+                    stmt.setString(16, job.getContextFromJson());
+                    stmt.setString(17, job.getEnabledToolsetsJson());
+                    stmt.setString(18, job.getModel());
+                    stmt.setString(19, job.getProvider());
+                    stmt.setString(20, job.getBaseUrl());
+                    stmt.setInt(21, job.isWrapResponse() ? 1 : 0);
+                    stmt.setString(22, job.getLastStatus());
+                    stmt.setString(23, redact(job.getLastError(), 2000));
+                    stmt.setString(24, redact(job.getLastDeliveryError(), 2000));
+                    stmt.setString(25, job.getPendingTriggerType());
+                    stmt.setLong(26, job.getPausedAt());
+                    stmt.setString(27, job.getPausedReason());
+                    stmt.setString(28, redact(job.getLastOutput(), 8000));
+                    stmt.setString(29, job.getStatus());
+                    stmt.setLong(30, job.getNextRunAt());
+                    stmt.setLong(31, job.getLastRunAt());
+                    stmt.setLong(32, job.getCreatedAt());
+                    stmt.setLong(33, job.getUpdatedAt());
+                }
+        );
+        return job;
     }
 
     /**
@@ -76,26 +76,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @param jobId job标识。
      * @return 返回按标识查找得到的结果。
      */
-    public CronJobRecord findById(String jobId) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement("select * from cron_jobs where job_id = ?");
-            statement.setString(1, jobId);
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                if (resultSet.next()) {
-                    return map(resultSet);
-                }
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
-        } finally {
-            connection.close();
-        }
-
-        return null;
+    public CronJobRecord findById(String jobId) throws SQLException {
+        return queryOne(
+                "select * from cron_jobs where job_id = ?",
+                stmt -> stmt.setString(1, jobId),
+                this::map
+        );
     }
 
     /**
@@ -104,28 +90,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @param sourceKey 渠道来源键。
      * @return 返回根据来源列表。
      */
-    public List<CronJobRecord> listBySource(String sourceKey) throws Exception {
-        List<CronJobRecord> jobs = new ArrayList<CronJobRecord>();
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "select * from cron_jobs where source_key = ? order by updated_at desc");
-            statement.setString(1, sourceKey);
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                while (resultSet.next()) {
-                    jobs.add(map(resultSet));
-                }
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
-        } finally {
-            connection.close();
-        }
-
-        return jobs;
+    public List<CronJobRecord> listBySource(String sourceKey) throws SQLException {
+        return queryList(
+                "select * from cron_jobs where source_key = ? order by updated_at desc",
+                stmt -> stmt.setString(1, sourceKey),
+                this::map
+        );
     }
 
     /**
@@ -134,25 +104,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @return 返回全部列表。
      */
     @Override
-    public List<CronJobRecord> listAll() throws Exception {
-        List<CronJobRecord> jobs = new ArrayList<CronJobRecord>();
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement("select * from cron_jobs order by updated_at desc");
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                while (resultSet.next()) {
-                    jobs.add(map(resultSet));
-                }
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
-        } finally {
-            connection.close();
-        }
-        return jobs;
+    public List<CronJobRecord> listAll() throws SQLException {
+        return queryList(
+                "select * from cron_jobs order by updated_at desc",
+                null,
+                this::map
+        );
     }
 
     /**
@@ -161,28 +118,12 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @param nowEpochMillis nowEpochMillis 参数。
      * @return 返回Due列表。
      */
-    public List<CronJobRecord> listDue(long nowEpochMillis) throws Exception {
-        List<CronJobRecord> jobs = new ArrayList<CronJobRecord>();
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "select * from cron_jobs where status = 'ACTIVE' and (next_run_at <= ? or next_run_at is null or next_run_at = 0) order by next_run_at asc");
-            statement.setLong(1, nowEpochMillis);
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                while (resultSet.next()) {
-                    jobs.add(map(resultSet));
-                }
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
-        } finally {
-            connection.close();
-        }
-
-        return jobs;
+    public List<CronJobRecord> listDue(long nowEpochMillis) throws SQLException {
+        return queryList(
+                "select * from cron_jobs where status = 'ACTIVE' and (next_run_at <= ? or next_run_at is null or next_run_at = 0) order by next_run_at asc",
+                stmt -> stmt.setLong(1, nowEpochMillis),
+                this::map
+        );
     }
 
     /**
@@ -190,17 +131,11 @@ public class SqliteCronJobRepository implements CronJobRepository {
      *
      * @param jobId job标识。
      */
-    public void delete(String jobId) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement("delete from cron_jobs where job_id = ?");
-            statement.setString(1, jobId);
-            statement.executeUpdate();
-            statement.close();
-        } finally {
-            connection.close();
-        }
+    public void delete(String jobId) throws SQLException {
+        executeUpdate(
+                "delete from cron_jobs where job_id = ?",
+                stmt -> stmt.setString(1, jobId)
+        );
     }
 
     /**
@@ -209,22 +144,16 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @param jobId job标识。
      * @param status 状态参数。
      */
-    public void updateStatus(String jobId, String status) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "update cron_jobs set status = ?, paused_at = ?, updated_at = ? where job_id = ?");
-            statement.setString(1, status);
-            statement.setLong(
-                    2, "PAUSED".equalsIgnoreCase(status) ? System.currentTimeMillis() : 0L);
-            statement.setLong(3, System.currentTimeMillis());
-            statement.setString(4, jobId);
-            statement.executeUpdate();
-            statement.close();
-        } finally {
-            connection.close();
-        }
+    public void updateStatus(String jobId, String status) throws SQLException {
+        executeUpdate(
+                "update cron_jobs set status = ?, paused_at = ?, updated_at = ? where job_id = ?",
+                stmt -> {
+                    stmt.setString(1, status);
+                    stmt.setLong(2, "PAUSED".equalsIgnoreCase(status) ? System.currentTimeMillis() : 0L);
+                    stmt.setLong(3, System.currentTimeMillis());
+                    stmt.setString(4, jobId);
+                }
+        );
     }
 
     /**
@@ -234,7 +163,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @return 返回更新结果。
      */
     @Override
-    public CronJobRecord update(CronJobRecord job) throws Exception {
+    public CronJobRecord update(CronJobRecord job) throws SQLException {
         job.setUpdatedAt(System.currentTimeMillis());
         return save(job);
     }
@@ -246,21 +175,16 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @param lastRunAt last运行At参数。
      * @param nextRunAt next运行At参数。
      */
-    public void markRun(String jobId, long lastRunAt, long nextRunAt) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "update cron_jobs set last_run_at = ?, next_run_at = ?, updated_at = ? where job_id = ?");
-            statement.setLong(1, lastRunAt);
-            statement.setLong(2, nextRunAt);
-            statement.setLong(3, System.currentTimeMillis());
-            statement.setString(4, jobId);
-            statement.executeUpdate();
-            statement.close();
-        } finally {
-            connection.close();
-        }
+    public void markRun(String jobId, long lastRunAt, long nextRunAt) throws SQLException {
+        executeUpdate(
+                "update cron_jobs set last_run_at = ?, next_run_at = ?, updated_at = ? where job_id = ?",
+                stmt -> {
+                    stmt.setLong(1, lastRunAt);
+                    stmt.setLong(2, nextRunAt);
+                    stmt.setLong(3, System.currentTimeMillis());
+                    stmt.setString(4, jobId);
+                }
+        );
     }
 
     /**
@@ -277,34 +201,22 @@ public class SqliteCronJobRepository implements CronJobRepository {
      */
     @Override
     public void markRunResult(
-            String jobId,
-            long lastRunAt,
-            long nextRunAt,
-            String status,
-            String error,
-            String output,
-            int repeatCompleted,
-            String nextStatus)
-            throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "update cron_jobs set last_run_at = ?, next_run_at = ?, last_status = ?, last_error = ?, last_output = ?, repeat_completed = ?, status = ?, pending_trigger_type = null, last_delivery_error = null, updated_at = ? where job_id = ?");
-            statement.setLong(1, lastRunAt);
-            statement.setLong(2, nextRunAt);
-            statement.setString(3, status);
-            statement.setString(4, redact(error, 2000));
-            statement.setString(5, redact(output, 8000));
-            statement.setInt(6, repeatCompleted);
-            statement.setString(7, nextStatus);
-            statement.setLong(8, System.currentTimeMillis());
-            statement.setString(9, jobId);
-            statement.executeUpdate();
-            statement.close();
-        } finally {
-            connection.close();
-        }
+            String jobId, long lastRunAt, long nextRunAt, String status, String error,
+            String output, int repeatCompleted, String nextStatus) throws SQLException {
+        executeUpdate(
+                "update cron_jobs set last_run_at = ?, next_run_at = ?, last_status = ?, last_error = ?, last_output = ?, repeat_completed = ?, status = ?, pending_trigger_type = null, last_delivery_error = null, updated_at = ? where job_id = ?",
+                stmt -> {
+                    stmt.setLong(1, lastRunAt);
+                    stmt.setLong(2, nextRunAt);
+                    stmt.setString(3, status);
+                    stmt.setString(4, redact(error, 2000));
+                    stmt.setString(5, redact(output, 8000));
+                    stmt.setInt(6, repeatCompleted);
+                    stmt.setString(7, nextStatus);
+                    stmt.setLong(8, System.currentTimeMillis());
+                    stmt.setString(9, jobId);
+                }
+        );
     }
 
     /**
@@ -314,20 +226,15 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @param error 错误参数。
      */
     @Override
-    public void markDeliveryError(String jobId, String error) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "update cron_jobs set last_delivery_error = ?, updated_at = ? where job_id = ?");
-            statement.setString(1, redact(error, 2000));
-            statement.setLong(2, System.currentTimeMillis());
-            statement.setString(3, jobId);
-            statement.executeUpdate();
-            statement.close();
-        } finally {
-            connection.close();
-        }
+    public void markDeliveryError(String jobId, String error) throws SQLException {
+        executeUpdate(
+                "update cron_jobs set last_delivery_error = ?, updated_at = ? where job_id = ?",
+                stmt -> {
+                    stmt.setString(1, redact(error, 2000));
+                    stmt.setLong(2, System.currentTimeMillis());
+                    stmt.setString(3, jobId);
+                }
+        );
     }
 
     /**
@@ -337,31 +244,26 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @return 返回运行结果。
      */
     @Override
-    public CronJobRunRecord saveRun(CronJobRunRecord run) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "insert or replace into cron_runs (run_id, job_id, source_key, trigger_type, attempt, started_at, finished_at, status, summary, output, error, delivery_error, delivery_result_json) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            statement.setString(1, run.getRunId());
-            statement.setString(2, run.getJobId());
-            statement.setString(3, run.getSourceKey());
-            statement.setString(4, run.getTriggerType());
-            statement.setInt(5, run.getAttempt());
-            statement.setLong(6, run.getStartedAt());
-            statement.setLong(7, run.getFinishedAt());
-            statement.setString(8, run.getStatus());
-            statement.setString(9, redact(run.getSummary(), 2000));
-            statement.setString(10, redact(run.getOutput(), 8000));
-            statement.setString(11, redact(run.getError(), 2000));
-            statement.setString(12, redact(run.getDeliveryError(), 2000));
-            statement.setString(13, redact(run.getDeliveryResultJson(), 4000));
-            statement.executeUpdate();
-            statement.close();
-            return run;
-        } finally {
-            connection.close();
-        }
+    public CronJobRunRecord saveRun(CronJobRunRecord run) throws SQLException {
+        executeUpdate(
+                "insert or replace into cron_runs (run_id, job_id, source_key, trigger_type, attempt, started_at, finished_at, status, summary, output, error, delivery_error, delivery_result_json) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                stmt -> {
+                    stmt.setString(1, run.getRunId());
+                    stmt.setString(2, run.getJobId());
+                    stmt.setString(3, run.getSourceKey());
+                    stmt.setString(4, run.getTriggerType());
+                    stmt.setInt(5, run.getAttempt());
+                    stmt.setLong(6, run.getStartedAt());
+                    stmt.setLong(7, run.getFinishedAt());
+                    stmt.setString(8, run.getStatus());
+                    stmt.setString(9, redact(run.getSummary(), 2000));
+                    stmt.setString(10, redact(run.getOutput(), 8000));
+                    stmt.setString(11, redact(run.getError(), 2000));
+                    stmt.setString(12, redact(run.getDeliveryError(), 2000));
+                    stmt.setString(13, redact(run.getDeliveryResultJson(), 4000));
+                }
+        );
+        return run;
     }
 
     /**
@@ -372,29 +274,16 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @return 返回运行列表。
      */
     @Override
-    public List<CronJobRunRecord> listRuns(String jobId, int limit) throws Exception {
-        List<CronJobRunRecord> runs = new ArrayList<CronJobRunRecord>();
+    public List<CronJobRunRecord> listRuns(String jobId, int limit) throws SQLException {
         int safeLimit = limit <= 0 ? 20 : Math.min(limit, 100);
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "select * from cron_runs where job_id = ? order by started_at desc limit ?");
-            statement.setString(1, jobId);
-            statement.setInt(2, safeLimit);
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                while (resultSet.next()) {
-                    runs.add(mapRun(resultSet));
-                }
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
-        } finally {
-            connection.close();
-        }
-        return runs;
+        return queryList(
+                "select * from cron_runs where job_id = ? order by started_at desc limit ?",
+                stmt -> {
+                    stmt.setString(1, jobId);
+                    stmt.setInt(2, safeLimit);
+                },
+                this::mapRun
+        );
     }
 
     /**
@@ -403,7 +292,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @param resultSet 结果Set响应或执行结果。
      * @return 返回map结果。
      */
-    private CronJobRecord map(ResultSet resultSet) throws Exception {
+    private CronJobRecord map(ResultSet resultSet) throws SQLException {
         CronJobRecord record = new CronJobRecord();
         record.setJobId(resultSet.getString("job_id"));
         record.setName(resultSet.getString("name"));
@@ -447,7 +336,7 @@ public class SqliteCronJobRepository implements CronJobRepository {
      * @param resultSet 结果Set响应或执行结果。
      * @return 返回map运行结果。
      */
-    private CronJobRunRecord mapRun(ResultSet resultSet) throws Exception {
+    private CronJobRunRecord mapRun(ResultSet resultSet) throws SQLException {
         CronJobRunRecord record = new CronJobRunRecord();
         record.setRunId(resultSet.getString("run_id"));
         record.setJobId(resultSet.getString("job_id"));

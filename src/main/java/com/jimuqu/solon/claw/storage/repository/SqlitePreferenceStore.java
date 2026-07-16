@@ -8,12 +8,17 @@ import lombok.RequiredArgsConstructor;
 
 /** SqlitePreferenceStore 实现。 */
 @RequiredArgsConstructor
-public class SqlitePreferenceStore {
+public class SqlitePreferenceStore extends SqliteRepositorySupport {
     /** GLOBAL范围的统一常量值。 */
     public static final String GLOBAL_SCOPE = "__global__";
 
     /** 记录SQLitePreferenceStore中的数据库。 */
     private final SqliteDatabase database;
+
+    @Override
+    protected Connection getConnection() throws SQLException {
+        return database.openConnection();
+    }
 
     /**
      * 判断是否工具启用。
@@ -34,8 +39,7 @@ public class SqlitePreferenceStore {
      * @param defaultValue 默认值参数。
      * @return 如果工具启用满足条件则返回 true，否则返回 false。
      */
-    public boolean isToolEnabled(String sourceKey, String toolName, boolean defaultValue)
-            throws SQLException {
+    public boolean isToolEnabled(String sourceKey, String toolName, boolean defaultValue) throws SQLException {
         return readScopedBoolean("tool_toggles", "tool_name", sourceKey, toolName, defaultValue);
     }
 
@@ -57,8 +61,7 @@ public class SqlitePreferenceStore {
      * @param toolName 工具名称。
      * @param enabled 启用状态开关值。
      */
-    public void setToolEnabled(String sourceKey, String toolName, boolean enabled)
-            throws SQLException {
+    public void setToolEnabled(String sourceKey, String toolName, boolean enabled) throws SQLException {
         writeBoolean("tool_toggles", "tool_name", sourceKey, toolName, enabled);
     }
 
@@ -100,8 +103,7 @@ public class SqlitePreferenceStore {
      * @param skillName 技能名称参数。
      * @param enabled 启用状态开关值。
      */
-    public void setSkillEnabled(String sourceKey, String skillName, boolean enabled)
-            throws SQLException {
+    public void setSkillEnabled(String sourceKey, String skillName, boolean enabled) throws SQLException {
         writeBoolean("skill_states", "skill_name", sourceKey, skillName, enabled);
     }
 
@@ -136,12 +138,7 @@ public class SqlitePreferenceStore {
      * @return 返回读取到的Scoped Boolean。
      */
     private boolean readScopedBoolean(
-            String tableName,
-            String nameColumn,
-            String sourceKey,
-            String nameValue,
-            boolean defaultValue)
-            throws SQLException {
+            String tableName, String nameColumn, String sourceKey, String nameValue, boolean defaultValue) throws SQLException {
         Boolean scoped = readBooleanIfPresent(tableName, nameColumn, sourceKey, nameValue);
         if (scoped != null) {
             return scoped.booleanValue();
@@ -166,12 +163,7 @@ public class SqlitePreferenceStore {
      * @return 返回读取到的Boolean。
      */
     private boolean readBoolean(
-            String tableName,
-            String nameColumn,
-            String sourceKey,
-            String nameValue,
-            boolean defaultValue)
-            throws SQLException {
+            String tableName, String nameColumn, String sourceKey, String nameValue, boolean defaultValue) throws SQLException {
         Boolean value = readBooleanIfPresent(tableName, nameColumn, sourceKey, nameValue);
         return value == null ? defaultValue : value.booleanValue();
     }
@@ -185,33 +177,16 @@ public class SqlitePreferenceStore {
      * @param nameValue 名称值参数。
      * @return 返回读取到的Boolean If Present。
      */
-    private Boolean readBooleanIfPresent(
-            String tableName, String nameColumn, String sourceKey, String nameValue)
-            throws SQLException {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "select enabled from "
-                                    + tableName
-                                    + " where source_key = ? and "
-                                    + nameColumn
-                                    + " = ?");
-            statement.setString(1, sourceKey);
-            statement.setString(2, nameValue);
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                if (resultSet.next()) {
-                    return resultSet.getInt(1) == 1;
-                }
-                return null;
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
-        } finally {
-            connection.close();
-        }
+    private Boolean readBooleanIfPresent(String tableName, String nameColumn, String sourceKey, String nameValue) throws SQLException {
+        String sql = "select enabled from " + tableName + " where source_key = ? and " + nameColumn + " = ?";
+        return queryOne(
+                sql,
+                stmt -> {
+                    stmt.setString(1, sourceKey);
+                    stmt.setString(2, nameValue);
+                },
+                rs -> rs.getInt(1) == 1
+        );
     }
 
     /**
@@ -223,29 +198,15 @@ public class SqlitePreferenceStore {
      * @param nameValue 名称值参数。
      * @param enabled 启用状态开关值。
      */
-    private void writeBoolean(
-            String tableName,
-            String nameColumn,
-            String sourceKey,
-            String nameValue,
-            boolean enabled)
-            throws SQLException {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "insert or replace into "
-                                    + tableName
-                                    + " (source_key, "
-                                    + nameColumn
-                                    + ", enabled) values (?, ?, ?)");
-            statement.setString(1, sourceKey);
-            statement.setString(2, nameValue);
-            statement.setInt(3, enabled ? 1 : 0);
-            statement.executeUpdate();
-            statement.close();
-        } finally {
-            connection.close();
-        }
+    private void writeBoolean(String tableName, String nameColumn, String sourceKey, String nameValue, boolean enabled) throws SQLException {
+        String sql = "insert or replace into " + tableName + " (source_key, " + nameColumn + ", enabled) values (?, ?, ?)";
+        executeUpdate(
+                sql,
+                stmt -> {
+                    stmt.setString(1, sourceKey);
+                    stmt.setString(2, nameValue);
+                    stmt.setInt(3, enabled ? 1 : 0);
+                }
+        );
     }
 }

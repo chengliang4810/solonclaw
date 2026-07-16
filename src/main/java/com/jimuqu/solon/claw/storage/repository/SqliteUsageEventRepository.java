@@ -5,15 +5,20 @@ import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.util.ArrayList;
+import java.sql.SQLException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
 /** 负责SQLite用量事件数据的持久化读写，隔离底层存储实现。 */
 @RequiredArgsConstructor
-public class SqliteUsageEventRepository implements UsageEventRepository {
+public class SqliteUsageEventRepository extends SqliteRepositorySupport implements UsageEventRepository {
     /** 记录SQLite用量事件中的数据库。 */
     private final SqliteDatabase database;
+
+    @Override
+    protected Connection getConnection() throws SQLException {
+        return database.openConnection();
+    }
 
     /**
      * 写入IfAbsent。
@@ -22,19 +27,12 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
      * @return 返回insert If Absent结果。
      */
     @Override
-    public boolean insertIfAbsent(UsageEventRecord record) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "insert or ignore into usage_events (event_id, session_id, run_id, source_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, total_tokens, request_count, cost_micros, currency, price_source, price_source_url, pricing_version, price_fetched_at, raw_usage_json, pricing_available, unpriced_input_tokens, unpriced_output_tokens, unpriced_cache_read_tokens, unpriced_cache_write_tokens, unpriced_reasoning_tokens, priced_at, created_at, backfill_approximate) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            bind(statement, record);
-            int updated = statement.executeUpdate();
-            statement.close();
-            return updated > 0;
-        } finally {
-            connection.close();
-        }
+    public boolean insertIfAbsent(UsageEventRecord record) throws SQLException {
+        int updated = executeUpdate(
+                "insert or ignore into usage_events (event_id, session_id, run_id, source_key, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, reasoning_tokens, total_tokens, request_count, cost_micros, currency, price_source, price_source_url, pricing_version, price_fetched_at, raw_usage_json, pricing_available, unpriced_input_tokens, unpriced_output_tokens, unpriced_cache_read_tokens, unpriced_cache_write_tokens, unpriced_reasoning_tokens, priced_at, created_at, backfill_approximate) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                stmt -> bind(stmt, record)
+        );
+        return updated > 0;
     }
 
     /**
@@ -44,22 +42,12 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
      * @return 返回按事件标识查找得到的结果。
      */
     @Override
-    public UsageEventRecord findByEventId(String eventId) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement("select * from usage_events where event_id = ?");
-            statement.setString(1, eventId);
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                return resultSet.next() ? map(resultSet) : null;
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
-        } finally {
-            connection.close();
-        }
+    public UsageEventRecord findByEventId(String eventId) throws SQLException {
+        return queryOne(
+                "select * from usage_events where event_id = ?",
+                stmt -> stmt.setString(1, eventId),
+                this::map
+        );
     }
 
     /**
@@ -69,7 +57,7 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
      * @return 返回Recent列表。
      */
     @Override
-    public List<UsageEventRecord> listRecent(int limit) throws Exception {
+    public List<UsageEventRecord> listRecent(int limit) throws SQLException {
         return listBetween(0L, Long.MAX_VALUE, limit);
     }
 
@@ -82,8 +70,7 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
      * @return 返回Between列表。
      */
     @Override
-    public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive, int limit)
-            throws Exception {
+    public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive, int limit) throws SQLException {
         return listBetweenInternal(fromInclusive, toInclusive, true, limit);
     }
 
@@ -95,8 +82,7 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
      * @return 返回Between列表。
      */
     @Override
-    public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive)
-            throws Exception {
+    public List<UsageEventRecord> listBetween(long fromInclusive, long toInclusive) throws SQLException {
         return listBetweenInternal(fromInclusive, toInclusive, false, 0);
     }
 
@@ -110,33 +96,22 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
      * @return 返回Between Internal列表。
      */
     private List<UsageEventRecord> listBetweenInternal(
-            long fromInclusive, long toInclusive, boolean limited, int limit) throws Exception {
-        List<UsageEventRecord> records = new ArrayList<UsageEventRecord>();
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            limited
-                                    ? "select * from usage_events where created_at >= ? and created_at <= ? order by created_at desc limit ?"
-                                    : "select * from usage_events where created_at >= ? and created_at <= ? order by created_at desc");
-            statement.setLong(1, Math.max(0L, fromInclusive));
-            statement.setLong(2, toInclusive <= 0 ? Long.MAX_VALUE : toInclusive);
-            if (limited) {
-                statement.setInt(3, Math.max(1, Math.min(limit <= 0 ? 1000 : limit, 10000)));
-            }
-            ResultSet resultSet = statement.executeQuery();
-            try {
-                while (resultSet.next()) {
-                    records.add(map(resultSet));
-                }
-            } finally {
-                resultSet.close();
-                statement.close();
-            }
-        } finally {
-            connection.close();
-        }
-        return records;
+            long fromInclusive, long toInclusive, boolean limited, int limit) throws SQLException {
+        String sql = limited
+                ? "select * from usage_events where created_at >= ? and created_at <= ? order by created_at desc limit ?"
+                : "select * from usage_events where created_at >= ? and created_at <= ? order by created_at desc";
+
+        return queryList(
+                sql,
+                stmt -> {
+                    stmt.setLong(1, Math.max(0L, fromInclusive));
+                    stmt.setLong(2, toInclusive <= 0 ? Long.MAX_VALUE : toInclusive);
+                    if (limited) {
+                        stmt.setInt(3, Math.max(1, Math.min(limit <= 0 ? 1000 : limit, 10000)));
+                    }
+                },
+                this::map
+        );
     }
 
     /**
@@ -145,7 +120,7 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
      * @param statement statement 参数。
      * @param record 记录参数。
      */
-    private void bind(PreparedStatement statement, UsageEventRecord record) throws Exception {
+    private void bind(PreparedStatement statement, UsageEventRecord record) throws SQLException {
         statement.setString(1, record.getEventId());
         statement.setString(2, record.getSessionId());
         statement.setString(3, record.getRunId());
@@ -183,7 +158,7 @@ public class SqliteUsageEventRepository implements UsageEventRepository {
      * @param rs rs 参数。
      * @return 返回map结果。
      */
-    private UsageEventRecord map(ResultSet rs) throws Exception {
+    private UsageEventRecord map(ResultSet rs) throws SQLException {
         UsageEventRecord record = new UsageEventRecord();
         record.setEventId(rs.getString("event_id"));
         record.setSessionId(rs.getString("session_id"));
