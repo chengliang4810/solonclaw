@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   Button,
@@ -55,6 +55,15 @@ const lastReloadAll = ref<McpReloadAllResult | null>(null)
 const oauthBeginUrl = ref('')
 const transportOptions = mcpTransportOptions()
 
+/** 标识当前 OAuth Server 上下文，切换 Server 时作废旧请求。 */
+let oauthContextId = 0
+/** 标识最近一次 OAuth 状态请求，拒绝同一 Server 的乱序响应。 */
+let oauthStatusRequestId = 0
+/** 标识最近一次 OAuth 写操作，拒绝旧操作继续刷新页面。 */
+let oauthMutationRequestId = 0
+/** 记录组件是否已经卸载，阻止迟到响应修改页面。 */
+let disposed = false
+
 const form = reactive({
   serverId: '',
   name: '',
@@ -95,6 +104,36 @@ const hasLastToolDiff = computed(() => hasItems(lastAction.value?.added_tools) |
 
 onMounted(load)
 
+/** 清空 OAuth 状态和表单，避免切换 Server 后短暂显示旧数据。 */
+function clearOAuthState() {
+  oauthStatus.value = null
+  oauthBeginUrl.value = ''
+  oauthForm.authorization_endpoint = ''
+  oauthForm.token_endpoint = ''
+  oauthForm.client_id = ''
+  oauthForm.client_secret = ''
+  oauthForm.redirect_uri = ''
+  oauthForm.scopes = ''
+  oauthForm.code = ''
+  oauthForm.state = ''
+}
+
+/** 激活指定 Server 的 OAuth 上下文并作废前一个上下文。 */
+function activateOAuthServer(serverId: string) {
+  selectedId.value = serverId
+  oauthContextId += 1
+  oauthStatusRequestId += 1
+  oauthMutationRequestId += 1
+  oauthLoading.value = false
+  if (actionLoading.value.startsWith('oauth-')) actionLoading.value = ''
+  clearOAuthState()
+}
+
+/** 判断异步结果是否仍属于当前可见的 OAuth Server。 */
+function isOAuthContextCurrent(serverId: string, contextId: number) {
+  return !disposed && contextId === oauthContextId && serverId === selectedId.value
+}
+
 async function load() {
   loading.value = true
   try {
@@ -102,12 +141,12 @@ async function load() {
     enabled.value = data.enabled
     servers.value = data.servers || []
     if (!selectedId.value || !servers.value.some((server) => server.server_id === selectedId.value)) {
-      selectedId.value = servers.value[0]?.server_id || ''
+      activateOAuthServer(servers.value[0]?.server_id || '')
     }
     if (selectedId.value) {
-      await loadOAuthStatus()
+      await loadOAuthStatus(selectedId.value)
     } else {
-      oauthStatus.value = null
+      clearOAuthState()
     }
   } catch (err: any) {
     message.error(err.message || t('mcp.loadFailed'))
@@ -117,10 +156,9 @@ async function load() {
 }
 
 function selectServer(server: McpServer) {
-  selectedId.value = server.server_id
+  activateOAuthServer(server.server_id)
   lastAction.value = null
-  oauthBeginUrl.value = ''
-  loadOAuthStatus()
+  void loadOAuthStatus(server.server_id)
 }
 
 function openCreate() {
@@ -180,7 +218,7 @@ async function saveServer() {
   saving.value = true
   try {
     const result: any = await saveMcpServer(payload)
-    selectedId.value = result?.server_id || form.serverId
+    activateOAuthServer(result?.server_id || form.serverId)
     showServerModal.value = false
     await load()
     message.success(t('mcp.serverSaved'))
@@ -265,93 +303,132 @@ async function reloadAllServersAsync() {
   }
 }
 
-async function loadOAuthStatus() {
-  if (!selectedId.value) {
-    oauthStatus.value = null
+async function loadOAuthStatus(serverId = selectedId.value) {
+  if (!serverId || disposed) {
+    if (!serverId) clearOAuthState()
     return
   }
+  const contextId = oauthContextId
+  const requestId = ++oauthStatusRequestId
   oauthLoading.value = true
   try {
-    oauthStatus.value = await fetchMcpOAuthStatus(selectedId.value)
-    const oauth = oauthStatus.value.oauth || {}
+    const status = await fetchMcpOAuthStatus(serverId)
+    if (requestId !== oauthStatusRequestId || !isOAuthContextCurrent(serverId, contextId)) return
+    oauthStatus.value = status
+    const oauth = status.oauth || {}
     oauthForm.authorization_endpoint = String(oauth.authorization_endpoint || '')
     oauthForm.token_endpoint = String(oauth.token_endpoint || '')
     oauthForm.client_id = String(oauth.client_id || '')
     oauthForm.client_secret = ''
     oauthForm.redirect_uri = String(oauth.redirect_uri || '')
-    const scopes = oauthStatus.value.scopes
+    const scopes = status.scopes
     oauthForm.scopes = Array.isArray(scopes)
       ? asArray<string>(scopes).join(' ')
       : String(scopes || oauth.scope || '')
     oauthForm.state = String(oauth.state || '')
   } catch (err: any) {
-    message.error(err.message || t('mcp.oauthStatusLoadFailed'))
+    if (requestId === oauthStatusRequestId && isOAuthContextCurrent(serverId, contextId)) {
+      message.error(err.message || t('mcp.oauthStatusLoadFailed'))
+    }
   } finally {
-    oauthLoading.value = false
+    if (requestId === oauthStatusRequestId && isOAuthContextCurrent(serverId, contextId)) {
+      oauthLoading.value = false
+    }
   }
 }
 
 async function startOAuth() {
-  if (!selectedId.value) {
-    return
+  const serverId = selectedId.value
+  if (!serverId || disposed) return
+  const contextId = oauthContextId
+  const requestId = ++oauthMutationRequestId
+  oauthStatusRequestId += 1
+  oauthLoading.value = false
+  const payload = {
+    authorization_endpoint: oauthForm.authorization_endpoint,
+    token_endpoint: oauthForm.token_endpoint,
+    client_id: oauthForm.client_id,
+    client_secret: oauthForm.client_secret || undefined,
+    redirect_uri: oauthForm.redirect_uri || undefined,
+    scopes: oauthForm.scopes,
   }
   actionLoading.value = 'oauth-begin'
   try {
-    const result = await beginMcpOAuth(selectedId.value, {
-      authorization_endpoint: oauthForm.authorization_endpoint,
-      token_endpoint: oauthForm.token_endpoint,
-      client_id: oauthForm.client_id,
-      client_secret: oauthForm.client_secret || undefined,
-      redirect_uri: oauthForm.redirect_uri || undefined,
-      scopes: oauthForm.scopes,
-    })
+    const result = await beginMcpOAuth(serverId, payload)
+    if (requestId !== oauthMutationRequestId || !isOAuthContextCurrent(serverId, contextId)) return
     oauthBeginUrl.value = result.authorization_url
     oauthForm.state = result.state
-    await loadOAuthStatus()
+    await loadOAuthStatus(serverId)
+    if (requestId !== oauthMutationRequestId || !isOAuthContextCurrent(serverId, contextId)) return
     message.success(t('mcp.oauthLinkGenerated'))
   } catch (err: any) {
-    message.error(err.message || t('mcp.oauthStartFailed'))
+    if (requestId === oauthMutationRequestId && isOAuthContextCurrent(serverId, contextId)) {
+      message.error(err.message || t('mcp.oauthStartFailed'))
+    }
   } finally {
-    actionLoading.value = ''
+    if (requestId === oauthMutationRequestId && isOAuthContextCurrent(serverId, contextId)) {
+      actionLoading.value = ''
+    }
   }
 }
 
 async function finishOAuth() {
-  if (!selectedId.value) {
-    return
+  const serverId = selectedId.value
+  if (!serverId || disposed) return
+  const contextId = oauthContextId
+  const requestId = ++oauthMutationRequestId
+  oauthStatusRequestId += 1
+  oauthLoading.value = false
+  const payload = {
+    code: oauthForm.code,
+    state: oauthForm.state,
+    token_endpoint: oauthForm.token_endpoint,
   }
   actionLoading.value = 'oauth-complete'
   try {
-    await completeMcpOAuth(selectedId.value, {
-      code: oauthForm.code,
-      state: oauthForm.state,
-      token_endpoint: oauthForm.token_endpoint,
-    })
+    await completeMcpOAuth(serverId, payload)
+    if (requestId !== oauthMutationRequestId || !isOAuthContextCurrent(serverId, contextId)) return
     oauthForm.code = ''
     oauthBeginUrl.value = ''
-    await loadOAuthStatus()
+    await loadOAuthStatus(serverId)
+    if (requestId !== oauthMutationRequestId || !isOAuthContextCurrent(serverId, contextId)) return
     message.success(t('mcp.oauthCompleted'))
   } catch (err: any) {
-    message.error(err.message || t('mcp.oauthCompleteFailed'))
+    if (requestId === oauthMutationRequestId && isOAuthContextCurrent(serverId, contextId)) {
+      message.error(err.message || t('mcp.oauthCompleteFailed'))
+    }
   } finally {
-    actionLoading.value = ''
+    if (requestId === oauthMutationRequestId && isOAuthContextCurrent(serverId, contextId)) {
+      actionLoading.value = ''
+    }
   }
 }
 
-async function runOAuthAction(name: string, fn: () => Promise<unknown>) {
-  if (!selectedId.value) {
-    return
-  }
+async function runOAuthAction(name: string, serverId: string, fn: (serverId: string) => Promise<unknown>) {
+  if (!serverId || disposed || serverId !== selectedId.value) return
+  const contextId = oauthContextId
+  const requestId = ++oauthMutationRequestId
+  oauthStatusRequestId += 1
+  oauthLoading.value = false
   actionLoading.value = name
   try {
-    await fn()
-    await loadOAuthStatus()
-    await load()
+    await fn(serverId)
+    if (requestId !== oauthMutationRequestId || !isOAuthContextCurrent(serverId, contextId)) return
+    const data = await fetchMcpServers()
+    if (requestId !== oauthMutationRequestId || !isOAuthContextCurrent(serverId, contextId)) return
+    enabled.value = data.enabled
+    servers.value = data.servers || []
+    await loadOAuthStatus(serverId)
+    if (requestId !== oauthMutationRequestId || !isOAuthContextCurrent(serverId, contextId)) return
     message.success(t('mcp.oauthActionCompleted'))
   } catch (err: any) {
-    message.error(err.message || t('mcp.oauthActionFailed'))
+    if (requestId === oauthMutationRequestId && isOAuthContextCurrent(serverId, contextId)) {
+      message.error(err.message || t('mcp.oauthActionFailed'))
+    }
   } finally {
-    actionLoading.value = ''
+    if (requestId === oauthMutationRequestId && isOAuthContextCurrent(serverId, contextId)) {
+      actionLoading.value = ''
+    }
   }
 }
 
@@ -364,7 +441,7 @@ function confirmDelete(server: McpServer) {
     onOk: async () => {
       await deleteMcpServer(server.server_id)
       if (selectedId.value === server.server_id) {
-        selectedId.value = ''
+        activateOAuthServer('')
       }
       await load()
       message.success(t('common.deleted'))
@@ -377,6 +454,13 @@ async function copy(text: string) {
   if (ok) message.success(t('common.copied'))
   else message.error(t('common.copied') + ' ✗')
 }
+
+onUnmounted(() => {
+  disposed = true
+  oauthContextId += 1
+  oauthStatusRequestId += 1
+  oauthMutationRequestId += 1
+})
 </script>
 
 <template>
@@ -516,9 +600,9 @@ async function copy(text: string) {
                   <span v-if="oauthStatus?.expires_at">{{ t('mcp.oauth.expiresAt', { time: mcpTimestampText(oauthStatus.expires_at) }) }}</span>
                 </div>
                 <div class="oauth-actions">
-                  <Button size="small" :loading="actionLoading === 'oauth-refresh'" @click="runOAuthAction('oauth-refresh', () => refreshMcpOAuth(selectedServer!.server_id))">{{ t('mcp.oauth.refreshToken') }}</Button>
-                  <Button size="small" :loading="actionLoading === 'oauth-401'" @click="runOAuthAction('oauth-401', () => handleMcpOAuth401(selectedServer!.server_id))">{{ t('mcp.oauth.handle401') }}</Button>
-                  <Button size="small" danger ghost :loading="actionLoading === 'oauth-clear'" @click="runOAuthAction('oauth-clear', () => clearMcpOAuth(selectedServer!.server_id))">{{ t('common.clear') }}</Button>
+                  <Button size="small" :loading="actionLoading === 'oauth-refresh'" @click="runOAuthAction('oauth-refresh', selectedServer!.server_id, refreshMcpOAuth)">{{ t('mcp.oauth.refreshToken') }}</Button>
+                  <Button size="small" :loading="actionLoading === 'oauth-401'" @click="runOAuthAction('oauth-401', selectedServer!.server_id, handleMcpOAuth401)">{{ t('mcp.oauth.handle401') }}</Button>
+                  <Button size="small" danger ghost :loading="actionLoading === 'oauth-clear'" @click="runOAuthAction('oauth-clear', selectedServer!.server_id, clearMcpOAuth)">{{ t('common.clear') }}</Button>
                 </div>
                 <Form layout="vertical" class="oauth-form">
                   <FormItem :label="t('mcp.oauth.authorizationEndpoint')">

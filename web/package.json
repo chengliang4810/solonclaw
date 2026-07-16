@@ -26,6 +26,7 @@
     "test:tui-runtime-display": "node --experimental-strip-types tests/tuiRuntimeDisplay.test.ts",
     "test:runs-display": "node --experimental-strip-types tests/runsDisplay.test.ts",
     "test:mcp-display": "node --experimental-strip-types tests/mcpDisplay.test.ts",
+    "test:mcp-oauth-isolation": "node --experimental-strip-types tests/mcpOAuthRequestIsolation.test.ts",
     "test:mcp-i18n-placeholders": "node --experimental-strip-types tests/mcpI18nPlaceholdersStatic.test.ts",
     "test:system-nav-items-metadata": "node --experimental-strip-types tests/systemNavItemsMetadataStatic.test.ts",
     "test:backend-ui-coverage": "node --experimental-strip-types tests/backendUiCoverageStatic.test.ts",
