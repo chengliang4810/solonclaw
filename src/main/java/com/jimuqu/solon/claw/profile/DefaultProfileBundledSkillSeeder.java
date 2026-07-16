@@ -231,26 +231,14 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
                     @Override
                     public FileVisitResult preVisitDirectory(
                             Path directory, BasicFileAttributes attrs) throws IOException {
-                        if (!directory.equals(sourceRoot)
-                                && EXCLUDED_DIRECTORIES.contains(
-                                        directory.getFileName().toString())) {
-                            return FileVisitResult.SKIP_SUBTREE;
-                        }
-                        if (attrs.isSymbolicLink()) {
-                            throw new IOException(
-                                    "Bundled skills cannot contain symbolic links: " + directory);
-                        }
-                        return FileVisitResult.CONTINUE;
+                        return visitSourceDirectory(sourceRoot, directory, attrs);
                     }
 
                     /** 将非支持目录中的 SKILL.md 识别为正式技能根。 */
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
                             throws IOException {
-                        if (attrs.isSymbolicLink()) {
-                            throw new IOException(
-                                    "Bundled skills cannot contain symbolic links: " + file);
-                        }
+                        requireSafeSourceFile(file, attrs);
                         if (attrs.isRegularFile()
                                 && SKILL_FILE.equals(file.getFileName().toString())
                                 && !isNestedSupportSkill(file.getParent(), sourceRoot)) {
@@ -290,26 +278,14 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
                     @Override
                     public FileVisitResult preVisitDirectory(
                             Path directory, BasicFileAttributes attrs) throws IOException {
-                        if (!directory.equals(sourceRoot)
-                                && EXCLUDED_DIRECTORIES.contains(
-                                        directory.getFileName().toString())) {
-                            return FileVisitResult.SKIP_SUBTREE;
-                        }
-                        if (attrs.isSymbolicLink()) {
-                            throw new IOException(
-                                    "Bundled skills cannot contain symbolic links: " + directory);
-                        }
-                        return FileVisitResult.CONTINUE;
+                        return visitSourceDirectory(sourceRoot, directory, attrs);
                     }
 
                     /** 收集普通分类说明文件。 */
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
                             throws IOException {
-                        if (attrs.isSymbolicLink()) {
-                            throw new IOException(
-                                    "Bundled skills cannot contain symbolic links: " + file);
-                        }
+                        requireSafeSourceFile(file, attrs);
                         if (attrs.isRegularFile()
                                 && DESCRIPTION_FILE.equals(file.getFileName().toString())) {
                             Path relative = sourceRoot.relativize(file).normalize();
@@ -329,6 +305,24 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
                     }
                 });
         return descriptions;
+    }
+
+    /** 跳过非发行内容目录，并拒绝可能逃逸正式技能源根的符号链接目录。 */
+    private FileVisitResult visitSourceDirectory(
+            Path sourceRoot, Path directory, BasicFileAttributes attrs) throws IOException {
+        if (!directory.equals(sourceRoot)
+                && EXCLUDED_DIRECTORIES.contains(directory.getFileName().toString())) {
+            return FileVisitResult.SKIP_SUBTREE;
+        }
+        requireSafeSourceFile(directory, attrs);
+        return FileVisitResult.CONTINUE;
+    }
+
+    /** 拒绝技能源中的符号链接，防止同步读取发行目录之外的文件。 */
+    private void requireSafeSourceFile(Path path, BasicFileAttributes attrs) throws IOException {
+        if (attrs.isSymbolicLink()) {
+            throw new IOException("Bundled skills cannot contain symbolic links: " + path);
+        }
     }
 
     /** 判断候选技能是否位于另一个技能包的渐进加载支持目录内。 */

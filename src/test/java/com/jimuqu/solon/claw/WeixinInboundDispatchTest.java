@@ -33,6 +33,26 @@ import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
 public class WeixinInboundDispatchTest {
+
+    /** 创建启用了消息批处理的微信配置。 */
+    private AppConfig batchConfig() throws Exception {
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels().getWeixin().setGroupPolicy("open");
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.05D);
+        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.05D);
+        return config;
+    }
+
+    /** 使用批处理配置创建微信适配器。 */
+    private WeiXinChannelAdapter batchAdapter(AppConfig config) {
+        return new WeiXinChannelAdapter(
+                config.getChannels().getWeixin(),
+                new InMemoryChannelStateRepository(),
+                new AttachmentCacheService(config));
+    }
+
     @Test
     void shouldSplitLongOutboundTextAtWeixinSafeLimit() throws Exception {
         WeiXinChannelAdapter adapter = newAdapter();
@@ -341,18 +361,8 @@ public class WeixinInboundDispatchTest {
 
     @Test
     void shouldDebounceRapidInboundTextMessagesByConversation() throws Exception {
-        AppConfig config = newConfig();
-        config.getChannels().getWeixin().setEnabled(true);
-        config.getChannels().getWeixin().setAccountId("wx-bot");
-        config.getChannels().getWeixin().setGroupPolicy("open");
-        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.05D);
-        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.05D);
-
-        WeiXinChannelAdapter adapter =
-                new WeiXinChannelAdapter(
-                        config.getChannels().getWeixin(),
-                        new InMemoryChannelStateRepository(),
-                        new AttachmentCacheService(config));
+        AppConfig config = batchConfig();
+        WeiXinChannelAdapter adapter = batchAdapter(config);
 
         final CountDownLatch latch = new CountDownLatch(1);
         final List<String> texts = Collections.synchronizedList(new ArrayList<String>());
@@ -381,18 +391,8 @@ public class WeixinInboundDispatchTest {
 
     @Test
     void shouldKeepRepeatedInboundTextWhenPlatformMessageIdsDiffer() throws Exception {
-        AppConfig config = newConfig();
-        config.getChannels().getWeixin().setEnabled(true);
-        config.getChannels().getWeixin().setAccountId("wx-bot");
-        config.getChannels().getWeixin().setGroupPolicy("open");
-        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.05D);
-        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.05D);
-
-        WeiXinChannelAdapter adapter =
-                new WeiXinChannelAdapter(
-                        config.getChannels().getWeixin(),
-                        new InMemoryChannelStateRepository(),
-                        new AttachmentCacheService(config));
+        AppConfig config = batchConfig();
+        WeiXinChannelAdapter adapter = batchAdapter(config);
 
         final CountDownLatch latch = new CountDownLatch(1);
         final List<String> texts = Collections.synchronizedList(new ArrayList<String>());
@@ -420,18 +420,8 @@ public class WeixinInboundDispatchTest {
 
     @Test
     void shouldDeduplicateRepeatedInboundTextWithoutPlatformMessageId() throws Exception {
-        AppConfig config = newConfig();
-        config.getChannels().getWeixin().setEnabled(true);
-        config.getChannels().getWeixin().setAccountId("wx-bot");
-        config.getChannels().getWeixin().setGroupPolicy("open");
-        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.05D);
-        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.05D);
-
-        WeiXinChannelAdapter adapter =
-                new WeiXinChannelAdapter(
-                        config.getChannels().getWeixin(),
-                        new InMemoryChannelStateRepository(),
-                        new AttachmentCacheService(config));
+        AppConfig config = batchConfig();
+        WeiXinChannelAdapter adapter = batchAdapter(config);
         CountDownLatch latch = new CountDownLatch(1);
         List<String> texts = Collections.synchronizedList(new ArrayList<String>());
         adapter.setInboundMessageHandler(
