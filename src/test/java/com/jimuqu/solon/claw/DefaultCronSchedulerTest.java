@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CommandService;
@@ -904,6 +905,13 @@ public class DefaultCronSchedulerTest {
     @Test
     void shouldFallbackOriginDeliveryToConfiguredHomeChannelWhenSourceMissing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        PlatformAdminRecord feishuAdmin = new PlatformAdminRecord();
+        feishuAdmin.setPlatform(PlatformType.FEISHU);
+        feishuAdmin.setUserId("feishu-admin");
+        feishuAdmin.setUserName("Feishu Admin");
+        feishuAdmin.setChatId("feishu-home-room");
+        feishuAdmin.setCreatedAt(System.currentTimeMillis());
+        env.gatewayPolicyRepository.createPlatformAdminIfAbsent(feishuAdmin);
         HomeChannelRecord feishuHome = new HomeChannelRecord();
         feishuHome.setPlatform(PlatformType.FEISHU);
         feishuHome.setChatId("feishu-home-room");
