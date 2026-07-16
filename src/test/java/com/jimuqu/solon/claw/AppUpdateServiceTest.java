@@ -81,7 +81,7 @@ public class AppUpdateServiceTest {
     }
 
     @Test
-    void shouldAllowDockerUpdateWhenLatestVersionComesFromTags() {
+    void shouldRequireReleaseAssetsForDockerUpdate() {
         FakeVersionService versionService = new FakeVersionService(new AppConfig());
         versionService.setDeploymentMode("docker");
         versionService.setCurrentVersion("0.0.1");
@@ -94,10 +94,30 @@ public class AppUpdateServiceTest {
 
         AppUpdateService.UpdateResult result = service.startUpdate();
 
-        assertThat(result.isError()).isFalse();
-        assertThat(result.getMessage()).contains("Docker 部署");
-        assertThat(result.getMessage()).contains("最新版本: v0.0.2");
-        assertThat(result.getMessage()).contains("docker compose pull");
+        assertThat(result.isError()).isTrue();
+        assertThat(result.getMessage()).contains("jar 资产");
+    }
+
+    /** systemd 与 Docker 共用的替换逻辑必须保留旧 JAR 并切换到新 JAR。 */
+    @Test
+    void shouldReplaceCurrentJarAndKeepBackup() throws Exception {
+        AppConfig config = new AppConfig();
+        File dir = new File("target/update-atomic-replace-test");
+        FileUtil.del(dir);
+        FileUtil.mkdir(dir);
+        File current = new File(dir, "solonclaw.jar");
+        File downloaded = new File(dir, "downloaded.jar");
+        FileUtil.writeUtf8String("old", current);
+        FileUtil.writeUtf8String("new", downloaded);
+        FakeUpdateService service =
+                new FakeUpdateService(config, new FakeVersionService(config));
+
+        service.exposeReplaceCurrentJar(current, downloaded);
+
+        assertThat(FileUtil.readUtf8String(current)).isEqualTo("new");
+        assertThat(FileUtil.readUtf8String(new File(dir, "solonclaw.jar.previous")))
+                .isEqualTo("old");
+        assertThat(downloaded).doesNotExist();
     }
 
     @Test
@@ -344,6 +364,10 @@ public class AppUpdateServiceTest {
         private void exposeVerifyDownloadedJar(File jar, File sums, String jarAssetName) {
             verifyDownloadedJar(jar, sums, jarAssetName);
         }
+
+        private void exposeReplaceCurrentJar(File currentJar, File downloadedJar) throws Exception {
+            replaceCurrentJar(currentJar, downloadedJar);
+        }
     }
 
     private static class ExposedUpdateService extends AppUpdateService {
@@ -453,7 +477,7 @@ public class AppUpdateServiceTest {
 
         @Override
         public File currentJarFile() {
-            if ("jar".equals(deploymentMode)) {
+            if ("jar".equals(deploymentMode) || "docker".equals(deploymentMode)) {
                 return new File("target/fake-current.jar");
             }
             return null;

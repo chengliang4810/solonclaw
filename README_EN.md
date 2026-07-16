@@ -88,7 +88,7 @@ After `--cli` or `--tui`, `-p` is a one-shot prompt alias, equivalent to `--ask`
 docker compose up -d
 ```
 
-The default Compose file mounts local `./workspace` to `/app/workspace` inside the container for persistent workspace data. `/app/docker-entrypoint.sh` ensures the workspace directory exists, then starts `java -jar /app/solonclaw.jar` directly. The image includes `openssh-client`, so `ssh`, `scp`, and `sftp` are available inside the container.
+The default Compose file mounts local `./workspace` to `/app/workspace` inside the container so workspace data and the online-updatable `solonclaw.jar` persist. On first start, `/app/docker-entrypoint.sh` copies the bundled JAR and then runs the workspace JAR. The image includes `openssh-client`, so `ssh`, `scp`, and `sftp` are available inside the container.
 
 If you are migrating from an older non-root image, fixed UID/GID ownership for the host workspace directory is no longer part of the default deployment requirement. Custom deployment scripts can remove the previous user-mapping logic.
 

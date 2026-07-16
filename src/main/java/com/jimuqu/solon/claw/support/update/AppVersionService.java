@@ -180,26 +180,6 @@ public class AppVersionService {
     }
 
     /**
-     * 执行javaExecutable相关逻辑。
-     *
-     * @return 返回java Executable结果。
-     */
-    public String javaExecutable() {
-        String javaHome = System.getProperty("java.home");
-        String executable = isWindows() ? "java.exe" : "java";
-        return new File(new File(javaHome, "bin"), executable).getAbsolutePath();
-    }
-
-    /**
-     * 读取应用启动参数快照。
-     *
-     * @return 返回启动参数参数结果。
-     */
-    public String[] startupArgs() {
-        return SolonClawApp.startupArgs();
-    }
-
-    /**
      * 执行运行时主渠道相关逻辑。
      *
      * @return 返回运行时主渠道结果。

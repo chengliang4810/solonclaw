@@ -111,7 +111,7 @@ solonclaw --profile work --cli -p /help
 docker compose up -d
 ```
 
-默认 Compose 会将本地 `./workspace` 挂载到容器内 `/app/workspace`，方便持久化工作区和运行数据。`/app/docker-entrypoint.sh` 会先确保工作区目录存在，再直接启动 `java -jar /app/solonclaw.jar`。镜像内已包含 `openssh-client`，容器内可以使用 `ssh`、`scp` 和 `sftp` 等基础远程连接命令。
+默认 Compose 会将本地 `./workspace` 挂载到容器内 `/app/workspace`，方便持久化工作区、运行数据和可在线更新的 `solonclaw.jar`。`/app/docker-entrypoint.sh` 会在首次启动时复制镜像内置 JAR，之后从工作区 JAR 启动。镜像内已包含 `openssh-client`，容器内可以使用 `ssh`、`scp` 和 `sftp` 等基础远程连接命令。
 
 ## 配置
 

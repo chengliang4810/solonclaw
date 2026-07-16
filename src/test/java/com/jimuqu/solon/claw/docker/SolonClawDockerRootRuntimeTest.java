@@ -28,7 +28,8 @@ public class SolonClawDockerRootRuntimeTest {
                 .doesNotContain("gosu");
         assertThat(entrypoint)
                 .contains("mkdir -p \"$WORKSPACE_HOME\"")
-                .contains("exec java -jar /app/solonclaw.jar \"$@\"")
+                .contains("cp /app/solonclaw.jar \"$RUNTIME_JAR\"")
+                .contains("exec java -jar \"$RUNTIME_JAR\" \"$@\"")
                 .doesNotContain("gosu")
                 .doesNotContain("SOLONCLAW_UID")
                 .doesNotContain("SOLONCLAW_GID");

@@ -17,8 +17,9 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.net.Proxy;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.noear.snack4.ONode;
@@ -156,11 +157,12 @@ public class AppUpdateService {
         if (StrUtil.isNotBlank(status.getReleaseUrl())) {
             appendLine(buffer, "发布页", status.getReleaseUrl());
         }
-        if ("docker".equals(status.getDeploymentMode())) {
-            appendLine(buffer, "在线升级", "Docker 部署不支持进程内自更新，请在宿主机拉取新镜像并重建容器。");
-        } else if ("jar".equals(status.getDeploymentMode()) && status.isUpdateAvailable()) {
+        if (("jar".equals(status.getDeploymentMode())
+                        || "docker".equals(status.getDeploymentMode()))
+                && status.isUpdateAvailable()) {
             appendLine(buffer, "在线升级", "可执行 `/version update` 自动下载并重启到最新 jar。");
-        } else if ("jar".equals(status.getDeploymentMode())) {
+        } else if ("jar".equals(status.getDeploymentMode())
+                || "docker".equals(status.getDeploymentMode())) {
             appendLine(buffer, "在线升级", "当前 jar 已是最新，无需升级。");
         } else {
             appendLine(buffer, "在线升级", "当前为开发态运行，建议通过 Git/IDE 更新代码。");
@@ -182,17 +184,8 @@ public class AppUpdateService {
         if (!status.isUpdateAvailable()) {
             return UpdateResult.ok("当前已是最新版本：" + status.getCurrentTag());
         }
-        if ("docker".equals(status.getDeploymentMode())) {
-            return UpdateResult.ok(
-                    "检测到 Docker 部署，不能由进程内直接替换镜像。\n"
-                            + "最新版本: "
-                            + status.getLatestTag()
-                            + "\n"
-                            + "请在宿主机执行：\n"
-                            + "docker compose pull\n"
-                            + "docker compose up -d");
-        }
-        if (!"jar".equals(status.getDeploymentMode())) {
+        if (!"jar".equals(status.getDeploymentMode())
+                && !"docker".equals(status.getDeploymentMode())) {
             return UpdateResult.ok(
                     "当前不是 jar 部署，不能执行在线升级。\n"
                             + "最新版本: "
@@ -224,9 +217,7 @@ public class AppUpdateService {
             }
 
             File updateDir = new File(versionService.workspaceHome(), "update");
-            File logsDir = new File(versionService.workspaceHome(), "logs");
             FileUtil.mkdir(updateDir);
-            FileUtil.mkdir(logsDir);
 
             downloadedJar =
                     new File(
@@ -245,33 +236,12 @@ public class AppUpdateService {
             verifyDownloadedJar(downloadedJar, checksumFile, status.getJarAssetName());
             FileUtil.del(checksumFile);
 
-            File argsFile = new File(updateDir, "restart-args.json");
-            ONode argsNode = new ONode();
-            for (String arg : versionService.startupArgs()) {
-                argsNode.add(arg);
-            }
-            FileUtil.writeUtf8String(argsNode.toJson(), argsFile);
-
-            File updateLog = new File(logsDir, "update.log");
-            List<String> command = new ArrayList<String>();
-            command.add(versionService.javaExecutable());
-            command.add("-cp");
-            command.add(currentJar.getAbsolutePath());
-            command.add(SelfUpdateLauncher.class.getName());
-            command.add(currentJar.getAbsolutePath());
-            command.add(downloadedJar.getAbsolutePath());
-            command.add(argsFile.getAbsolutePath());
-            command.add(updateLog.getAbsolutePath());
-
-            ProcessBuilder builder = new ProcessBuilder(command);
-            builder.directory(versionService.workspaceHome());
-            builder.redirectErrorStream(true);
-            builder.redirectOutput(ProcessBuilder.Redirect.appendTo(updateLog));
-            builder.start();
+            replaceCurrentJar(currentJar, downloadedJar);
 
             scheduleCurrentProcessExit();
 
-            return UpdateResult.ok("已开始在线升级到 " + status.getLatestTag() + "，应用将在几秒后自动重启。");
+            return UpdateResult.ok(
+                    "已升级到 " + status.getLatestTag() + "，应用将在几秒后由运行管理器自动重启。");
         } catch (Exception e) {
             if (downloadedJar != null) {
                 FileUtil.del(downloadedJar);
@@ -283,6 +253,28 @@ public class AppUpdateService {
         }
     }
 
+    /** 备份并原子替换当前 JAR，适用于 systemd 和具有重启策略的 Docker 部署。 */
+    protected void replaceCurrentJar(File currentJar, File downloadedJar) throws Exception {
+        File backup = new File(currentJar.getParentFile(), currentJar.getName() + ".previous");
+        Files.copy(
+                currentJar.toPath(),
+                backup.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.COPY_ATTRIBUTES);
+        try {
+            Files.move(
+                    downloadedJar.toPath(),
+                    currentJar.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(
+                    downloadedJar.toPath(),
+                    currentJar.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
     /** 执行调度当前进程退出相关逻辑。 */
     protected void scheduleCurrentProcessExit() {
         exitExecutor.schedule(
@@ -290,7 +282,7 @@ public class AppUpdateService {
                     /** 执行异步任务主体。 */
                     @Override
                     public void run() {
-                        System.exit(0);
+                        System.exit(75);
                     }
                 },
                 3L,
