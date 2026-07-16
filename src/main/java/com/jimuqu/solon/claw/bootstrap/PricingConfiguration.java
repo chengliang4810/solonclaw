@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
+import com.jimuqu.solon.claw.support.ModelContextCatalogService;
 import com.jimuqu.solon.claw.usage.UsageBackfillService;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import org.noear.solon.annotation.Bean;
@@ -17,11 +18,14 @@ public class PricingConfiguration {
      * 执行价格Catalog相关逻辑。
      *
      * @param appConfig 应用运行配置。
+     * @param modelContextCatalogService 在线模型目录服务。
      * @return 返回价格Catalog结果。
      */
     @Bean
-    public PriceCatalog priceCatalog(AppConfig appConfig) {
-        return PriceCatalog.forConfig(appConfig);
+    public PriceCatalog priceCatalog(
+            AppConfig appConfig, ModelContextCatalogService modelContextCatalogService) {
+        modelContextCatalogService.refreshAsync();
+        return PriceCatalog.forConfig(appConfig, modelContextCatalogService);
     }
 
     /**

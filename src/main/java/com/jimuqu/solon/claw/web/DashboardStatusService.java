@@ -11,11 +11,11 @@ import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
 import com.jimuqu.solon.claw.media.SpeechService;
-import com.jimuqu.solon.claw.provider.ImageGenProvider;
-import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
+import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
 import com.jimuqu.solon.claw.profile.ProfileGatewayStatus;
+import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.RuntimeProcessSupport;
@@ -88,6 +88,9 @@ public class DashboardStatusService {
 
     /** 命名 Profile multiplex 子运行时管理器，用于读取真实渠道连接状态。 */
     private final ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager;
+
+    /** 运行时统一价格目录。 */
+    private final PriceCatalog priceCatalog;
 
     /**
      * 创建控制台状态服务实例，并兼容未接入运行控制服务的测试或轻量调用路径。
@@ -346,6 +349,57 @@ public class DashboardStatusService {
             List<ImageGenProvider> imageGenProviders,
             DashboardProfileContext profileContext,
             ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager) {
+        this(
+                appConfig,
+                sessionRepository,
+                deliveryService,
+                agentRunControlService,
+                gatewayRuntimeRefreshService,
+                appVersionService,
+                appUpdateService,
+                llmProviderService,
+                proactiveDiagnosticsService,
+                speechService,
+                imageGenProviders,
+                profileContext,
+                profileMultiplexRuntimeManager,
+                null);
+    }
+
+    /**
+     * 创建复用统一价格目录的 Dashboard 状态服务。
+     *
+     * @param appConfig 当前 JVM 配置。
+     * @param sessionRepository 当前 JVM 会话仓储。
+     * @param deliveryService 当前 JVM 渠道投递服务。
+     * @param agentRunControlService 当前 JVM Agent 运行控制服务。
+     * @param gatewayRuntimeRefreshService 当前 JVM 网关刷新服务。
+     * @param appVersionService 应用版本服务。
+     * @param appUpdateService 应用更新服务。
+     * @param llmProviderService 当前 JVM Provider 服务。
+     * @param proactiveDiagnosticsService 主动协作诊断服务。
+     * @param speechService 语音运行时服务。
+     * @param imageGenProviders 图像生成 Provider 列表。
+     * @param profileContext Dashboard Profile 请求上下文。
+     * @param profileMultiplexRuntimeManager 命名 Profile multiplex 子运行时管理器。
+     * @param priceCatalog 运行时统一价格目录。
+     */
+    public DashboardStatusService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DeliveryService deliveryService,
+            AgentRunControlService agentRunControlService,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            AppVersionService appVersionService,
+            AppUpdateService appUpdateService,
+            LlmProviderService llmProviderService,
+            ProactiveDiagnosticsService proactiveDiagnosticsService,
+            SpeechService speechService,
+            List<ImageGenProvider> imageGenProviders,
+            DashboardProfileContext profileContext,
+            ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager,
+            PriceCatalog priceCatalog) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
         this.deliveryService = deliveryService;
@@ -359,6 +413,7 @@ public class DashboardStatusService {
         this.imageGenProviders = imageGenProviders;
         this.profileContext = profileContext;
         this.profileMultiplexRuntimeManager = profileMultiplexRuntimeManager;
+        this.priceCatalog = priceCatalog == null ? PriceCatalog.forConfig(appConfig) : priceCatalog;
     }
 
     /**
@@ -1415,7 +1470,7 @@ public class DashboardStatusService {
      * @return 返回生效价格次数结果。
      */
     private int effectivePriceCount() {
-        return PriceCatalog.forConfig(appConfig).size();
+        return priceCatalog.configuredFor(appConfig).size();
     }
 
     /**
@@ -1428,7 +1483,8 @@ public class DashboardStatusService {
         if (resolved == null) {
             return null;
         }
-        return PriceCatalog.forConfig(appConfig)
+        return priceCatalog
+                .configuredFor(appConfig)
                 .find(resolved.getProviderKey(), resolved.getModel());
     }
 

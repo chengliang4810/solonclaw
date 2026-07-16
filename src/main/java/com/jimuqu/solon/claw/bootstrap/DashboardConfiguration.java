@@ -23,9 +23,10 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.SpeechService;
-import com.jimuqu.solon.claw.provider.ImageGenProvider;
+import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.profile.ProfileManager;
+import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -182,6 +183,7 @@ public class DashboardConfiguration {
      * @param speechService 语音运行时服务依赖。
      * @param imageGenProviders 图像生成 Provider 列表。
      * @param dashboardProfileContext Dashboard Profile 请求上下文。
+     * @param priceCatalog 运行时统一价格目录。
      * @return 返回控制台状态服务结果。
      */
     @Bean
@@ -197,7 +199,8 @@ public class DashboardConfiguration {
             ProactiveDiagnosticsService proactiveDiagnosticsService,
             SpeechService speechService,
             List<ImageGenProvider> imageGenProviders,
-            DashboardProfileContext dashboardProfileContext) {
+            DashboardProfileContext dashboardProfileContext,
+            PriceCatalog priceCatalog) {
         return new DashboardStatusService(
                 appConfig,
                 sessionRepository,
@@ -210,7 +213,9 @@ public class DashboardConfiguration {
                 proactiveDiagnosticsService,
                 speechService,
                 imageGenProviders,
-                dashboardProfileContext);
+                dashboardProfileContext,
+                null,
+                priceCatalog);
     }
 
     /**
@@ -398,6 +403,7 @@ public class DashboardConfiguration {
      * @param llmProviderService LLM提供方Service标识或键值。
      * @param modelMetadataService 模型元数据服务依赖。
      * @param dashboardProfileContext Dashboard Profile 请求上下文。
+     * @param priceCatalog 运行时统一价格目录。
      * @return 返回控制台提供方服务结果。
      */
     @Bean
@@ -406,14 +412,16 @@ public class DashboardConfiguration {
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             LlmProviderService llmProviderService,
             ModelMetadataService modelMetadataService,
-            DashboardProfileContext dashboardProfileContext) {
+            DashboardProfileContext dashboardProfileContext,
+            PriceCatalog priceCatalog) {
         return new DashboardProviderService(
                 appConfig,
                 gatewayRuntimeRefreshService,
                 llmProviderService,
                 null,
                 modelMetadataService,
-                dashboardProfileContext);
+                dashboardProfileContext,
+                priceCatalog);
     }
 
     /**

@@ -633,7 +633,7 @@ public class ToolConfiguration {
      * @param usageCostCalculator 用量成本Calculator参数。
      * @return 返回Agent运行Supervisor结果。
      */
-    @Bean
+    @Bean(destroyMethod = "shutdown")
     public AgentRunSupervisor agentRunSupervisor(
             AppConfig appConfig,
             SessionRepository sessionRepository,

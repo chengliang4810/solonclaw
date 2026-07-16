@@ -33,6 +33,7 @@ import com.jimuqu.solon.claw.llm.LlmErrorClassifier;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -53,6 +54,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -105,6 +108,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
 
     /** 记录Agent运行Supervisor中的用量成本Calculator。 */
     private final UsageCostCalculator usageCostCalculator;
+
+    /** 异步计算并持久化用量事件，避免统计工作阻塞模型回答。 */
+    private final ExecutorService usageEventExecutor;
 
     /** 保存running运行映射，便于按键快速查询。 */
     private final ConcurrentMap<String, RunHandle> runningRuns =
@@ -183,6 +189,17 @@ public class AgentRunSupervisor implements AgentRunControlService {
         this.llmProviderService = llmProviderService;
         this.usageEventRepository = usageEventRepository;
         this.usageCostCalculator = usageCostCalculator;
+        this.usageEventExecutor =
+                usageEventRepository == null
+                        ? null
+                        : BoundedExecutorFactory.fixed("usage-event", 1, 256);
+    }
+
+    /** 关闭用量事件异步执行器。 */
+    public void shutdown() {
+        if (usageEventExecutor != null) {
+            usageEventExecutor.shutdownNow();
+        }
     }
 
     /**
@@ -1274,7 +1291,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             runRecord.setExitReason("success");
             heartbeat(runRecord);
             agentRunRepository.saveRun(runRecord);
-            recordUsageEvent(runRecord, finalResult);
+            recordUsageEventAsync(runRecord, finalResult);
             runContext.event("run.success", "运行完成");
 
             AgentRunOutcome outcome = new AgentRunOutcome();
@@ -2099,7 +2116,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param runRecord 运行记录参数。
      * @param result 结果响应或执行结果。
      */
-    private void recordUsageEvent(AgentRunRecord runRecord, LlmResult result) {
+    private void recordUsageEventAsync(AgentRunRecord runRecord, LlmResult result) {
         if (usageEventRepository == null || runRecord == null || result == null) {
             return;
         }
@@ -2140,13 +2157,25 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 runRecord.getFinishedAt() > 0
                         ? runRecord.getFinishedAt()
                         : System.currentTimeMillis());
-        applyCost(event);
         try {
+            usageEventExecutor.execute(() -> persistUsageEvent(event));
+        } catch (RejectedExecutionException e) {
+            log.warn(
+                    "Failed to schedule usage event: runId={}, error={}",
+                    runRecord.getRunId(),
+                    safeError(e));
+        }
+    }
+
+    /** 计算成本并持久化单条用量事件。 */
+    private void persistUsageEvent(UsageEventRecord event) {
+        try {
+            applyCost(event);
             usageEventRepository.insertIfAbsent(event);
         } catch (Exception e) {
             log.warn(
                     "Failed to record usage event: runId={}, error={}",
-                    runRecord.getRunId(),
+                    event.getRunId(),
                     safeError(e));
         }
     }

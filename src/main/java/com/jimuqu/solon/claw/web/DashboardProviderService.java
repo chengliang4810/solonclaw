@@ -59,6 +59,9 @@ public class DashboardProviderService {
     /** 注入Provider画像服务，用于输出运行时画像。 */
     private final ProviderProfileService providerProfileService;
 
+    /** 运行时统一价格目录。 */
+    private final PriceCatalog priceCatalog;
+
     /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
 
@@ -161,6 +164,36 @@ public class DashboardProviderService {
             SecurityPolicyService securityPolicyService,
             ModelMetadataService modelMetadataService,
             DashboardProfileContext profileContext) {
+        this(
+                appConfig,
+                gatewayRuntimeRefreshService,
+                llmProviderService,
+                securityPolicyService,
+                modelMetadataService,
+                profileContext,
+                null);
+    }
+
+    /**
+     * 创建支持在线价格目录的 Provider 管理服务。
+     *
+     * @param appConfig 当前 JVM 配置。
+     * @param gatewayRuntimeRefreshService 当前 JVM 网关刷新服务。
+     * @param llmProviderService 当前 JVM Provider 服务。
+     * @param securityPolicyService URL 安全策略服务。
+     * @param modelMetadataService 模型元数据服务。
+     * @param profileContext Dashboard Profile 请求上下文。
+     * @param priceCatalog 运行时统一价格目录。
+     */
+    public DashboardProviderService(
+            AppConfig appConfig,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            LlmProviderService llmProviderService,
+            SecurityPolicyService securityPolicyService,
+            ModelMetadataService modelMetadataService,
+            DashboardProfileContext profileContext,
+            PriceCatalog priceCatalog) {
         this.appConfig = appConfig;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
         this.llmProviderService = llmProviderService;
@@ -168,7 +201,9 @@ public class DashboardProviderService {
                 modelMetadataService != null
                         ? modelMetadataService
                         : new ModelMetadataService(appConfig);
-        this.providerProfileService = new ProviderProfileService(appConfig, llmProviderService);
+        this.priceCatalog = priceCatalog == null ? PriceCatalog.forConfig(appConfig) : priceCatalog;
+        this.providerProfileService =
+                new ProviderProfileService(appConfig, llmProviderService, this.priceCatalog);
         this.securityPolicyService =
                 securityPolicyService == null
                         ? new SecurityPolicyService(appConfig)
@@ -214,7 +249,7 @@ public class DashboardProviderService {
         List<Map<String, Object>> models = new ArrayList<Map<String, Object>>();
         List<ProviderDisplayGrouping.Item> groupItems =
                 new ArrayList<ProviderDisplayGrouping.Item>();
-        PriceCatalog priceCatalog = PriceCatalog.forConfig(appConfig);
+        PriceCatalog currentPriceCatalog = priceCatalog.configuredFor(appConfig);
         for (Map.Entry<String, AppConfig.ProviderConfig> entry :
                 appConfig.getProviders().entrySet()) {
             AppConfig.ProviderConfig provider = entry.getValue();
@@ -239,7 +274,7 @@ public class DashboardProviderService {
             model.put("max_output", metadata.getMaxOutput());
             model.put("reasoning_effort", appConfig.getLlm().getReasoningEffort());
             appendPricingMetadata(
-                    model, priceCatalog.find(entry.getKey(), provider.getDefaultModel()));
+                    model, currentPriceCatalog.find(entry.getKey(), provider.getDefaultModel()));
             appendProviderDisplay(model, display);
             models.add(model);
             groupItems.add(

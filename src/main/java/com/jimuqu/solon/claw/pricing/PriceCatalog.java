@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.pricing;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
+import com.jimuqu.solon.claw.support.ModelContextCatalogService;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,16 +18,30 @@ public class PriceCatalog {
     /** 保存prices映射，便于按键快速查询。 */
     private final Map<String, ModelPrice> prices;
 
+    /** 在线模型目录；为空时仅使用内置和配置价格。 */
+    private final ModelContextCatalogService onlineCatalog;
+
     /**
      * 创建价格Catalog实例，并注入运行所需依赖。
      *
      * @param prices prices 参数。
      */
     public PriceCatalog(Map<String, ModelPrice> prices) {
+        this(prices, null);
+    }
+
+    /**
+     * 创建支持在线价格回退的价格目录。
+     *
+     * @param prices 本地价格映射。
+     * @param onlineCatalog 在线模型目录。
+     */
+    public PriceCatalog(Map<String, ModelPrice> prices, ModelContextCatalogService onlineCatalog) {
         this.prices =
                 prices == null
                         ? Collections.<String, ModelPrice>emptyMap()
                         : new LinkedHashMap<String, ModelPrice>(prices);
+        this.onlineCatalog = onlineCatalog;
     }
 
     /**
@@ -301,6 +316,29 @@ public class PriceCatalog {
     }
 
     /**
+     * 按应用配置创建价格目录，并在本地未命中时查询在线目录。
+     *
+     * @param appConfig 应用运行配置。
+     * @param onlineCatalog 在线模型目录。
+     * @return 支持在线回退的价格目录。
+     */
+    public static PriceCatalog forConfig(
+            AppConfig appConfig, ModelContextCatalogService onlineCatalog) {
+        PriceCatalog local = forConfig(appConfig);
+        return new PriceCatalog(local.prices, onlineCatalog);
+    }
+
+    /**
+     * 按最新应用配置重建本地价格，同时继续复用当前在线目录。
+     *
+     * @param appConfig 最新应用运行配置。
+     * @return 使用最新本地配置和当前在线目录的价格目录。
+     */
+    public PriceCatalog configuredFor(AppConfig appConfig) {
+        return forConfig(appConfig, onlineCatalog);
+    }
+
+    /**
      * 合并With Configured。
      *
      * @param defaultPrices 默认Prices参数。
@@ -567,7 +605,47 @@ public class PriceCatalog {
                 return price;
             }
         }
+        ModelPrice online =
+                onlineCatalog == null ? null : onlineCatalog.getPrice(provider, normalizedModel);
+        return online == null ? findFirstByModel(normalizedModel) : online;
+    }
+
+    /**
+     * 忽略 Provider，按目录顺序返回第一条模型名精确匹配的本地价格。
+     *
+     * @param model 已规范化模型名。
+     * @return 第一条命中价格或 null。
+     */
+    private ModelPrice findFirstByModel(String model) {
+        if (StrUtil.isBlank(model)) {
+            return null;
+        }
+        String requestedBare = bareModelName(model);
+        for (ModelPrice price : prices.values()) {
+            if (price == null || StrUtil.isBlank(price.getModel())) {
+                continue;
+            }
+            // 本地运行时免费只对原 Provider 生效，不能套用到同名远程模型。
+            if ("local_runtime".equals(ModelPrice.normalize(price.getSource()))) {
+                continue;
+            }
+            String candidate = ModelPrice.normalize(price.getModel());
+            String candidateBare = bareModelName(candidate);
+            if (model.equals(candidate)
+                    || requestedBare.equals(candidate)
+                    || model.equals(candidateBare)
+                    || requestedBare.equals(candidateBare)) {
+                return price;
+            }
+        }
         return null;
+    }
+
+    /** 去除模型名首段路由前缀，保留原始模型名精确匹配语义。 */
+    private static String bareModelName(String model) {
+        String value = ModelPrice.normalize(model);
+        int slash = value.indexOf('/');
+        return slash >= 0 && slash + 1 < value.length() ? value.substring(slash + 1) : value;
     }
 
     /**

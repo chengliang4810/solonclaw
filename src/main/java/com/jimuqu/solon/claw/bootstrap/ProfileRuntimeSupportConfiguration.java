@@ -18,10 +18,11 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
-import com.jimuqu.solon.claw.provider.WebSearchProvider;
+import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.profile.ProfileChildRuntimeMarker;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
+import com.jimuqu.solon.claw.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
@@ -43,7 +44,6 @@ import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import com.jimuqu.solon.claw.web.McpPackageSecurityService;
-import java.util.Collections;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Condition;
@@ -73,9 +73,16 @@ public class ProfileRuntimeSupportConfiguration {
             AppConfig appConfig,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             LlmProviderService llmProviderService,
-            SecurityPolicyService securityPolicyService) {
+            SecurityPolicyService securityPolicyService,
+            PriceCatalog priceCatalog) {
         return new DashboardProviderService(
-                appConfig, gatewayRuntimeRefreshService, llmProviderService, securityPolicyService);
+                appConfig,
+                gatewayRuntimeRefreshService,
+                llmProviderService,
+                securityPolicyService,
+                null,
+                null,
+                priceCatalog);
     }
 
     /** 创建当前 Profile 的 MCP 管理支撑，并复用子容器自己的 MCP 运行时。 */
@@ -163,12 +170,27 @@ public class ProfileRuntimeSupportConfiguration {
             List<WebSearchProvider> webSearchProviders) {
         return ToolConfiguration.applyCommonToolRegistrySettings(
                         DefaultToolRegistry.builder(),
-                        appConfig, preferenceStore, sessionRepository, agentProfileService,
-                        cronJobService, deliveryService, memoryService, sessionSearchService,
-                        localSkillService, skillHubService, checkpointService, delegationService,
-                        attachmentCacheService, runtimeSettingsService, gatewayRuntimeRefreshService,
-                        securityPolicyService, dangerousCommandApprovalService, processRegistry,
-                        mcpRuntimeService, dashboardMcpService, dashboardCuratorService)
+                        appConfig,
+                        preferenceStore,
+                        sessionRepository,
+                        agentProfileService,
+                        cronJobService,
+                        deliveryService,
+                        memoryService,
+                        sessionSearchService,
+                        localSkillService,
+                        skillHubService,
+                        checkpointService,
+                        delegationService,
+                        attachmentCacheService,
+                        runtimeSettingsService,
+                        gatewayRuntimeRefreshService,
+                        securityPolicyService,
+                        dangerousCommandApprovalService,
+                        processRegistry,
+                        mcpRuntimeService,
+                        dashboardMcpService,
+                        dashboardCuratorService)
                 .dashboardProviderService(dashboardProviderService)
                 .dashboardConfigService(dashboardConfigService)
                 .dashboardRuntimeConfigService(dashboardRuntimeConfigService)

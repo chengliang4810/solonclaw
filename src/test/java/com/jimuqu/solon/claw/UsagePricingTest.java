@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteUsageEventRepository;
+import com.jimuqu.solon.claw.support.ModelContextCatalogService;
 import com.jimuqu.solon.claw.usage.UsageBackfillService;
 import com.jimuqu.solon.claw.usage.UsageEventCostSupport;
 import com.jimuqu.solon.claw.usage.UsageEventRecord;
@@ -160,6 +161,38 @@ public class UsagePricingTest {
         assertThat(cost.isPricingAvailable()).isTrue();
         assertThat(cost.getTotalMicros()).isEqualTo(750000L);
         assertThat(cost.getPriceSource()).isEqualTo("official_docs_snapshot");
+    }
+
+    @Test
+    void arbitraryProviderFallsBackToOnlineThenLocalModelName() {
+        AppConfig config = new AppConfig();
+        ModelPrice onlinePrice = new ModelPrice();
+        onlinePrice.setProvider("stepfun");
+        onlinePrice.setModel("step-3.7-flash");
+        onlinePrice.setInputCostPerMillion("0.185");
+        onlinePrice.setOutputCostPerMillion("1.11");
+        onlinePrice.setSource("models.dev");
+        ModelContextCatalogService onlineCatalog =
+                new ModelContextCatalogService(config) {
+                    @Override
+                    public ModelPrice getPrice(String providerKey, String model) {
+                        return "step-3.7-flash".equals(model) ? onlinePrice : null;
+                    }
+                };
+
+        UsageCost online =
+                new UsageCostCalculator(PriceCatalog.forConfig(config, onlineCatalog))
+                        .calculate("any-name", "step-3.7-flash", 1000000, 1000000, 0, 0, 0);
+        assertThat(online.isPricingAvailable()).isTrue();
+        assertThat(online.getTotalMicros()).isEqualTo(1295000L);
+        assertThat(online.getPriceSource()).isEqualTo("models.dev");
+
+        PriceCatalog local =
+                PriceCatalog.fromJson(
+                        "{\"prices\":[{\"provider\":\"catalog-provider\",\"model\":\"model-only\",\"input_cost_per_million\":\"1\",\"output_cost_per_million\":\"2\"}]}");
+        assertThat(local.find("arbitrary-provider", "model-only")).isNotNull();
+        assertThat(local.find("arbitrary-provider", "route/model-only")).isNotNull();
+        assertThat(local.find("arbitrary-provider", "model")).isNull();
     }
 
     @Test
@@ -394,7 +427,7 @@ public class UsagePricingTest {
     }
 
     @Test
-    void costCalculatorMatchesDefaultProviderToOpenAiCatalogConservatively() {
+    void costCalculatorFallsBackToExactModelForArbitraryProvider() {
         PriceCatalog catalog =
                 PriceCatalog.fromJson(
                         "{"
@@ -422,7 +455,11 @@ public class UsagePricingTest {
         UsageCost unknownProvider =
                 new UsageCostCalculator(catalog)
                         .calculate("custom-provider", "gpt-5.4", 100, 20, 0, 0, 0);
-        assertThat(unknownProvider.isPricingAvailable()).isFalse();
+        assertThat(unknownProvider.isPricingAvailable()).isTrue();
+        assertThat(unknownProvider.getTotalMicros()).isEqualTo(600L);
+
+        PriceCatalog localModels = PriceCatalog.builtinDefaults();
+        assertThat(localModels.find("custom-provider", "qwen3")).isNull();
     }
 
     @Test

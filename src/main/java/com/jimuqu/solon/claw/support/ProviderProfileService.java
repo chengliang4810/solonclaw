@@ -30,6 +30,9 @@ public class ProviderProfileService {
     /** 模型元数据服务。 */
     private final ModelMetadataService modelMetadataService;
 
+    /** 运行时统一价格目录。 */
+    private final PriceCatalog priceCatalog;
+
     /**
      * 创建Provider画像服务实例。
      *
@@ -37,12 +40,26 @@ public class ProviderProfileService {
      * @param llmProviderService provider解析服务。
      */
     public ProviderProfileService(AppConfig appConfig, LlmProviderService llmProviderService) {
+        this(appConfig, llmProviderService, null);
+    }
+
+    /**
+     * 创建复用运行时价格目录的 Provider 画像服务。
+     *
+     * @param appConfig 应用运行配置。
+     * @param llmProviderService Provider 解析服务。
+     * @param priceCatalog 运行时统一价格目录。
+     */
+    public ProviderProfileService(
+            AppConfig appConfig, LlmProviderService llmProviderService, PriceCatalog priceCatalog) {
         this.appConfig = appConfig == null ? new AppConfig() : appConfig;
         this.llmProviderService =
                 llmProviderService == null
                         ? new LlmProviderService(this.appConfig)
                         : llmProviderService;
         this.modelMetadataService = new ModelMetadataService(this.appConfig);
+        this.priceCatalog =
+                priceCatalog == null ? PriceCatalog.forConfig(this.appConfig) : priceCatalog;
     }
 
     /**
@@ -70,11 +87,11 @@ public class ProviderProfileService {
         if (appConfig.getProviders() == null || appConfig.getProviders().isEmpty()) {
             return Collections.emptyList();
         }
-        PriceCatalog priceCatalog = PriceCatalog.forConfig(appConfig);
+        PriceCatalog currentPriceCatalog = priceCatalog.configuredFor(appConfig);
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (Map.Entry<String, AppConfig.ProviderConfig> entry :
                 appConfig.getProviders().entrySet()) {
-            result.add(profile(entry.getKey(), entry.getValue(), priceCatalog));
+            result.add(profile(entry.getKey(), entry.getValue(), currentPriceCatalog));
         }
         return result;
     }

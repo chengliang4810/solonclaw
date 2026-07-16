@@ -26,11 +26,16 @@ import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
+import com.jimuqu.solon.claw.pricing.PriceCatalog;
+import com.jimuqu.solon.claw.pricing.UsageCost;
+import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.usage.UsageEventRecord;
+import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import java.io.File;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
@@ -45,6 +50,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.slf4j.LoggerFactory;
@@ -100,6 +106,98 @@ public class AgentRunSupervisorEngineTest {
                         "run.success");
         assertThat(supervisor.hasRunningRuns()).isFalse();
         assertThat(supervisor.lastRunFinishedAt()).isGreaterThan(0L);
+    }
+
+    /** 用量成本计算即使阻塞，也不得延迟模型运行结果返回。 */
+    @Test
+    void shouldRecordUsageWithoutBlockingRunOutcome() throws Exception {
+        Fixture fixture = fixture();
+        CountDownLatch pricingStarted = new CountDownLatch(1);
+        CountDownLatch releasePricing = new CountDownLatch(1);
+        CountDownLatch usageInserted = new CountDownLatch(1);
+        AtomicReference<UsageEventRecord> inserted = new AtomicReference<UsageEventRecord>();
+        UsageCostCalculator calculator =
+                new UsageCostCalculator(PriceCatalog.empty()) {
+                    @Override
+                    public UsageCost calculate(
+                            String provider,
+                            String model,
+                            long inputTokens,
+                            long outputTokens,
+                            long cacheReadTokens,
+                            long cacheWriteTokens,
+                            long reasoningTokens,
+                            long requestCount) {
+                        pricingStarted.countDown();
+                        try {
+                            releasePricing.await();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                        return super.calculate(
+                                provider,
+                                model,
+                                inputTokens,
+                                outputTokens,
+                                cacheReadTokens,
+                                cacheWriteTokens,
+                                reasoningTokens,
+                                requestCount);
+                    }
+                };
+        UsageEventRepository usageRepository =
+                (UsageEventRepository)
+                        Proxy.newProxyInstance(
+                                UsageEventRepository.class.getClassLoader(),
+                                new Class<?>[] {UsageEventRepository.class},
+                                (proxy, method, args) -> {
+                                    if ("insertIfAbsent".equals(method.getName())) {
+                                        inserted.set((UsageEventRecord) args[0]);
+                                        usageInserted.countDown();
+                                        return Boolean.TRUE;
+                                    }
+                                    throw new UnsupportedOperationException(method.getName());
+                                });
+        AgentRunSupervisor supervisor =
+                new AgentRunSupervisor(
+                        fixture.config,
+                        fixture.sessionRepository,
+                        fixture.agentRunRepository,
+                        new NoopCompressionService(),
+                        noCompressionBudget(),
+                        new SuccessfulGateway("engine ok"),
+                        new LlmProviderService(fixture.config),
+                        usageRepository,
+                        calculator);
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:usage:user");
+        ExecutorService runExecutor = Executors.newSingleThreadExecutor();
+
+        try {
+            Future<AgentRunOutcome> running =
+                    runExecutor.submit(
+                            () ->
+                                    supervisor.run(
+                                            session,
+                                            "system",
+                                            "hello engine",
+                                            Collections.emptyList(),
+                                            ConversationFeedbackSink.noop(),
+                                            ConversationEventSink.noop(),
+                                            false,
+                                            null,
+                                            Collections.emptyList(),
+                                            null));
+
+            assertThat(pricingStarted.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(running.get(1, TimeUnit.SECONDS).getFinalReply()).isEqualTo("engine ok");
+            releasePricing.countDown();
+            assertThat(usageInserted.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(inserted.get().getTotalTokens()).isEqualTo(20L);
+        } finally {
+            releasePricing.countDown();
+            supervisor.shutdown();
+            runExecutor.shutdownNow();
+        }
     }
 
     /** 验证模型异常会标记 run failed，并保留失败事件方便 dashboard 诊断。 */
