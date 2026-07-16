@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Button, message } from 'antdv-next'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -15,26 +15,48 @@ const file = ref<PersonaFileData | null>(null)
 const editing = ref(false)
 const editContent = ref('')
 
+/** 标识最近一次文件加载请求，拒绝乱序响应。 */
+let loadRequestId = 0
+/** 标识最近一次文件保存请求，隔离切页后的迟到完成。 */
+let saveRequestId = 0
+/** 记录最近请求的文件，用于在切页时同步作废保存状态。 */
+let requestedFileKey = ''
+
 const fileKey = computed(() => String(route.params.key || 'agents'))
 const currentMeta = computed(() => personaMeta(fileKey.value))
 const isEmpty = computed(() => !file.value?.content?.trim())
 const isReadOnly = computed(() => fileKey.value === 'memory_today')
 
 async function loadFile() {
+  const targetKey = fileKey.value
+  const requestId = ++loadRequestId
+  if (targetKey !== requestedFileKey) {
+    requestedFileKey = targetKey
+    saveRequestId += 1
+    saving.value = false
+  }
   loading.value = true
   editing.value = false
+  file.value = null
+  editContent.value = ''
   try {
-    file.value = await fetchPersonaFile(fileKey.value)
-    editContent.value = file.value.content || ''
+    const result = await fetchPersonaFile(targetKey)
+    if (requestId !== loadRequestId || targetKey !== fileKey.value) return
+    file.value = result
+    editContent.value = result.content || ''
   } catch (err: any) {
-    message.error(err.message || t('personaFile.loadFailed'))
+    if (requestId === loadRequestId && targetKey === fileKey.value) {
+      message.error(err.message || t('personaFile.loadFailed'))
+    }
   } finally {
-    loading.value = false
+    if (requestId === loadRequestId && targetKey === fileKey.value) loading.value = false
   }
 }
 
 function startEdit() {
-  editContent.value = file.value?.content || ''
+  const currentFile = file.value
+  if (currentFile?.key !== fileKey.value) return
+  editContent.value = currentFile.content || ''
   editing.value = true
 }
 
@@ -44,20 +66,36 @@ function cancelEdit() {
 }
 
 async function handleSave() {
+  const targetKey = fileKey.value
+  const targetFile = file.value
+  if (!editing.value || targetFile?.key !== targetKey) return
+  const content = editContent.value
+  const requestId = ++saveRequestId
   saving.value = true
   try {
-    await savePersonaFile(fileKey.value, editContent.value)
+    await savePersonaFile(targetKey, content)
+    if (requestId !== saveRequestId || targetKey !== fileKey.value) return
     await loadFile()
+    if (requestId !== saveRequestId || targetKey !== fileKey.value) return
     editing.value = false
     message.success(t('common.saved'))
   } catch (err: any) {
-    message.error(err.message || t('common.saveFailed'))
+    if (requestId === saveRequestId && targetKey === fileKey.value) {
+      message.error(err.message || t('common.saveFailed'))
+    }
   } finally {
-    saving.value = false
+    if (requestId === saveRequestId && targetKey === fileKey.value) saving.value = false
   }
 }
 
+/** 组件卸载时作废所有仍在等待的异步结果。 */
+function invalidatePendingRequests(): void {
+  loadRequestId += 1
+  saveRequestId += 1
+}
+
 onMounted(loadFile)
+onUnmounted(invalidatePendingRequests)
 watch(fileKey, loadFile)
 </script>
 

@@ -14,6 +14,7 @@
     "test:chat-message-merge": "node --experimental-strip-types tests/chatMessageMerge.test.ts",
     "test:chat-cache-scope": "node --experimental-strip-types tests/chatCacheScope.test.ts && node --experimental-strip-types tests/sessionAuthClearInjectedToken.test.ts && node --experimental-strip-types tests/chatAuthContextStore.test.ts",
     "test:profile-context": "node --experimental-strip-types tests/profileContextStore.test.ts",
+    "test:persona-file-isolation": "node --experimental-strip-types tests/personaFileRequestIsolation.test.ts",
     "test:chat-api-model-catalog": "node --experimental-strip-types tests/chatApiModelCatalogStatic.test.ts",
     "test:chat-prestream-error-persistence": "node --experimental-strip-types tests/chatPreStreamErrorPersistenceStatic.test.ts",
     "test:session-selection": "node --experimental-strip-types tests/sessionSelection.test.ts",
