@@ -15,7 +15,7 @@ assert.ok(router.includes("path: '/profiles/new'"), 'router should expose the de
 assert.ok(router.includes("name: 'solonclaw.profiles.new'"), 'Profile builder should have a stable named route')
 assert.ok(sidebar.includes('<ProfileSwitcher />'), 'sidebar should render the machine-level Profile switcher')
 assert.ok(
-  app.includes(':key="profilesStore.managementProfile || \'__current_profile__\'"'),
+  app.includes(':key="profilesStore.managedProfileName"'),
   'switching the managed Profile should remount the routed page tree and clear stale local state',
 )
 assert.ok(switcher.includes("query.profile"), 'Profile selection should remain deep-linkable through ?profile=')
@@ -32,8 +32,6 @@ for (const action of [
   'fetchProfileSoul',
   'updateProfileSoul',
   'updateProfileModel',
-  'fetchProfileSetupCommand',
-  'openProfileTerminal',
   'createProfileAlias',
   'removeProfileAlias',
   'installProfileDistribution',
@@ -68,8 +66,6 @@ for (const action of [
   "openEditor(profile, 'description')",
   "openEditor(profile, 'soul')",
   "openEditor(profile, 'alias')",
-  'copySetupCommand(profile)',
-  'openTerminal(profile)',
   'openUpdateDistribution(profile)',
   "requestGateway(profile, 'start')",
   "requestGateway(profile, 'stop')",
