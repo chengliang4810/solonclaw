@@ -38,9 +38,11 @@ class PersonaWorkspaceServiceTest {
         assertThat(service.read(ContextFileConstants.KEY_SOUL)).isEmpty();
         assertThat(service.read(ContextFileConstants.KEY_IDENTITY))
                 .contains("# IDENTITY.md - 我是谁？");
-        assertThat(service.read(ContextFileConstants.KEY_USER)).contains("## 关于用户");
-        assertThat(service.read(ContextFileConstants.KEY_TOOLS)).contains("# TOOLS.md - 工具配置与说明");
-        assertThat(service.read(ContextFileConstants.KEY_HEARTBEAT)).contains("# 心跳任务清单");
+        assertThat(service.read(ContextFileConstants.KEY_USER))
+                .contains("# USER.md - 用户档案", "Agent 自身信息写入 `IDENTITY.md`");
+        assertThat(service.read(ContextFileConstants.KEY_TOOLS)).contains("# TOOLS.md - 本地环境笔记");
+        assertThat(service.read(ContextFileConstants.KEY_HEARTBEAT))
+                .contains("# HEARTBEAT.md - 持续关注清单");
         assertThat(service.read(ContextFileConstants.KEY_MEMORY)).isEmpty();
         assertThat(service.read(ContextFileConstants.KEY_BOOTSTRAP)).contains("## 第一次对话");
         assertThat(service.read(ContextFileConstants.KEY_PROACTIVE)).contains("# 主动消息");
@@ -95,7 +97,8 @@ class PersonaWorkspaceServiceTest {
 
         service.restoreTemplate(ContextFileConstants.KEY_USER);
 
-        assertThat(service.read(ContextFileConstants.KEY_USER)).contains("## 关于用户");
+        assertThat(service.read(ContextFileConstants.KEY_USER))
+                .contains("# USER.md - 用户档案", "Agent 自身信息写入 `IDENTITY.md`");
         assertThat(service.read(ContextFileConstants.KEY_USER)).doesNotContain("custom user");
     }
 

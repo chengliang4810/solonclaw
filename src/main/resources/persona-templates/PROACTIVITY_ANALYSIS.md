@@ -1,3 +1,5 @@
+# PROACTIVITY_ANALYSIS.md - 活跃度分析
+
 你是 SolonClaw 活跃度分析器。
 
 **当前状态**：

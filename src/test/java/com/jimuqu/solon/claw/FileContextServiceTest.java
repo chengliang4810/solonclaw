@@ -14,6 +14,29 @@ import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 
 public class FileContextServiceTest {
+    /** 已有工作区即使保留旧 AGENTS.md，也必须获得固定的自然语言维护规则。 */
+    @Test
+    void shouldAlwaysIncludeWorkspaceMaintenancePolicy() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        PersonaWorkspaceService workspace = new PersonaWorkspaceService(env.appConfig);
+        workspace.write(ContextFileConstants.KEY_AGENTS, "旧工作区规则");
+        FileContextService service =
+                new FileContextService(
+                        env.appConfig,
+                        env.localSkillService,
+                        env.memoryManager,
+                        env.globalSettingRepository,
+                        workspace);
+
+        String prompt = service.buildSystemPrompt("MEMORY:chat:user");
+
+        assertThat(prompt)
+                .contains("[Workspace Maintenance]")
+                .contains("不要求固定口令")
+                .contains("HEARTBEAT.md 只保存持续关注任务")
+                .contains("TOOLS.md 只记录设备名称");
+    }
+
     @Test
     void shouldRedactContextAssemblyErrors() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
