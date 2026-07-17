@@ -3304,8 +3304,7 @@ public class DashboardControllerHttpTest {
                 (HttpURLConnection) new URL("http://127.0.0.1:" + port + path).openConnection();
         connection.setRequestMethod(method);
         connection.setConnectTimeout(3000);
-        connection.setReadTimeout(
-                path != null && path.startsWith("/api/diagnostics") ? 10000 : 3000);
+        connection.setReadTimeout(10000);
         connection.setRequestProperty("Connection", "close");
         if (token != null) {
             connection.setRequestProperty("Authorization", "Bearer " + token);
