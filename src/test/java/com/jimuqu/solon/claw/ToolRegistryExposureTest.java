@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.AgentManageTools;
 import com.jimuqu.solon.claw.tool.runtime.ApprovalQueueManageTools;
 import com.jimuqu.solon.claw.tool.runtime.ConfigManageTools;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -129,7 +130,7 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("SafeNodejsSkill");
         assertThat(joined).contains("SystemClockTalent");
         assertThat(joined).contains("TodoTools");
-        assertThat(joined).doesNotContain("AgentTools");
+        assertThat(joined).contains("AgentManageTools");
         assertThat(joined).contains("SkillsListTool");
         assertThat(joined).contains("SkillFilesTool");
         assertThat(joined).contains("ConfigRefreshTool");
@@ -429,6 +430,37 @@ public class ToolRegistryExposureTest {
 
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("run_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString()).contains("RunTools");
+    }
+
+    /** 验证 Agent 管理选择器提供独立的真实工具，并且不依赖运行管理选择器。 */
+    @Test
+    void shouldExposeAndOperateAgentManagementTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:agent-tool-room:agent-tool-user";
+        env.toolRegistry.disableTools(sourceKey, java.util.Collections.singletonList("run_manage"));
+        Object tool =
+                env.toolRegistry.resolveEnabledTools(sourceKey).stream()
+                        .filter(candidate -> candidate instanceof AgentManageTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("agent manage tool missing"));
+
+        ONode status = ONode.ofJson(((AgentManageTools) tool).agentManage("status", null));
+        ONode missingId = ONode.ofJson(((AgentManageTools) tool).agentManage("interrupt", null));
+        ONode globalPause =
+                ONode.ofJson(((AgentManageTools) tool).agentManage("pause_spawn", null));
+        ONode unknown = ONode.ofJson(((AgentManageTools) tool).agentManage("unknown", null));
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey))
+                .contains("agent_manage")
+                .doesNotContain("run_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("AgentManageTools")
+                .doesNotContain("RunTools");
+        assertToolSuccess(status);
+        assertThat(status.get("result").get("active_subagents").isArray()).isTrue();
+        assertToolError(missingId);
+        assertToolError(globalPause);
+        assertToolError(unknown);
     }
 
     @Test

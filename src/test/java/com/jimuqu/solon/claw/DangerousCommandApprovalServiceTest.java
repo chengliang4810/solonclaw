@@ -17,12 +17,97 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.agent.react.intercept.HITL;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 
 public class DangerousCommandApprovalServiceTest {
     @AfterEach
     void clearThreadPolicyApprovals() {
         DangerousCommandApprovalTestSupport.clearThreadPolicyApprovals();
+    }
+
+    /** Agent 状态查询必须直通，中断必须进入绑定完整参数的逐次审批。 */
+    @Test
+    void shouldRequireOnceApprovalForAgentInterruptOnly() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DangerousCommandApprovalTestSupport.TestTrace status =
+                new DangerousCommandApprovalTestSupport.TestTrace();
+        Map<String, Object> statusArgs = new LinkedHashMap<String, Object>();
+        statusArgs.put("action", "status");
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(status, exchange("agent_manage", statusArgs));
+
+        DangerousCommandApprovalTestSupport.TestTrace interrupt =
+                new DangerousCommandApprovalTestSupport.TestTrace();
+        Map<String, Object> interruptArgs = new LinkedHashMap<String, Object>();
+        interruptArgs.put("action", "interrupt");
+        interruptArgs.put("subagent_id", "sa-current-source");
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(interrupt, exchange("agent_manage", interruptArgs));
+        DangerousCommandApprovalService.PendingApproval pending =
+                env.dangerousCommandApprovalService.getPendingApproval(interrupt.session);
+
+        assertThat(status.session.isPending()).isFalse();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(status.session)).isNull();
+        assertThat(interrupt.session.isPending()).isTrue();
+        assertThat(pending).isNotNull();
+        assertThat(pending.getToolName()).isEqualTo("agent_manage");
+        assertThat(pending.getPatternKeys()).containsExactly("agent_mutation:interrupt");
+        assertThat(pending.getCommand())
+                .contains("\"action\":\"interrupt\"")
+                .contains("\"subagent_id\":\"sa-current-source\"");
+        assertThat(pending.isOnceOnlyApproval()).isTrue();
+    }
+
+    /** 工具网关嵌套调用必须复用 Agent 中断审批，批准恢复后清理内部决策。 */
+    @Test
+    void shouldRequireAgentInterruptApprovalThroughToolGateway() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Map<String, Object> statusArgs = new LinkedHashMap<String, Object>();
+        statusArgs.put("action", "status");
+        Map<String, Object> gatewayStatus = gatewayToolCall("agent_manage", statusArgs);
+        DangerousCommandApprovalTestSupport.TestTrace status =
+                new DangerousCommandApprovalTestSupport.TestTrace();
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(status, exchange("call_tool", gatewayStatus));
+
+        Map<String, Object> interruptArgs = new LinkedHashMap<String, Object>();
+        interruptArgs.put("action", "interrupt");
+        interruptArgs.put("subagent_id", "sa-gateway-source");
+        Map<String, Object> gatewayInterrupt = gatewayToolCall("agent_manage", interruptArgs);
+        DangerousCommandApprovalTestSupport.TestTrace interrupt =
+                new DangerousCommandApprovalTestSupport.TestTrace();
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(interrupt, exchange("call_tool", gatewayInterrupt));
+        DangerousCommandApprovalService.PendingApproval pending =
+                env.dangerousCommandApprovalService.getPendingApproval(interrupt.session);
+
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(status.session)).isNull();
+        assertThat(pending).isNotNull();
+        assertThat(pending.getToolName()).isEqualTo("agent_manage");
+        assertThat(pending.isOnceOnlyApproval()).isTrue();
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                interrupt.session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "tester"))
+                .isTrue();
+
+        DangerousCommandApprovalTestSupport.TestTrace resumed =
+                new DangerousCommandApprovalTestSupport.TestTrace(interrupt.session);
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(resumed, exchange("call_tool", gatewayInterrupt));
+
+        assertThat(resumed.getFinalAnswer()).isNull();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(resumed.session))
+                .isNull();
+        assertThat((Object) resumed.getContext().getAs(HITL.DECISION_PREFIX + "agent_manage"))
+                .isNull();
     }
 
     @Test

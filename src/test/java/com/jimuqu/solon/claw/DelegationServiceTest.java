@@ -497,8 +497,11 @@ public class DelegationServiceTest {
                             });
             assertThat(orchestratorEntered.await(5L, TimeUnit.SECONDS)).isTrue();
             String subagentId = String.valueOf(service.activeSubagents().get(0).get("subagent_id"));
+            assertThat(service.activeSubagents("MEMORY:room-b:user-b")).isEmpty();
+            assertThat(service.activeSubagents(sourceKey)).hasSize(1);
+            assertThat(service.interruptSubagent("MEMORY:room-b:user-b", subagentId)).isFalse();
             Future<Boolean> interrupt =
-                    executor.submit(() -> service.interruptSubagent(subagentId));
+                    executor.submit(() -> service.interruptSubagent(sourceKey, subagentId));
             assertThat(stopAttempted.await(5L, TimeUnit.SECONDS)).isTrue();
             allowRegistration.countDown();
 

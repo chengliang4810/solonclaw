@@ -365,8 +365,32 @@ public class DangerousCommandApprovalService {
                                 ToolNameConstants.PROFILE_DELETE,
                                 (trace, args) ->
                                         evaluateProfileMutation(
-                                                trace, ToolNameConstants.PROFILE_DELETE, args));
+                                                trace, ToolNameConstants.PROFILE_DELETE, args))
+                        .onTool(
+                                ToolNameConstants.AGENT_MANAGE,
+                                (trace, args) -> evaluateAgentMutation(trace, args));
         return interceptor;
+    }
+
+    /** 仅对 Agent 中断动作强制逐次审批，状态查询不进入审批流程。 */
+    private String evaluateAgentMutation(ReActTrace trace, Map<String, Object> args) {
+        String action =
+                stringValue(args == null ? null : args.get("action"))
+                        .trim()
+                        .toLowerCase(Locale.ROOT);
+        if (!"interrupt".equals(action)) {
+            return null;
+        }
+        String subagentId = stringValue(args == null ? null : args.get("subagent_id")).trim();
+        if (StrUtil.isBlank(subagentId)) {
+            return null;
+        }
+        DetectionResult detection = new DetectionResult();
+        detection.setPatternKey("agent_mutation:interrupt");
+        detection.setDescription("中断当前会话子 Agent：" + SecretRedactor.redact(subagentId, 200));
+        detection.setNormalizedCode(SecretRedactor.redact(ONode.serialize(args), 2000));
+        detection.setOnceOnly(true);
+        return evaluatePolicyApproval(trace, ToolNameConstants.AGENT_MANAGE, detection);
     }
 
     /** 强制 Profile 变更逐次审批，并把审批绑定到完整参数和目标当前版本。 */
@@ -1524,6 +1548,8 @@ public class DangerousCommandApprovalService {
             result = evaluateTerminalTool(trace, toolArgs);
         } else if (ToolNameConstants.PROCESS.equals(normalized)) {
             result = evaluateProcessTool(trace, toolArgs);
+        } else if (ToolNameConstants.AGENT_MANAGE.equals(normalized)) {
+            result = evaluateAgentMutation(trace, toolArgs);
         } else if (ToolNameConstants.isFileSecurityTool(normalized)) {
             result = evaluateFileTool(trace, normalized, toolArgs, workspaceDir);
         } else if (isUrlSecurityTool(normalized)) {
@@ -1595,6 +1621,7 @@ public class DangerousCommandApprovalService {
                 || ToolNameConstants.WEBFETCH.equals(toolName)
                 || ToolNameConstants.WEBSEARCH.equals(toolName)
                 || ToolNameConstants.CODESEARCH.equals(toolName)
+                || ToolNameConstants.AGENT_MANAGE.equals(toolName)
                 || ToolNameConstants.CONFIG_GET.equals(toolName)
                 || ToolNameConstants.CONFIG_SET.equals(toolName)
                 || ToolNameConstants.CONFIG_SET_SECRET.equals(toolName);

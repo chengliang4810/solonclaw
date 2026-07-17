@@ -86,11 +86,32 @@ public interface DelegationService {
     }
 
     /**
+     * 中断指定父来源创建的子 Agent，拒绝跨来源操作。
+     *
+     * @param parentSourceKey 父会话来源键。
+     * @param subagentId 子 Agent 标识。
+     * @return 当前来源拥有且成功请求中断时返回 true。
+     */
+    default boolean interruptSubagent(String parentSourceKey, String subagentId) {
+        return false;
+    }
+
+    /**
      * 执行activeSubagents相关逻辑。
      *
      * @return 返回active Subagents结果。
      */
     default List<Map<String, Object>> activeSubagents() {
+        return java.util.Collections.emptyList();
+    }
+
+    /**
+     * 查询指定父来源创建的活跃子 Agent，拒绝跨来源读取。
+     *
+     * @param parentSourceKey 父会话来源键。
+     * @return 返回当前来源的活跃子 Agent。
+     */
+    default List<Map<String, Object>> activeSubagents(String parentSourceKey) {
         return java.util.Collections.emptyList();
     }
 }

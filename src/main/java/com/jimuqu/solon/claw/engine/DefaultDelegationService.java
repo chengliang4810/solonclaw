@@ -610,8 +610,36 @@ public class DefaultDelegationService implements DelegationService {
      */
     @Override
     public boolean interruptSubagent(String subagentId) {
+        return interruptSubagentForParent(null, subagentId);
+    }
+
+    /**
+     * 中断指定父来源创建的子 Agent。
+     *
+     * @param parentSourceKey 父会话来源键。
+     * @param subagentId 子 Agent 标识。
+     * @return 当前来源拥有且成功请求中断时返回 true。
+     */
+    @Override
+    public boolean interruptSubagent(String parentSourceKey, String subagentId) {
+        if (StrUtil.isBlank(parentSourceKey)) {
+            return false;
+        }
+        return interruptSubagentForParent(parentSourceKey, subagentId);
+    }
+
+    /**
+     * 按可选父来源约束执行子 Agent 中断。
+     *
+     * @param parentSourceKey 父会话来源键；为空时保留管理员全局操作语义。
+     * @param subagentId 子 Agent 标识。
+     * @return 成功请求中断时返回 true。
+     */
+    private boolean interruptSubagentForParent(String parentSourceKey, String subagentId) {
         SubagentRunRecord record = activeRegistry.get(subagentId);
-        if (record == null) {
+        if (record == null
+                || (parentSourceKey != null
+                        && !parentSourceKey.equals(record.getParentSourceKey()))) {
             return false;
         }
         synchronized (record) {
@@ -664,20 +692,56 @@ public class DefaultDelegationService implements DelegationService {
      */
     @Override
     public List<Map<String, Object>> activeSubagents() {
+        return activeSubagentsForParent(null);
+    }
+
+    /**
+     * 查询指定父来源创建的活跃子 Agent。
+     *
+     * @param parentSourceKey 父会话来源键。
+     * @return 返回当前来源的活跃子 Agent。
+     */
+    @Override
+    public List<Map<String, Object>> activeSubagents(String parentSourceKey) {
+        if (StrUtil.isBlank(parentSourceKey)) {
+            return java.util.Collections.emptyList();
+        }
+        return activeSubagentsForParent(parentSourceKey);
+    }
+
+    /**
+     * 按可选父来源约束构建活跃子 Agent 列表。
+     *
+     * @param parentSourceKey 父会话来源键；为空时保留管理员全局查询语义。
+     * @return 返回匹配的活跃子 Agent。
+     */
+    private List<Map<String, Object>> activeSubagentsForParent(String parentSourceKey) {
         List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
         for (SubagentRunRecord record : activeRegistry.values()) {
-            Map<String, Object> map = new LinkedHashMap<String, Object>();
-            map.put("subagent_id", record.getSubagentId());
-            map.put("parent_run_id", record.getParentRunId());
-            map.put("child_run_id", record.getChildRunId());
-            map.put("source_key", record.getChildSourceKey());
-            map.put("status", record.getStatus());
-            map.put("depth", record.getDepth());
-            map.put("heartbeat_at", record.getHeartbeatAt());
-            map.put("output_tail", record.getOutputTailJson());
-            list.add(map);
+            if (parentSourceKey == null || parentSourceKey.equals(record.getParentSourceKey())) {
+                list.add(activeSubagentMap(record));
+            }
         }
         return list;
+    }
+
+    /**
+     * 将活跃子 Agent 记录转换为现有管理接口返回结构。
+     *
+     * @param record 子 Agent 运行记录。
+     * @return 返回管理接口状态映射。
+     */
+    private Map<String, Object> activeSubagentMap(SubagentRunRecord record) {
+        Map<String, Object> map = new LinkedHashMap<String, Object>();
+        map.put("subagent_id", record.getSubagentId());
+        map.put("parent_run_id", record.getParentRunId());
+        map.put("child_run_id", record.getChildRunId());
+        map.put("source_key", record.getChildSourceKey());
+        map.put("status", record.getStatus());
+        map.put("depth", record.getDepth());
+        map.put("heartbeat_at", record.getHeartbeatAt());
+        map.put("output_tail", record.getOutputTailJson());
+        return map;
     }
 
     /**

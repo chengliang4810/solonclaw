@@ -437,6 +437,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new MessagingTools(deliveryService, sourceKey, attachmentCacheService, appConfig);
         CronjobTools cronjobTools = new CronjobTools(cronJobService, sourceKey);
         TodoTools todoTools = new TodoTools(appConfig, sourceKey);
+        AgentManageTools agentManageTools = new AgentManageTools(delegationService, sourceKey);
         RunTools runTools = new RunTools(dashboardRunService);
         McpManageTools mcpManageTools = new McpManageTools(dashboardMcpService);
         CuratorManageTools curatorManageTools = new CuratorManageTools(dashboardCuratorService);
@@ -708,6 +709,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             } else if (ToolNameConstants.TODO.equals(toolName)) {
                 tools.add(todoTools);
             } else if (ToolNameConstants.AGENT_MANAGE.equals(toolName)) {
+                tools.add(agentManageTools);
             } else if (ToolNameConstants.RUN_MANAGE.equals(toolName)) {
                 tools.add(runTools);
             } else if (ToolNameConstants.DELEGATE_TASK.equals(toolName)) {
