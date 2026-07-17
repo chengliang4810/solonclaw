@@ -134,13 +134,19 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
     setStage('qr')
     startChannelQr(gw, channel.key, sessionId)
       .then(r => {
-        if (qrGeneration.current !== generation) return
+        if (qrGeneration.current !== generation) {
+          return
+        }
+
         setQr(r)
         setErr(r.ok === false ? channelQrMessage(r) || 'failed to start QR setup' : '')
         setQrLoading(false)
       })
       .catch((e: unknown) => {
-        if (qrGeneration.current !== generation) return
+        if (qrGeneration.current !== generation) {
+          return
+        }
+
         setErr(rpcErrorMessage(e))
         setQrLoading(false)
       })
@@ -157,12 +163,18 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
     const timer = setTimeout(() => {
       refreshChannelQr(gw, channel.key, ticket, sessionId)
         .then(r => {
-          if (qrGeneration.current !== generation) return
+          if (qrGeneration.current !== generation) {
+            return
+          }
+
           setQr(r)
           setErr(r.ok === false ? channelQrMessage(r) || 'failed to refresh QR setup' : '')
         })
         .catch((e: unknown) => {
-          if (qrGeneration.current !== generation) return
+          if (qrGeneration.current !== generation) {
+            return
+          }
+
           setErr(rpcErrorMessage(e))
         })
     }, 1500)
