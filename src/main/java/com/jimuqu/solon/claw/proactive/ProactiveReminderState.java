@@ -51,6 +51,15 @@ public class ProactiveReminderState {
     /** 连续未回应次数。 */
     private int unansweredCount;
 
+    /** 最近一次检查时会话中已经存在的用户消息数量。 */
+    private int observedUserMessageCount;
+
+    /** 最近一次发送主动提醒的日期键，格式为 yyyy-MM-dd。 */
+    private String lastContactDate;
+
+    /** 当天已经发送主动提醒的次数。 */
+    private int dailyContactCount;
+
     /** 最近一次调度检查时间。 */
     private long lastTickAt;
 

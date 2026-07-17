@@ -792,6 +792,7 @@ public class CommandEnhancementTest {
     @Test
     void shouldSupportJimuquCronFlagSyntaxAndSkillEditing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        createCronScript(env, "collect.py");
         bootstrapAdmin(env);
 
         GatewayReply created =
@@ -1360,6 +1361,7 @@ public class CommandEnhancementTest {
     @Test
     void shouldShowJimuquCronListRuntimeDetails() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        createCronScript(env, "collect.py");
         bootstrapAdmin(env);
 
         String workspaceHome = env.appConfig.getRuntime().getHome().replace('\\', '/');
@@ -1904,6 +1906,13 @@ public class CommandEnhancementTest {
     private void bootstrapAdmin(TestEnvironment env) throws Exception {
         env.send("admin-chat", "admin-user", "hello");
         env.send("admin-chat", "admin-user", "/pairing claim-admin");
+    }
+
+    /** 在受允许的工作区脚本目录创建测试脚本。 */
+    private void createCronScript(TestEnvironment env, String fileName) {
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        FileUtil.writeUtf8String("print('ok')\n", FileUtil.file(scriptsDir, fileName));
     }
 
     private String extractSlashConfirmId(GatewayReply reply) {

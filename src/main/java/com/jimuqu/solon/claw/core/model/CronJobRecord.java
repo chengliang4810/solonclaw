@@ -48,6 +48,9 @@ public class CronJobRecord {
     /** 任务脚本，相对 workspace/scripts。 */
     private String script;
 
+    /** 已批准脚本指纹，用于判断同一版本是否需要重复审批。 */
+    private String approvedScriptFingerprint;
+
     /** 脚本工作目录。 */
     private String workdir;
 

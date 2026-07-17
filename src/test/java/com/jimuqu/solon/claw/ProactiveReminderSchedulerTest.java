@@ -18,8 +18,10 @@ import com.jimuqu.solon.claw.proactive.ProactiveReminderScheduler;
 import com.jimuqu.solon.claw.proactive.ProactiveReminderState;
 import com.jimuqu.solon.claw.proactive.ProactiveReminderStateStore;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.lang.reflect.Method;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -205,6 +207,97 @@ class ProactiveReminderSchedulerTest {
         assertThat(deliveryService.calls).isZero();
     }
 
+    /** 后台 Assistant 消息更新会话时不得伪装成用户回应。 */
+    @Test
+    void shouldNotResetUnansweredCountForAssistantOnlyUpdate() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bindHome(env);
+        SessionRecord session = env.sessionRepository.listRecent(1).get(0);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Collections.singletonList(ChatMessage.ofAssistant("后台通知"))));
+        env.sessionRepository.save(session);
+        ProactiveReminderState previous = new ProactiveReminderState();
+        previous.setUnansweredCount(2);
+        new ProactiveReminderStateStore(env.globalSettingRepository).save(previous);
+
+        scheduler(
+                        env,
+                        new ScenarioLlmGateway("{\"new_level\":0,\"reason\":\"保持安静\"}"),
+                        new CountingDeliveryService())
+                .tick();
+
+        ProactiveReminderState state =
+                new ProactiveReminderStateStore(env.globalSettingRepository).load();
+        assertThat(state.getUnansweredCount()).isEqualTo(2);
+        assertThat(state.getObservedUserMessageCount()).isZero();
+    }
+
+    /** 只有新增的真实用户消息才能清零连续未回应次数。 */
+    @Test
+    void shouldResetUnansweredCountForNewUserMessage() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bindHome(env);
+        SessionRecord session = env.sessionRepository.listRecent(1).get(0);
+        session.setNdjson(
+                MessageSupport.toNdjson(Collections.singletonList(ChatMessage.ofUser("收到"))));
+        env.sessionRepository.save(session);
+        ProactiveReminderState previous = new ProactiveReminderState();
+        previous.setUnansweredCount(2);
+        new ProactiveReminderStateStore(env.globalSettingRepository).save(previous);
+
+        scheduler(
+                        env,
+                        new ScenarioLlmGateway("{\"new_level\":0,\"reason\":\"保持安静\"}"),
+                        new CountingDeliveryService())
+                .tick();
+
+        ProactiveReminderState state =
+                new ProactiveReminderStateStore(env.globalSettingRepository).load();
+        assertThat(state.getUnansweredCount()).isZero();
+        assertThat(state.getObservedUserMessageCount()).isEqualTo(1);
+    }
+
+    /** 会话压缩导致用户消息数下降后，下一条用户消息仍必须被识别。 */
+    @Test
+    void shouldRebaseObservedUserCountAfterConversationCompression() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bindHome(env);
+        SessionRecord session = env.sessionRepository.listRecent(1).get(0);
+        session.setNdjson(
+                MessageSupport.toNdjson(Collections.singletonList(ChatMessage.ofUser("压缩后保留"))));
+        env.sessionRepository.save(session);
+        ProactiveReminderState previous = new ProactiveReminderState();
+        previous.setUnansweredCount(2);
+        previous.setObservedUserMessageCount(3);
+        new ProactiveReminderStateStore(env.globalSettingRepository).save(previous);
+        ProactiveReminderScheduler scheduler =
+                scheduler(
+                        env,
+                        new ScenarioLlmGateway(
+                                "{\"new_level\":0,\"reason\":\"保持安静\"}",
+                                "{\"new_level\":0,\"reason\":\"保持安静\"}"),
+                        new CountingDeliveryService());
+
+        scheduler.tick();
+        ProactiveReminderState rebased =
+                new ProactiveReminderStateStore(env.globalSettingRepository).load();
+        assertThat(rebased.getUnansweredCount()).isEqualTo(2);
+        assertThat(rebased.getObservedUserMessageCount()).isEqualTo(1);
+
+        session = env.sessionRepository.findById(session.getSessionId());
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("压缩后保留"), ChatMessage.ofUser("新的回复"))));
+        env.sessionRepository.save(session);
+        scheduler.tick();
+
+        ProactiveReminderState state =
+                new ProactiveReminderStateStore(env.globalSettingRepository).load();
+        assertThat(state.getUnansweredCount()).isZero();
+        assertThat(state.getObservedUserMessageCount()).isEqualTo(2);
+    }
+
     /** 活跃度 JSON 无效时保留旧等级，并把降级原因写入诊断。 */
     @Test
     void shouldPersistInvalidAnalysisFallbackReason() throws Exception {
@@ -226,6 +319,7 @@ class ProactiveReminderSchedulerTest {
     void shouldPersistDeliveryFailure() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bindHome(env);
+        env.appConfig.getProactive().setTopicCooldownHours(0);
         CountingDeliveryService deliveryService = new CountingDeliveryService();
         deliveryService.fail = true;
 
@@ -298,6 +392,38 @@ class ProactiveReminderSchedulerTest {
         assertThat(state.getLastReason()).contains("仅支持 main");
     }
 
+    /** 主动提醒每天最多联系三次。 */
+    @Test
+    void shouldRespectDailyContactLimit() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bindHome(env);
+        env.appConfig.getProactive().setTopicCooldownHours(0D);
+        CountingDeliveryService deliveryService = new CountingDeliveryService();
+        ProactiveReminderScheduler scheduler =
+                schedulerAtHour(
+                        env,
+                        new ScenarioLlmGateway(
+                                "{\"new_level\":1,\"reason\":\"可以联系\"}",
+                                "第一次主动联系",
+                                "{\"new_level\":1,\"reason\":\"可以联系\"}",
+                                "第二次主动联系",
+                                "{\"new_level\":1,\"reason\":\"可以联系\"}",
+                                "第三次主动联系"),
+                        deliveryService,
+                        9);
+
+        scheduler.tick();
+        scheduler.tick();
+        scheduler.tick();
+        scheduler.tick();
+
+        ProactiveReminderState state =
+                new ProactiveReminderStateStore(env.globalSettingRepository).load();
+        assertThat(deliveryService.calls).isEqualTo(3);
+        assertThat(state.getDailyContactCount()).isEqualTo(3);
+        assertThat(state.getLastOutcome()).isEqualTo(ProactiveReminderState.OUTCOME_MODEL_SILENT);
+    }
+
     /** 为测试绑定一个可投递的飞书主渠道和普通会话。 */
     private void bindHome(TestEnvironment env) throws Exception {
         env.appConfig.getProactive().setQuietHoursEnabled(false);
@@ -326,6 +452,25 @@ class ProactiveReminderSchedulerTest {
                 deliveryService,
                 new PersonaWorkspaceService(env.appConfig),
                 env.globalSettingRepository);
+    }
+
+    /** 按测试替身创建固定时刻的主动提醒调度器。 */
+    private ProactiveReminderScheduler schedulerAtHour(
+            TestEnvironment env, LlmGateway llmGateway, DeliveryService deliveryService, int hour) {
+        return new ProactiveReminderScheduler(
+                env.appConfig,
+                env.sessionRepository,
+                env.gatewayPolicyRepository,
+                env.memoryService,
+                llmGateway,
+                deliveryService,
+                new PersonaWorkspaceService(env.appConfig),
+                env.globalSettingRepository) {
+            @Override
+            protected LocalTime currentLocalTime() {
+                return LocalTime.of(hour, 0);
+            }
+        };
     }
 
     /** 依次返回活跃度 JSON 和以静默标记收尾的主动提醒。 */

@@ -51,6 +51,7 @@ import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
 import com.jimuqu.solon.claw.profile.ProfileView;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.scheduler.CronScriptApprovalService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
@@ -258,6 +259,9 @@ public class DefaultCommandService implements CommandService {
         this.localSkillService = localSkillService;
         this.cronJobRepository = cronJobRepository;
         this.cronJobService = new CronJobService(appConfig, cronJobRepository);
+        this.cronJobService.setCronScriptApprovalService(
+                new CronScriptApprovalService(
+                        appConfig, dangerousCommandApprovalService, sessionRepository));
         this.conversationOrchestrator = conversationOrchestrator;
         this.contextService = contextService;
         this.contextCompressionService = contextCompressionService;
@@ -2675,6 +2679,12 @@ public class DefaultCommandService implements CommandService {
                     "当前会话及该渠道来源的定时任务中都没有匹配的待审批命令。请使用审批提示中的确认编号，或前往 Dashboard 查看待审批项。");
         }
 
+        List<String> cronPatternKeys = new ArrayList<String>();
+        if (isCronApprovalSession(approvalSession)) {
+            cronPatternKeys.add(pending.getPatternKey());
+            cronPatternKeys.addAll(pending.effectivePatternKeys());
+        }
+
         if (!dangerousCommandApprovalService.approve(
                 approvalSession,
                 approvalArgs.getSelector(),
@@ -2683,6 +2693,10 @@ public class DefaultCommandService implements CommandService {
             return GatewayReply.error("危险命令审批状态已失效，请重试原始请求。");
         }
         if (isCronApprovalSession(approvalSession)) {
+            if (hasCronScriptVersionKey(cronPatternKeys)
+                    && !cronJobService.approveAndResumeScriptVersion(cronPatternKeys)) {
+                return GatewayReply.error("定时任务审批已记录，但任务版本关联失败，任务保持暂停。请刷新后重试。");
+            }
             GatewayReply reply = GatewayReply.ok("定时任务审批已通过，调度器将恢复任务。");
             reply.getRuntimeMetadata().put("cron_approval_processed", Boolean.TRUE);
             return reply;
@@ -2694,6 +2708,19 @@ public class DefaultCommandService implements CommandService {
                         eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
+    }
+
+    /** 判断审批记录是否包含新版 Cron 脚本版本关联键。 */
+    private boolean hasCronScriptVersionKey(List<String> patternKeys) {
+        if (patternKeys == null) {
+            return false;
+        }
+        for (String patternKey : patternKeys) {
+            if (StrUtil.startWith(StrUtil.nullToEmpty(patternKey).trim(), "cron-job:")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

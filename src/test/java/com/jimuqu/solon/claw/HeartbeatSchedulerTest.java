@@ -166,6 +166,7 @@ public class HeartbeatSchedulerTest {
         assertThat(orchestrator.calls).isEqualTo(1);
         assertThat(orchestrator.lastMessage).isNotNull();
         assertThat(orchestrator.lastMessage.isHeartbeat()).isTrue();
+        assertThat(orchestrator.lastMessage.getRunKind()).isEqualTo("heartbeat");
         assertThat(orchestrator.lastMessage.sourceKey()).isEqualTo("FEISHU:chat-1:__heartbeat__");
         assertThat(deliveryService.requests).hasSize(1);
         assertThat(deliveryService.requests.get(0).getPlatform()).isEqualTo(PlatformType.FEISHU);

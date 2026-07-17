@@ -20,6 +20,7 @@ import com.jimuqu.solon.claw.engine.PendingSessionRecoveryService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.proactive.ProactiveReminderScheduler;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.scheduler.CronScriptApprovalService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.HeartbeatScheduler;
 import com.jimuqu.solon.claw.scheduler.MemoryArchiveScheduler;
@@ -90,6 +91,9 @@ public class SchedulerConfiguration {
                         agentRunControlService,
                         mcpRuntimeService,
                         sessionRepository);
+        cronJobService.setCronScriptApprovalService(
+                new CronScriptApprovalService(
+                        appConfig, dangerousCommandApprovalService, sessionRepository));
         scheduler.start();
         return scheduler;
     }

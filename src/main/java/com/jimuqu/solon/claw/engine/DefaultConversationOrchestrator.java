@@ -529,6 +529,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             null,
                             Collections.emptyList(),
                             Collections.emptyList(),
+                            null,
                             null);
             String finalReply =
                     sanitizeFinalReply(
@@ -790,7 +791,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             memoryPrefetchContext,
                             message.getAllowedToolsOverride(),
                             message.getRequiredToolsOverride(),
-                            message.getMaxToolCallsOverride());
+                            message.getMaxToolCallsOverride(),
+                            message.isHeartbeat()
+                                    ? "heartbeat"
+                                    : (StrUtil.isNotBlank(message.getRunKind())
+                                            ? message.getRunKind()
+                                            : null));
             shouldDrainQueue = true;
             String finalReply =
                     sanitizeFinalReply(

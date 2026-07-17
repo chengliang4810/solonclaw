@@ -519,7 +519,7 @@ solonclaw:
   proactive:
     # 是否启用主动提醒。
     enabled: true
-    # 检查间隔，单位小时。
+    # 初始联系间隔，单位小时；默认每 4 小时独立评估一次。
     intervalHours: 4
     # 投递目标；main 表示最近的主对话。
     deliveryTarget: main

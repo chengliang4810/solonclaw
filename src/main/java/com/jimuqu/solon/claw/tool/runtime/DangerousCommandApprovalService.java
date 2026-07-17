@@ -785,6 +785,16 @@ public class DangerousCommandApprovalService {
     }
 
     /**
+     * 检查命令是否命中用户配置的不可绕过 deny 规则。
+     *
+     * @param code 待检查命令或脚本内容。
+     * @return 命中时返回拒绝原因，否则返回 null。
+     */
+    public String detectUserDenyReason(String code) {
+        return matchUserDenyRule(code);
+    }
+
+    /**
      * 执行detect命令路径For审批相关逻辑。
      *
      * @param toolName 工具名称。
@@ -1762,8 +1772,10 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        String guardrailMode = guardrailMode();
-        if ("bypass".equals(guardrailMode) || isSessionAutoApprovalEnabled(trace.getSession())) {
+        String guardrailMode = effectiveCommandGuardrailMode();
+        if ("bypass".equals(guardrailMode)
+                || cronAutoApprovalEnabled(guardrailMode)
+                || isSessionAutoApprovalEnabled(trace.getSession())) {
             persistTraceSnapshot(trace);
             return null;
         }
@@ -1788,7 +1800,7 @@ public class DangerousCommandApprovalService {
      */
     private String evaluateCommandWithoutHardline(
             ReActTrace trace, String approvalToolName, String ruleToolName, String code) {
-        String guardrailMode = guardrailMode();
+        String guardrailMode = effectiveCommandGuardrailMode();
 
         String denyReason = matchUserDenyRule(code);
         if (denyReason != null) {
@@ -1798,7 +1810,7 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        if ("bypass".equals(guardrailMode)) {
+        if ("bypass".equals(guardrailMode) || cronAutoApprovalEnabled(guardrailMode)) {
             persistTraceSnapshot(trace);
             return null;
         }
@@ -1885,6 +1897,12 @@ public class DangerousCommandApprovalService {
                 return null;
             }
             trace.setFinalAnswer(buildSubagentDeniedMessage(detection));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
+        if (isUnattendedScheduledRun()) {
+            trace.setFinalAnswer(buildScheduledRunDeniedMessage(detection));
             trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
             persistTraceSnapshot(trace);
             return null;
@@ -2317,6 +2335,12 @@ public class DangerousCommandApprovalService {
             persistTraceSnapshot(trace);
             return null;
         }
+        if (isUnattendedScheduledRun()) {
+            trace.setFinalAnswer(buildScheduledRunDeniedMessage(detection));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
         Map<String, Object> pendingMap =
                 createPendingMap(toolName, detection, detection.getNormalizedCode());
         storePendingMap(trace.getSession(), pendingMap);
@@ -2509,6 +2533,46 @@ public class DangerousCommandApprovalService {
                 appConfig == null || appConfig.getSecurity() == null
                         ? ""
                         : appConfig.getSecurity().getGuardrailMode());
+    }
+
+    /** 按当前运行类型解析命令护栏模式，Cron 使用专属策略，Heartbeat 始终无人值守。 */
+    private String effectiveCommandGuardrailMode() {
+        if (isRunKind("cron")) {
+            return guardrailCronMode();
+        }
+        if (isRunKind("heartbeat")) {
+            return "strict";
+        }
+        return guardrailMode();
+    }
+
+    /** 判断 Cron 是否显式允许自动通过可审批危险命令。 */
+    private boolean cronAutoApprovalEnabled(String mode) {
+        return isRunKind("cron") && "approve".equals(mode);
+    }
+
+    /** 判断当前是否为不能等待人工响应的后台运行。 */
+    private boolean isUnattendedScheduledRun() {
+        return isRunKind("cron") || isRunKind("heartbeat") || isRunKind("maintenance");
+    }
+
+    /** 判断当前 Agent run 是否属于指定类型。 */
+    private boolean isRunKind(String expected) {
+        AgentRunContext current = AgentRunContext.current();
+        return current != null
+                && expected.equalsIgnoreCase(StrUtil.nullToEmpty(current.getRunKind()));
+    }
+
+    /** 构建无人值守运行拒绝危险操作的提示。 */
+    private String buildScheduledRunDeniedMessage(DetectionResult detection) {
+        String description =
+                detection == null
+                        ? "dangerous command"
+                        : StrUtil.blankToDefault(
+                                detection.getDescription(), detection.getPatternKey());
+        return "BLOCKED: 无人值守任务不能等待人工审批，已拒绝危险操作："
+                + SecretRedactor.redact(description, 1000)
+                + "。Cron 如需自动执行可审批操作，请在创建任务时固定为脚本，或显式设置 security.guardrailCronMode=approve。";
     }
 
     /**
@@ -3894,6 +3958,28 @@ public class DangerousCommandApprovalService {
          */
         private ApprovalRequestEvent(String sessionId, PendingApproval pendingApproval) {
             super(sessionId, pendingApproval);
+        }
+
+        /**
+         * 返回仅供可信内部观察器关联业务记录的原始规则键，不得写入日志或用户响应。
+         *
+         * @return 原始规则键副本。
+         */
+        public List<String> getInternalPatternKeys() {
+            PendingApproval pending = rawPendingApproval();
+            if (pending == null) {
+                return Collections.<String>emptyList();
+            }
+            List<String> result = new ArrayList<String>();
+            if (StrUtil.isNotBlank(pending.getPatternKey())) {
+                result.add(pending.getPatternKey());
+            }
+            for (String key : pending.effectivePatternKeys()) {
+                if (StrUtil.isNotBlank(key) && !result.contains(key)) {
+                    result.add(key);
+                }
+            }
+            return result;
         }
     }
 

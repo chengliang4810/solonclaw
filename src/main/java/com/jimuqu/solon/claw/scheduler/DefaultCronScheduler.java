@@ -2,7 +2,6 @@ package com.jimuqu.solon.claw.scheduler;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.crypto.SecureUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -41,6 +40,7 @@ import java.io.FileOutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -825,6 +825,7 @@ public class DefaultCronScheduler {
                                 PlatformType.fromName(parts[0]), parts[1], parts[2], prompt);
                 synthetic.setThreadId(parts[3]);
                 synthetic.setSourceKeyOverride(cronExecutionSourceKey(job));
+                synthetic.setRunKind("cron");
                 String override = modelOverride(job);
                 if (StrUtil.isNotBlank(override)) {
                     synthetic.setModelOverride(override);
@@ -2119,11 +2120,22 @@ public class DefaultCronScheduler {
                         : ToolNameConstants.EXECUTE_PYTHON;
         guardCronScript(job, scriptContent, ruleToolName);
         List<String> command = new ArrayList<String>();
+        File shellSnapshot = null;
         if (name.endsWith(".sh") || name.endsWith(".bash")) {
+            shellSnapshot =
+                    Files.createTempFile(scriptsDir.toPath(), ".cron-approved-", ".sh").toFile();
+            FileUtil.writeString(scriptContent, shellSnapshot, StandardCharsets.UTF_8);
             command.add("bash");
+            command.add("-c");
+            command.add("snapshot=$1; set --; source \"$snapshot\"");
             command.add(bashScriptPath(script));
+            command.add(bashScriptPath(shellSnapshot));
         } else {
             command.add(defaultPythonCommand());
+            command.add("-c");
+            command.add(
+                    "import sys; p=sys.argv[1]; sys.argv=[p]; sys.path.insert(0, __import__('os').path.dirname(p)); "
+                            + "s=sys.stdin.read(); exec(compile(s, p, 'exec'), {'__name__':'__main__','__file__':p})");
             command.add(script.getAbsolutePath());
         }
         ProcessBuilder builder = new ProcessBuilder(command);
@@ -2133,19 +2145,30 @@ public class DefaultCronScheduler {
         builder.redirectErrorStream(true);
         ProfileRuntimeScope.replaceProcessEnvironment(builder.environment());
         SubprocessEnvironmentSanitizer.sanitize(builder.environment(), appConfig);
-        Process process = builder.start();
-        byte[] data = readAll(process.getInputStream());
-        int timeoutSeconds = scriptTimeoutSeconds();
-        boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
-        if (!finished) {
-            process.destroyForcibly();
-            throw new IllegalStateException("定时任务脚本执行超时：" + timeoutSeconds + " 秒");
+        try {
+            Process process = builder.start();
+            if (shellSnapshot == null) {
+                process.getOutputStream().write(scriptContent.getBytes(StandardCharsets.UTF_8));
+            }
+            process.getOutputStream().close();
+            byte[] data = readAll(process.getInputStream());
+            int timeoutSeconds = scriptTimeoutSeconds();
+            boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                throw new IllegalStateException("定时任务脚本执行超时：" + timeoutSeconds + " 秒");
+            }
+            String output = new String(data, StandardCharsets.UTF_8).trim();
+            if (process.exitValue() != 0) {
+                throw new IllegalStateException(
+                        "定时任务脚本退出码 " + process.exitValue() + "，输出：" + output);
+            }
+            return new CronScriptResult(output, parseWakeAgent(job.getJobId(), output));
+        } finally {
+            if (shellSnapshot != null) {
+                FileUtil.del(shellSnapshot);
+            }
         }
-        String output = new String(data, StandardCharsets.UTF_8).trim();
-        if (process.exitValue() != 0) {
-            throw new IllegalStateException("定时任务脚本退出码 " + process.exitValue() + "，输出：" + output);
-        }
-        return new CronScriptResult(output, parseWakeAgent(job.getJobId(), output));
     }
 
     /**
@@ -2483,6 +2506,11 @@ public class DefaultCronScheduler {
         if (dangerousCommandApprovalService == null || StrUtil.isBlank(scriptContent)) {
             return;
         }
+        String denyReason = dangerousCommandApprovalService.detectUserDenyReason(scriptContent);
+        if (StrUtil.isNotBlank(denyReason)) {
+            throw new IllegalStateException(
+                    "BLOCKED (deny)：定时任务脚本 " + job.getScript() + " 命中 " + denyReason + "。");
+        }
         DangerousCommandApprovalService.DetectionResult hardline =
                 dangerousCommandApprovalService.detectHardline(ruleToolName, scriptContent);
         if (hardline != null) {
@@ -2546,6 +2574,16 @@ public class DefaultCronScheduler {
             String ruleToolName,
             DangerousCommandApprovalService.DetectionResult dangerous) {
         try {
+            String fingerprint = CronJobSupport.approvalFingerprint(job, scriptContent);
+            if (StrUtil.isNotBlank(fingerprint)
+                    && fingerprint.equals(
+                            StrUtil.nullToEmpty(job.getApprovedScriptFingerprint()).trim())) {
+                return true;
+            }
+            if (StrUtil.isNotBlank(job.getApprovedScriptFingerprint())) {
+                job.setApprovedScriptFingerprint(null);
+                cronJobRepository.update(job);
+            }
             String scope = cronGuardrailScope();
             SqliteAgentSession session = resolveCronApprovalSession(job);
             if (session == null) {
@@ -2561,11 +2599,23 @@ public class DefaultCronScheduler {
                                         && dangerousCommandApprovalService.isSessionApproved(
                                                 session, ruleToolName, key, scriptContent));
                 if (!approved) {
+                    List<String> eventKeys = new ArrayList<String>(approvalKeys);
+                    String metadataKey =
+                            "cron-job:"
+                                    + job.getJobId()
+                                    + ":"
+                                    + fingerprint
+                                    + ":"
+                                    + StrUtil.blankToDefault(
+                                            dangerous.getPatternKey(), "dangerous_command");
+                    if (!eventKeys.contains(metadataKey)) {
+                        eventKeys.add(metadataKey);
+                    }
                     dangerousCommandApprovalService.storePendingApproval(
                             session,
                             ruleToolName,
                             approvalKeys.get(0),
-                            approvalKeys,
+                            eventKeys,
                             "定时任务 "
                                     + StrUtil.blankToDefault(job.getName(), job.getJobId())
                                     + " 的脚本需要审批（scope="
@@ -2619,7 +2669,7 @@ public class DefaultCronScheduler {
             String scope) {
         List<String> result = new ArrayList<String>();
         String jobId = StrUtil.blankToDefault(safeContextJobId(job.getJobId()), "unknown");
-        String fingerprint = SecureUtil.sha256(StrUtil.nullToEmpty(scriptContent)).substring(0, 16);
+        String fingerprint = CronJobSupport.approvalFingerprint(job, scriptContent);
         for (String patternKey : dangerous.effectivePatternKeys()) {
             if (StrUtil.isBlank(patternKey)) {
                 continue;
@@ -2664,12 +2714,19 @@ public class DefaultCronScheduler {
      */
     private boolean isCronLifecycleBlocked(
             DangerousCommandApprovalService.DetectionResult dangerous) {
-        String key = dangerous == null ? "" : StrUtil.nullToEmpty(dangerous.getPatternKey());
-        return "gateway_stop_restart".equals(key)
-                || "app_update_restart".equals(key)
-                || "gateway_run_detached".equals(key)
-                || "kill_agent_process".equals(key)
-                || "kill_pgrep_expansion".equals(key);
+        if (dangerous == null) {
+            return false;
+        }
+        for (String key : dangerous.effectivePatternKeys()) {
+            if ("gateway_stop_restart".equals(key)
+                    || "app_update_restart".equals(key)
+                    || "gateway_run_detached".equals(key)
+                    || "kill_agent_process".equals(key)
+                    || "kill_pgrep_expansion".equals(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

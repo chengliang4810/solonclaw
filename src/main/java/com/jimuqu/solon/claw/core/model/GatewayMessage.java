@@ -74,6 +74,9 @@ public class GatewayMessage {
     /** 本轮消息使用的临时工作目录覆盖；不会持久化到会话。 */
     private String workspaceDirOverride;
 
+    /** 本轮消息对应的运行类型，例如 conversation、cron、heartbeat、subagent。 */
+    private String runKind;
+
     /** 是否为 heartbeat 触发的合成消息。 */
     private boolean heartbeat;
 

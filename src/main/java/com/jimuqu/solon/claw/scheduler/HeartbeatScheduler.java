@@ -144,6 +144,7 @@ public class HeartbeatScheduler {
         GatewayMessage message =
                 new GatewayMessage(platform, home.getChatId(), HEARTBEAT_USER, DEFAULT_PROMPT);
         message.setHeartbeat(true);
+        message.setRunKind("heartbeat");
         message.setThreadId(home.getThreadId());
         message.setChatName(home.getChatName());
         message.setUserName(HEARTBEAT_USER);

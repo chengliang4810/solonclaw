@@ -1,6 +1,8 @@
 package com.jimuqu.solon.claw.scheduler;
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.SecureUtil;
+import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import java.io.File;
 import java.io.IOException;
@@ -101,5 +103,35 @@ public final class CronJobSupport {
             Thread.currentThread().interrupt();
         }
         return error.getClass().getSimpleName();
+    }
+
+    /**
+     * 计算脚本版本指纹，用于区分同一 Cron 任务的已批准脚本版本。
+     *
+     * @param scriptContent 脚本文本。
+     * @return 返回脚本指纹。
+     */
+    public static String approvalFingerprint(String scriptContent) {
+        String value = StrUtil.nullToEmpty(scriptContent);
+        return SecureUtil.sha256(value).substring(0, 16);
+    }
+
+    /**
+     * 计算绑定脚本内容和执行上下文的授权指纹，防止切换工作目录后复用旧授权。
+     *
+     * @param job Cron 任务。
+     * @param scriptContent 脚本文本。
+     * @return 返回脚本执行版本指纹。
+     */
+    public static String approvalFingerprint(CronJobRecord job, String scriptContent) {
+        String context =
+                StrUtil.nullToEmpty(job == null ? null : job.getScript())
+                        + "\n"
+                        + StrUtil.nullToEmpty(job == null ? null : job.getWorkdir())
+                        + "\n"
+                        + (job != null && job.isNoAgent())
+                        + "\n"
+                        + StrUtil.nullToEmpty(scriptContent);
+        return SecureUtil.sha256(context).substring(0, 16);
     }
 }

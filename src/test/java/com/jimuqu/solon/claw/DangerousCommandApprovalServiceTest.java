@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw;
 import static com.jimuqu.solon.claw.DangerousCommandApprovalTestSupport.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -24,6 +25,82 @@ public class DangerousCommandApprovalServiceTest {
     @AfterEach
     void clearThreadPolicyApprovals() {
         DangerousCommandApprovalTestSupport.clearThreadPolicyApprovals();
+        AgentRunContext.setCurrent(null);
+    }
+
+    /** Cron approval 模式遇到危险工具时必须阻断且不得创建后台待审批记录。 */
+    @Test
+    void shouldBlockCronApprovalWithoutCreatingPending() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setGuardrailCronMode("approval");
+        AgentRunContext context = new AgentRunContext(null, "cron-run", "cron-session", "CRON:job");
+        context.setRunKind("cron");
+        AgentRunContext.setCurrent(context);
+        DangerousCommandApprovalTestSupport.TestTrace trace =
+                new DangerousCommandApprovalTestSupport.TestTrace();
+
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(
+                        trace,
+                        exchange(
+                                "execute_shell",
+                                Collections.<String, Object>singletonMap(
+                                        "code", "rm -rf workspace/cache")));
+
+        assertThat(trace.getFinalAnswer()).startsWith("BLOCKED:");
+        assertThat(trace.session.isPending()).isFalse();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
+    }
+
+    /** Cron approve 模式应自动通过可审批危险工具且不产生待审批记录。 */
+    @Test
+    void shouldAutoApproveCronDangerousCommandWithoutPending() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setGuardrailCronMode("approve");
+        AgentRunContext context = new AgentRunContext(null, "cron-run", "cron-session", "CRON:job");
+        context.setRunKind("cron");
+        AgentRunContext.setCurrent(context);
+        DangerousCommandApprovalTestSupport.TestTrace trace =
+                new DangerousCommandApprovalTestSupport.TestTrace();
+
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(
+                        trace,
+                        exchange(
+                                "execute_shell",
+                                Collections.<String, Object>singletonMap(
+                                        "code", "rm -rf workspace/cache")));
+
+        assertThat(trace.getFinalAnswer()).isNull();
+        assertThat(trace.session.isPending()).isFalse();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
+    }
+
+    /** Heartbeat 遇到危险工具时必须严格阻断且不得创建后台待审批记录。 */
+    @Test
+    void shouldBlockHeartbeatDangerousCommandWithoutPending() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        AgentRunContext context =
+                new AgentRunContext(null, "heartbeat-run", "heartbeat-session", "HEARTBEAT:main");
+        context.setRunKind("heartbeat");
+        AgentRunContext.setCurrent(context);
+        DangerousCommandApprovalTestSupport.TestTrace trace =
+                new DangerousCommandApprovalTestSupport.TestTrace();
+
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(
+                        trace,
+                        exchange(
+                                "execute_shell",
+                                Collections.<String, Object>singletonMap(
+                                        "code", "rm -rf workspace/cache")));
+
+        assertThat(trace.getFinalAnswer()).startsWith("BLOCKED:");
+        assertThat(trace.session.isPending()).isFalse();
+        assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session)).isNull();
     }
 
     /** Agent 状态查询必须直通，中断必须进入绑定完整参数的逐次审批。 */

@@ -19,12 +19,17 @@ import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
+import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.noear.snack4.ONode;
+import org.noear.solon.ai.chat.ChatRole;
+import org.noear.solon.ai.chat.message.ChatMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,7 +85,7 @@ public class ProactiveReminderScheduler {
         this.stateStore = new ProactiveReminderStateStore(globalSettingRepository);
     }
 
-    /** 按配置启动固定间隔检查；暂停状态仍保留调度线程，以便运行时恢复立即生效。 */
+    /** 按配置启动固定间隔检查；暂停状态仍保留调度线程，以便运行时恢复无需重启。 */
     public synchronized void start() {
         AppConfig.ProactiveConfig config = appConfig.getProactive();
         if (config == null || config.getIntervalHours() <= 0D || isRunning()) {
@@ -131,6 +136,10 @@ public class ProactiveReminderScheduler {
             finish(state, ProactiveReminderState.OUTCOME_QUIET_HOURS, "当前处于免打扰时段，本次未发送。");
             return;
         }
+        if (isDailyLimitReached(state)) {
+            finish(state, ProactiveReminderState.OUTCOME_MODEL_SILENT, "今天的主动联系次数已达上限，等待下一日重置。");
+            return;
+        }
         if (!"main".equalsIgnoreCase(StrUtil.nullToEmpty(config.getDeliveryTarget()))) {
             finish(state, ProactiveReminderState.OUTCOME_CONFIG_INVALID, "发送目标配置无效；当前仅支持 main。");
             throw new IllegalStateException("主动提醒发送目标只支持 main。");
@@ -145,12 +154,14 @@ public class ProactiveReminderScheduler {
                     "Notification skipped: component=proactive, strategy=PRIMARY_CHANNEL, reason=CHANNEL_MISSING_OR_ADMIN_UNBOUND");
             return;
         }
-        if (session.getUpdatedAt() > state.getLastSentAt()) {
+        int userMessageCount = userMessageCount(session);
+        if (userMessageCount > state.getObservedUserMessageCount()) {
             state.setUnansweredCount(0);
             state.setLastUserActivityAt(session.getUpdatedAt());
         } else if (state.getLastUserActivityAt() <= 0L) {
             state.setLastUserActivityAt(session.getUpdatedAt());
         }
+        state.setObservedUserMessageCount(userMessageCount);
         MemorySnapshot memory = memoryService.loadSnapshot();
         analyzeActivity(session, memory, state);
         state.setActivityCredit(Math.min(1D, state.getActivityCredit() + state.getActivityLevel()));
@@ -186,6 +197,11 @@ public class ProactiveReminderScheduler {
         state.setLastMessage(SecretRedactor.redact(message, 500));
         state.setUnansweredCount(state.getUnansweredCount() + 1);
         state.setActivityCredit(Math.max(0D, state.getActivityCredit() - 1D));
+        state.setDailyContactCount(
+                currentDateKey().equals(state.getLastContactDate())
+                        ? state.getDailyContactCount() + 1
+                        : 1);
+        state.setLastContactDate(currentDateKey());
         finish(state, ProactiveReminderState.OUTCOME_DELIVERED, "主动提醒已成功投递到主对话。");
     }
 
@@ -284,12 +300,24 @@ public class ProactiveReminderScheduler {
                         StrUtil.nullToEmpty(source[3]), StrUtil.nullToEmpty(home.getThreadId()));
     }
 
+    /** 统计会话中的用户消息，仅真实用户新增消息可以重置未回应次数。 */
+    private int userMessageCount(SessionRecord session) throws IOException {
+        int count = 0;
+        for (ChatMessage message :
+                MessageSupport.loadMessages(session == null ? null : session.getNdjson())) {
+            if (message != null && message.getRole() == ChatRole.USER) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     /** 判断当前时间是否位于启用的跨日或同日免打扰区间。 */
     private boolean inQuietHours(AppConfig.ProactiveConfig config) {
         if (!config.isQuietHoursEnabled()) {
             return false;
         }
-        LocalTime now = LocalTime.now();
+        LocalTime now = currentLocalTime();
         LocalTime start = parseTime(config.getQuietStart(), LocalTime.of(22, 0));
         LocalTime end = parseTime(config.getQuietEnd(), LocalTime.of(8, 0));
         return start.equals(end)
@@ -325,6 +353,27 @@ public class ProactiveReminderScheduler {
     /** 去除标点和空白，得到轻量话题比较文本。 */
     private String normalizeTopic(String value) {
         return StrUtil.nullToEmpty(value).replaceAll("[\\p{P}\\p{Z}\\s]+", "").toLowerCase();
+    }
+
+    /** 判断今天是否已达到主动联系上限。 */
+    private boolean isDailyLimitReached(ProactiveReminderState state) {
+        String today = currentDateKey();
+        if (!today.equals(state.getLastContactDate())) {
+            state.setLastContactDate(today);
+            state.setDailyContactCount(0);
+            return false;
+        }
+        return state.getDailyContactCount() >= 3;
+    }
+
+    /** 当前日期键。 */
+    private String currentDateKey() {
+        return LocalDate.now(ZoneId.systemDefault()).toString();
+    }
+
+    /** 当前本地时间，测试可覆盖。 */
+    protected LocalTime currentLocalTime() {
+        return LocalTime.now();
     }
 
     /** 合并并裁剪三层记忆，避免主动提醒输入无限增长。 */

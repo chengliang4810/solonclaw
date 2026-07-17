@@ -29,6 +29,8 @@ import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.scheduler.CronApprovalResumeObserver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.scheduler.CronJobSupport;
+import com.jimuqu.solon.claw.scheduler.CronScriptApprovalService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
@@ -123,7 +125,10 @@ public class DefaultCronSchedulerTest {
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
         FileUtil.mkdir(scriptsDir);
         File script = FileUtil.file(scriptsDir, "watchdog.py");
-        FileUtil.writeString("print('disk ok')", script, StandardCharsets.UTF_8);
+        FileUtil.writeString(
+                "import os, sys\nprint('disk ok ' + os.path.basename(__file__) + ' ' + os.path.basename(sys.argv[0]))",
+                script,
+                StandardCharsets.UTF_8);
 
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         env.dangerousCommandApprovalService.addApprovalObserver(
@@ -159,7 +164,7 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getStatus()).isEqualTo("COMPLETED");
         assertThat(updated.getNextRunAt()).isEqualTo(0L);
         assertThat(updated.getLastStatus()).isEqualTo("ok");
-        assertThat(updated.getLastOutput()).contains("disk ok");
+        assertThat(updated.getLastOutput()).contains("disk ok watchdog.py watchdog.py");
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
                 .contains("定时任务响应：watchdog")
                 .contains("(job_id: " + job.getJobId() + ")")
@@ -515,6 +520,7 @@ public class DefaultCronSchedulerTest {
         assertThat(orchestrator.messages.get(0).getPlatform()).isEqualTo(PlatformType.MEMORY);
         assertThat(orchestrator.messages.get(0).getChatId()).isEqualTo("shared-room");
         assertThat(orchestrator.messages.get(0).getUserId()).isEqualTo("shared-user");
+        assertThat(orchestrator.messages.get(0).getRunKind()).isEqualTo("cron");
     }
 
     @Test
@@ -1711,6 +1717,44 @@ public class DefaultCronSchedulerTest {
                 .contains("危险命令模式");
     }
 
+    /** 危险脚本应在任务创建时进入审批，而不是等到首次定时触发。 */
+    @Test
+    void shouldRequestDangerousScriptApprovalWhenCronIsCreated() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setGuardrailCronMode("approval");
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "danger-create.sh");
+        FileUtil.writeString(
+                "dangerous_branch() {\n  rm -rf workspace/cache\n}\necho should-not-run",
+                script,
+                StandardCharsets.UTF_8);
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        service.setCronScriptApprovalService(
+                new CronScriptApprovalService(
+                        env.appConfig, env.dangerousCommandApprovalService, env.sessionRepository));
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new CronApprovalResumeObserver(service));
+
+        CronJobRecord job =
+                service.create(
+                        "WEIXIN:cron-create-approval:user",
+                        cronScriptBody("danger-create", script.getName()));
+
+        assertThat(job.getStatus()).isEqualTo("PAUSED");
+        assertThat(job.getPausedReason()).contains("waiting for approval");
+        assertThat(job.getApprovedScriptFingerprint()).isNull();
+        SessionRecord approvalSession =
+                env.sessionRepository.getBoundSession("CRON:" + job.getJobId());
+        assertThat(approvalSession).isNotNull();
+        DangerousCommandApprovalService.PendingApproval approval =
+                env.dangerousCommandApprovalService.getPendingApproval(
+                        new SqliteAgentSession(approvalSession, env.sessionRepository));
+        assertThat(approval).isNotNull();
+        assertThat(approval.getPatternKeys())
+                .anyMatch(key -> key.startsWith("cron-job:" + job.getJobId() + ":"));
+    }
+
     /** 验证带 Agent 的普通危险脚本会在执行前进入审批暂停态，而不是把阻断信息拼进提示词继续运行。 */
     @Test
     void shouldPauseDangerousCronScriptBeforeExecution() throws Exception {
@@ -1778,6 +1822,10 @@ public class DefaultCronSchedulerTest {
                 .doesNotContainKey("resumed_pending_run");
         CronJobRecord resumedJob = env.cronJobRepository.findById(job.getJobId());
         assertThat(resumedJob.getStatus()).isEqualTo("ACTIVE");
+        assertThat(resumedJob.getApprovedScriptFingerprint())
+                .isEqualTo(
+                        CronJobSupport.approvalFingerprint(
+                                resumedJob, FileUtil.readString(script, StandardCharsets.UTF_8)));
         resumedJob.setNextRunAt(System.currentTimeMillis() - 1000L);
         env.cronJobRepository.update(resumedJob);
 
@@ -1785,6 +1833,84 @@ public class DefaultCronSchedulerTest {
 
         CronJobRecord completedJob = env.cronJobRepository.findById(job.getJobId());
         assertThat(completedJob.getLastStatus()).isEqualTo("ok");
+    }
+
+    /** 脚本版本变更后必须清掉旧批准指纹并重新进入审批。 */
+    @Test
+    void shouldRequireReapprovalWhenCronScriptChanges() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setGuardrailCronMode("approval");
+        String sourceKey = "WEIXIN:cron-approval-change:user";
+        env.sessionRepository.bindNewSession(sourceKey);
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "danger-change.sh");
+        FileUtil.writeString(
+                "dangerous_branch() {\n  rm -rf workspace/cache\n}\necho first",
+                script,
+                StandardCharsets.UTF_8);
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        Map<String, Object> body = cronScriptBody("danger-change", script.getName());
+        body.remove("no_agent");
+        body.put("prompt", "汇总脚本输出");
+        env.dangerousCommandApprovalService.addApprovalObserver(
+                new CronApprovalResumeObserver(service));
+        CronJobRecord job = service.create(sourceKey, body);
+        job.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(job);
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.sessionRepository);
+
+        scheduler.tick();
+        CronJobRecord pending = env.cronJobRepository.findById(job.getJobId());
+        assertThat(pending.getStatus()).isEqualTo("PAUSED");
+        SqliteAgentSession session =
+                new SqliteAgentSession(
+                        env.sessionRepository.getBoundSession("CRON:" + job.getJobId()),
+                        env.sessionRepository);
+        DangerousCommandApprovalService.PendingApproval approval =
+                env.dangerousCommandApprovalService.getPendingApproval(session);
+        assertThat(approval).isNotNull();
+        String selector = DangerousCommandApprovalService.approvalSelector(approval);
+        GatewayReply approvalReply =
+                env.commandService.handle(
+                        new GatewayMessage(
+                                PlatformType.WEIXIN, "cron-approval-change", "user", "/approve"),
+                        "/approve " + selector + " session");
+        assertThat(approvalReply.isError()).as(approvalReply.getContent()).isFalse();
+        assertThat(approvalReply.getContent()).contains("调度器将恢复任务");
+        CronJobRecord approved = env.cronJobRepository.findById(job.getJobId());
+        assertThat(approved.getStatus()).isEqualTo("ACTIVE");
+        assertThat(approved.getApprovedScriptFingerprint()).isNotBlank();
+
+        FileUtil.writeString(
+                "dangerous_branch() {\n  rm -rf workspace/cache\n}\necho second",
+                script,
+                StandardCharsets.UTF_8);
+        service.update(job.getJobId(), Collections.singletonMap("script", script.getName()));
+        CronJobRecord changed = env.cronJobRepository.findById(job.getJobId());
+        changed.setNextRunAt(System.currentTimeMillis() - 1000L);
+        env.cronJobRepository.update(changed);
+
+        scheduler.tick();
+
+        CronJobRecord pendingAgain = env.cronJobRepository.findById(job.getJobId());
+        assertThat(pendingAgain.getStatus()).isEqualTo("PAUSED");
+        assertThat(pendingAgain.getApprovedScriptFingerprint()).isNull();
+        assertThat(pendingAgain.getPausedReason()).contains("waiting for approval");
     }
 
     /** 验证 hardline 命令不受 Cron 自动批准模式影响。 */

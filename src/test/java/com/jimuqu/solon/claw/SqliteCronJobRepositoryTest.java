@@ -69,6 +69,17 @@ class SqliteCronJobRepositoryTest {
         assertThat(repository.findById(job.getJobId()).getStatus()).isEqualTo("COMPLETED");
     }
 
+    /** 脚本批准指纹必须能稳定落库和回读。 */
+    @Test
+    void shouldPersistApprovedScriptFingerprint() throws Exception {
+        CronJobRecord job = job("fingerprint");
+        job.setApprovedScriptFingerprint("abc123fingerprint");
+        repository.save(job);
+
+        assertThat(repository.findById(job.getJobId()).getApprovedScriptFingerprint())
+                .isEqualTo("abc123fingerprint");
+    }
+
     /** 创建满足仓储持久化约束的定时任务记录。 */
     private CronJobRecord job(String jobId) {
         CronJobRecord job = new CronJobRecord();

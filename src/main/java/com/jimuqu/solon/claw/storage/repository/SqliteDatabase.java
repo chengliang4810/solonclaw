@@ -352,6 +352,7 @@ public class SqliteDatabase {
                             + "repeat_times integer not null default 0,"
                             + "repeat_completed integer not null default 0,"
                             + "script text,"
+                            + "approved_script_fingerprint text,"
                             + "workdir text,"
                             + "no_agent integer not null default 0,"
                             + "context_from_json text,"
@@ -383,6 +384,7 @@ public class SqliteDatabase {
             addColumn(statement, "cron_jobs", "repeat_times integer not null default 0");
             addColumn(statement, "cron_jobs", "repeat_completed integer not null default 0");
             addColumn(statement, "cron_jobs", "script text");
+            addColumn(statement, "cron_jobs", "approved_script_fingerprint text");
             addColumn(statement, "cron_jobs", "workdir text");
             addColumn(statement, "cron_jobs", "no_agent integer not null default 0");
             addColumn(statement, "cron_jobs", "context_from_json text");

@@ -130,6 +130,9 @@ public class CronJobService {
     /** 保存定时任务任务仓储依赖，用于访问持久化数据。 */
     private final CronJobRepository cronJobRepository;
 
+    /** 创建或修改 Cron 脚本时使用的版本授权服务；测试和无审批环境可不注入。 */
+    private CronScriptApprovalService cronScriptApprovalService;
+
     /**
      * 创建定时任务任务服务实例，并注入运行所需依赖。
      *
@@ -139,6 +142,15 @@ public class CronJobService {
     public CronJobService(AppConfig appConfig, CronJobRepository cronJobRepository) {
         this.appConfig = appConfig;
         this.cronJobRepository = cronJobRepository;
+    }
+
+    /**
+     * 注入创建或修改阶段的 Cron 脚本版本授权服务。
+     *
+     * @param cronScriptApprovalService Cron 脚本版本授权服务。
+     */
+    public void setCronScriptApprovalService(CronScriptApprovalService cronScriptApprovalService) {
+        this.cronScriptApprovalService = cronScriptApprovalService;
     }
 
     /**
@@ -197,6 +209,7 @@ public class CronJobService {
         record.setRepeatTimes(intValue(body.get("repeat"), 0));
         record.setRepeatCompleted(0);
         record.setScript(script);
+        record.setApprovedScriptFingerprint(null);
         record.setWorkdir(workdir);
         record.setNoAgent(noAgent);
         record.setContextFromJson(json(dependencyRefs));
@@ -211,6 +224,7 @@ public class CronJobService {
         record.setLastRunAt(0L);
         record.setCreatedAt(now);
         record.setUpdatedAt(now);
+        prepareScriptApproval(record);
         return cronJobRepository.save(record);
     }
 
@@ -242,6 +256,7 @@ public class CronJobService {
      */
     public CronJobRecord update(String jobId, Map<String, Object> body) throws Exception {
         CronJobRecord record = require(jobId);
+        boolean scriptSecurityChanged = false;
         if (body.containsKey("name")) {
             record.setName(string(body.get("name"), record.getName()));
         }
@@ -289,17 +304,30 @@ public class CronJobService {
         if (body.containsKey("script")) {
             String script = string(body.get("script"), null);
             validateScript(script);
-            record.setScript(script);
+            if (!sameText(record.getScript(), script)) {
+                record.setScript(script);
+                record.setApprovedScriptFingerprint(null);
+                scriptSecurityChanged = true;
+            }
         }
         if (body.containsKey("workdir")) {
-            record.setWorkdir(normalizeWorkdir(string(body.get("workdir"), null)));
+            String workdir = normalizeWorkdir(string(body.get("workdir"), null));
+            if (!sameText(record.getWorkdir(), workdir)) {
+                record.setWorkdir(workdir);
+                record.setApprovedScriptFingerprint(null);
+                scriptSecurityChanged = true;
+            }
         }
         if (body.containsKey("no_agent") || body.containsKey("noAgent")) {
             boolean noAgent = bool(body.get("no_agent"), bool(body.get("noAgent"), false));
             if (noAgent && StrUtil.isBlank(record.getScript())) {
                 throw new IllegalStateException("no_agent requires script");
             }
-            record.setNoAgent(noAgent);
+            if (record.isNoAgent() != noAgent) {
+                record.setNoAgent(noAgent);
+                record.setApprovedScriptFingerprint(null);
+                scriptSecurityChanged = true;
+            }
         }
         if (containsDependencyRefs(body)) {
             List<String> refs = dependencyRefs(body);
@@ -353,6 +381,9 @@ public class CronJobService {
         }
         if (record.isNoAgent() && StrUtil.isBlank(record.getScript())) {
             throw new IllegalStateException("no_agent requires script");
+        }
+        if (scriptSecurityChanged) {
+            prepareScriptApproval(record);
         }
         return cronJobRepository.update(record);
     }
@@ -613,6 +644,65 @@ public class CronJobService {
     }
 
     /**
+     * 标记定时任务脚本版本已通过审批。
+     *
+     * @param jobId job标识。
+     * @param fingerprint 脚本指纹。
+     * @return 返回更新后的记录。
+     */
+    public CronJobRecord approveScriptVersion(String jobId, String fingerprint) throws Exception {
+        CronJobRecord record = require(jobId);
+        if (StrUtil.isBlank(fingerprint)) {
+            return record;
+        }
+        record.setApprovedScriptFingerprint(fingerprint.trim());
+        return cronJobRepository.update(record);
+    }
+
+    /**
+     * 根据审批规则键持久化已批准脚本版本并恢复对应 Cron 任务。
+     *
+     * @param patternKeys 审批记录中的原始规则键。
+     * @return 找到并恢复对应任务时返回 true。
+     */
+    public boolean approveAndResumeScriptVersion(List<String> patternKeys) throws Exception {
+        if (patternKeys == null) {
+            return false;
+        }
+        for (String patternKey : patternKeys) {
+            String value = StrUtil.nullToEmpty(patternKey).trim();
+            if (!value.startsWith("cron-job:")) {
+                continue;
+            }
+            String[] parts = value.split(":", 4);
+            if (parts.length < 4 || StrUtil.hasBlank(parts[1], parts[2])) {
+                continue;
+            }
+            CronJobRecord job = require(parts[1]);
+            if (STATUS_ACTIVE.equalsIgnoreCase(StrUtil.nullToEmpty(job.getStatus()))
+                    && parts[2].equals(job.getApprovedScriptFingerprint())) {
+                return true;
+            }
+            if (!STATUS_PAUSED.equalsIgnoreCase(StrUtil.nullToEmpty(job.getStatus()))
+                    || !StrUtil.startWith(
+                            StrUtil.nullToEmpty(job.getPausedReason()), "waiting for approval:")) {
+                return false;
+            }
+            approveScriptVersion(parts[1], parts[2]);
+            resume(parts[1]);
+            return true;
+        }
+        return false;
+    }
+
+    /** 在任务落库前执行脚本版本安全检查和授权申请。 */
+    private void prepareScriptApproval(CronJobRecord record) throws Exception {
+        if (cronScriptApprovalService != null) {
+            cronScriptApprovalService.prepareForSave(record);
+        }
+    }
+
+    /**
      * 执行trigger相关逻辑。
      *
      * @param jobId job标识。
@@ -819,6 +909,7 @@ public class CronJobService {
         result.put("skill", first(parseList(record.getSkillsJson())));
         result.put("repeat", repeat);
         result.put("script", record.getScript());
+        result.put("approved_script_fingerprint", record.getApprovedScriptFingerprint());
         result.put("workdir", workdirReference(record.getJobId(), record.getWorkdir()));
         result.put("no_agent", Boolean.valueOf(record.isNoAgent()));
         List<String> contextFrom = parseList(record.getContextFromJson());

@@ -3,11 +3,18 @@ package com.jimuqu.solon.claw.web;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
+import com.jimuqu.solon.claw.scheduler.CronApprovalResumeObserver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.scheduler.CronScriptApprovalService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteCronJobRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
+import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -969,6 +976,16 @@ public class DashboardCronService {
         AppConfig config = profileScope.loadConfig(resolved);
         SqliteDatabase database = new SqliteDatabase(config);
         CronJobService jobs = new CronJobService(config, new SqliteCronJobRepository(database));
+        SqliteSessionRepository sessions = new SqliteSessionRepository(database);
+        DangerousCommandApprovalService approvals =
+                new DangerousCommandApprovalService(
+                        new SqliteGlobalSettingRepository(database),
+                        config,
+                        new SecurityPolicyService(config),
+                        new TirithSecurityService(config));
+        jobs.setCronScriptApprovalService(
+                new CronScriptApprovalService(config, approvals, sessions));
+        approvals.addApprovalObserver(new CronApprovalResumeObserver(jobs));
         DashboardCronService service =
                 new DashboardCronService(jobs, null, profileScope, resolved.getName(), false);
         return new ScopedCronContext(service, database);

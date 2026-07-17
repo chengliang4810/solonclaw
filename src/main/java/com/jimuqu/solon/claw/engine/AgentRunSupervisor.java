@@ -856,6 +856,58 @@ public class AgentRunSupervisor implements AgentRunControlService {
             List<String> requiredToolNames,
             Integer maxToolCalls)
             throws Exception {
+        return run(
+                session,
+                systemPrompt,
+                userMessage,
+                tools,
+                feedbackSink,
+                eventSink,
+                resume,
+                agentScope,
+                userAttachments,
+                memoryPrefetchContext,
+                allowedToolNames,
+                requiredToolNames,
+                maxToolCalls,
+                null);
+    }
+
+    /**
+     * 执行异步任务主体，并携带本轮临时记忆召回上下文。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @param tools tools 参数。
+     * @param feedbackSink 反馈Sink参数。
+     * @param eventSink 事件Sink参数。
+     * @param resume resume 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param userAttachments 用户Attachments参数。
+     * @param memoryPrefetchContext 本轮预取的临时记忆上下文。
+     * @param allowedToolNames 本轮允许调用的工具名称白名单。
+     * @param requiredToolNames 本轮必须真实完成的工具名称列表。
+     * @param maxToolCalls 本轮允许尝试的最大工具调用次数。
+     * @param runKind 本轮运行类型标记。
+     * @return 返回运行结果。
+     */
+    public AgentRunOutcome run(
+            SessionRecord session,
+            String systemPrompt,
+            String userMessage,
+            List<Object> tools,
+            ConversationFeedbackSink feedbackSink,
+            ConversationEventSink eventSink,
+            boolean resume,
+            AgentRuntimeScope agentScope,
+            List<MessageAttachment> userAttachments,
+            String memoryPrefetchContext,
+            List<String> allowedToolNames,
+            List<String> requiredToolNames,
+            Integer maxToolCalls,
+            String runKind)
+            throws Exception {
         if (agentScope == null) {
             agentScope = new AgentRuntimeScope();
             agentScope.setAgentName(
@@ -880,11 +932,16 @@ public class AgentRunSupervisor implements AgentRunControlService {
         boolean subagentRun =
                 parentContext != null
                         && !StrUtil.equals(parentContext.getSourceKey(), session.getSourceKey());
+        String messageRunKind = StrUtil.trimToNull(runKind);
         boolean profileTaskRun = session.getSourceKey().contains("PROFILE_TASK:");
         runRecord.setRunKind(
                 profileTaskRun
                         ? "profile_task"
-                        : (subagentRun ? "subagent" : (resume ? "resume" : "conversation")));
+                        : (subagentRun
+                                ? "subagent"
+                                : (StrUtil.isNotBlank(messageRunKind)
+                                        ? messageRunKind
+                                        : (resume ? "resume" : "conversation"))));
         runRecord.setParentRunId(subagentRun ? parentContext.getRunId() : null);
         runRecord.setAgentName(agentScope.getEffectiveName());
         runRecord.setAgentSnapshotJson(agentScope.getSnapshotJson());
@@ -2634,6 +2691,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         map.put("threadId", message.getThreadId());
         map.put("replyToMessageId", message.getReplyToMessageId());
         map.put("sourceKeyOverride", message.getSourceKeyOverride());
+        map.put("runKind", message.getRunKind());
         map.put("heartbeat", message.isHeartbeat());
         map.put("goalContinuation", message.isGoalContinuation());
         map.put("timestamp", message.getTimestamp());
@@ -2665,6 +2723,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 message.setThreadId(stringValue(map.get("threadId")));
                 message.setReplyToMessageId(stringValue(map.get("replyToMessageId")));
                 message.setSourceKeyOverride(stringValue(map.get("sourceKeyOverride")));
+                message.setRunKind(stringValue(map.get("runKind")));
                 message.setHeartbeat(Boolean.parseBoolean(stringValue(map.get("heartbeat"))));
                 message.setGoalContinuation(Boolean.TRUE.equals(map.get("goalContinuation")));
                 Object timestamp = map.get("timestamp");
