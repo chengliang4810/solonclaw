@@ -22,6 +22,9 @@ import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** 会话消息 NDJSON 辅助工具。 */
 public final class MessageSupport {
+    /** 后台任务统一使用的静默标记。 */
+    private static final String SILENT_MARKER = "[SILENT]";
+
     /** 模型可能内嵌在正文中的闭合思考块。 */
     private static final Pattern THINK_BLOCK_PATTERN =
             Pattern.compile(
@@ -45,6 +48,22 @@ public final class MessageSupport {
 
     /** 创建消息辅助实例。 */
     private MessageSupport() {}
+
+    /**
+     * 判断模型回复是否要求静默，仅识别最后一个非空行中的独立静默标记。
+     *
+     * @param content 模型回复内容。
+     * @return 需要抑制投递时返回 true。
+     */
+    public static boolean isSilentResponse(String content) {
+        if (StrUtil.isBlank(content)) {
+            return false;
+        }
+        String normalized = content.replace("\r\n", "\n").replace('\r', '\n').trim();
+        int lineBreak = normalized.lastIndexOf('\n');
+        String lastLine = normalized.substring(lineBreak + 1).trim();
+        return SILENT_MARKER.equalsIgnoreCase(lastLine);
+    }
 
     /** 将 NDJSON 反序列化为消息列表。 */
     public static List<ChatMessage> loadMessages(String ndjson) throws IOException {

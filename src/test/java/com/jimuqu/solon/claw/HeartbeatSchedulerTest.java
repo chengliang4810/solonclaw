@@ -77,6 +77,73 @@ public class HeartbeatSchedulerTest {
         assertThat(orchestrator.calls).isEqualTo(0);
     }
 
+    /** 默认模板只有元数据、标题和注释时，不应发起心跳模型调用。 */
+    @Test
+    void shouldSkipBundledHeartbeatTemplateWithoutTasks() throws Exception {
+        AppConfig config = config();
+        InMemoryGatewayPolicyRepository repository = new InMemoryGatewayPolicyRepository();
+        repository.saveHomeChannel(home(PlatformType.FEISHU, "chat-1"));
+        CapturingOrchestrator orchestrator = new CapturingOrchestrator();
+
+        HeartbeatScheduler scheduler =
+                new HeartbeatScheduler(
+                        config,
+                        repository,
+                        orchestrator,
+                        new CapturingDeliveryService(),
+                        new PersonaWorkspaceService(config));
+
+        scheduler.tick();
+
+        assertThat(orchestrator.calls).isEqualTo(0);
+    }
+
+    /** 兼容旧模板的 YAML 元数据和多行 HTML 注释，不把说明内容误判为任务。 */
+    @Test
+    void shouldSkipLegacyTemplateMetadataAndComments() throws Exception {
+        AppConfig config = config();
+        InMemoryGatewayPolicyRepository repository = new InMemoryGatewayPolicyRepository();
+        repository.saveHomeChannel(home(PlatformType.FEISHU, "chat-1"));
+        CapturingOrchestrator orchestrator = new CapturingOrchestrator();
+        String template =
+                "---\nsummary: heartbeat template\n---\n# HEARTBEAT.md\n"
+                        + "<!-- 默认没有任务\n需要时再添加 -->";
+
+        HeartbeatScheduler scheduler =
+                new HeartbeatScheduler(
+                        config,
+                        repository,
+                        orchestrator,
+                        new CapturingDeliveryService(),
+                        workspace(config, template));
+
+        scheduler.tick();
+
+        assertThat(orchestrator.calls).isEqualTo(0);
+    }
+
+    /** 普通段落和编号步骤都是有效心跳任务，不能只识别 Markdown 项目符号。 */
+    @Test
+    void shouldRunHeartbeatForSectionedNumberedTasks() throws Exception {
+        AppConfig config = config();
+        InMemoryGatewayPolicyRepository repository = new InMemoryGatewayPolicyRepository();
+        repository.saveHomeChannel(home(PlatformType.FEISHU, "chat-1"));
+        CapturingOrchestrator orchestrator = new CapturingOrchestrator();
+        String tasks = "# HEARTBEAT.md\n\n## 日志巡检\n\n每次心跳时执行：\n\n1. 查看日志\n2. 发现异常时报告";
+
+        HeartbeatScheduler scheduler =
+                new HeartbeatScheduler(
+                        config,
+                        repository,
+                        orchestrator,
+                        new CapturingDeliveryService(),
+                        workspace(config, tasks));
+
+        scheduler.tick();
+
+        assertThat(orchestrator.calls).isEqualTo(1);
+    }
+
     @Test
     void shouldDeliverNonQuietReplyToHomeChannel() throws Exception {
         AppConfig config = config();
@@ -191,6 +258,31 @@ public class HeartbeatSchedulerTest {
         assertThat(deliveryService.requests).isEmpty();
     }
 
+    /** Agent 在内部总结后以静默标记收尾时，整条心跳结果都不投递。 */
+    @Test
+    void shouldSkipDeliveryWhenLastNonBlankLineIsQuietToken() throws Exception {
+        AppConfig config = config();
+        InMemoryGatewayPolicyRepository repository = new InMemoryGatewayPolicyRepository();
+        repository.saveHomeChannel(home(PlatformType.WECOM, "chat-2"));
+        CapturingOrchestrator orchestrator = new CapturingOrchestrator();
+        orchestrator.reply =
+                GatewayReply.ok("errors.log 无新增错误，均属已知噪声。技能巡检和自我进化均未触发。系统正常。\n\n[SILENT]\n");
+        CapturingDeliveryService deliveryService = new CapturingDeliveryService();
+
+        HeartbeatScheduler scheduler =
+                new HeartbeatScheduler(
+                        config,
+                        repository,
+                        orchestrator,
+                        deliveryService,
+                        workspace(config, "- 检查并在有结果时提醒"));
+
+        scheduler.tick();
+
+        assertThat(orchestrator.calls).isEqualTo(1);
+        assertThat(deliveryService.requests).isEmpty();
+    }
+
     @Test
     void shouldNotFailWithoutHomeChannel() throws Exception {
         AppConfig config = config();
@@ -216,6 +308,7 @@ public class HeartbeatSchedulerTest {
         File runtimeDir = new File(tempDir.toFile(), "runtime");
         config.getRuntime().setHome(runtimeDir.getAbsolutePath());
         config.getRuntime().setContextDir(new File(runtimeDir, "context").getAbsolutePath());
+        config.getWorkspace().setDir(new File(tempDir.toFile(), "workspace").getAbsolutePath());
         config.getAgent().getHeartbeat().setIntervalMinutes(30);
         config.getChannels().getFeishu().setEnabled(true);
         config.getChannels().getWecom().setEnabled(true);

@@ -1062,12 +1062,13 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
-    void shouldSkipCronDeliveryWhenOutputIsSilentMarker() throws Exception {
+    void shouldSkipCronDeliveryWhenLastNonBlankLineIsSilentMarker() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
         FileUtil.mkdir(scriptsDir);
         File script = FileUtil.file(scriptsDir, "quiet.py");
-        FileUtil.writeString("print('[SILENT] nothing new')", script, StandardCharsets.UTF_8);
+        FileUtil.writeString(
+                "print('inspection summary\\n\\n[SILENT]')", script, StandardCharsets.UTF_8);
 
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         Map<String, Object> body = new LinkedHashMap<String, Object>();

@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -27,9 +28,6 @@ public class HeartbeatScheduler {
 
     /** 心跳用户的统一常量值。 */
     private static final String HEARTBEAT_USER = "__heartbeat__";
-
-    /** QUIETtoken的统一常量值。 */
-    private static final String QUIET_TOKEN = "[SILENT]";
 
     /** 默认提示词的统一常量值。 */
     private static final String DEFAULT_PROMPT =
@@ -181,7 +179,7 @@ public class HeartbeatScheduler {
         if (reply == null || StrUtil.isBlank(reply.getContent())) {
             return false;
         }
-        return !QUIET_TOKEN.equalsIgnoreCase(StrUtil.nullToEmpty(reply.getContent()).trim());
+        return !MessageSupport.isSilentResponse(reply.getContent());
     }
 
     /**
@@ -211,10 +209,26 @@ public class HeartbeatScheduler {
         if (StrUtil.isBlank(content)) {
             return false;
         }
-        String[] lines = content.replace("\r\n", "\n").replace('\r', '\n').split("\n");
+        String normalized =
+                content.replace("\r\n", "\n").replace('\r', '\n').replaceAll("(?s)<!--.*?-->", "");
+        String[] lines = normalized.split("\n");
+        boolean firstContentLine = true;
+        boolean inFrontMatter = false;
         for (String line : lines) {
             String text = StrUtil.nullToEmpty(line).trim();
             if (text.length() == 0) {
+                continue;
+            }
+            if (firstContentLine && "---".equals(text)) {
+                firstContentLine = false;
+                inFrontMatter = true;
+                continue;
+            }
+            firstContentLine = false;
+            if (inFrontMatter) {
+                if ("---".equals(text)) {
+                    inFrontMatter = false;
+                }
                 continue;
             }
             if (text.startsWith("#")) {

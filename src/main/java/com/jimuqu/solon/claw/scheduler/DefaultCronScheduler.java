@@ -113,8 +113,8 @@ public class DefaultCronScheduler {
                     + "DELIVERY: 你的最终回复会自动投递给用户；"
                     + "不要调用 send_message，也不要尝试自行投递输出。"
                     + "请把报告或结果作为最终回复输出，由调度器负责投递。"
-                    + "SILENT: 如果确实没有任何新内容需要报告，请只回复 \"[SILENT]\"，"
-                    + "不要附加其他内容以便抑制投递。不要把 [SILENT] 和正文混在一起。]\n\n";
+                    + "SILENT: 如果确实没有任何新内容需要报告，优先只回复 \"[SILENT]\"。"
+                    + "如果已经生成内部检查摘要，最后一个非空行必须是 \"[SILENT]\"，整条结果仍会被抑制投递。]\n\n";
 
     /** 注入应用配置，用于默认定时任务调度器。 */
     private final AppConfig appConfig;
@@ -1556,8 +1556,7 @@ public class DefaultCronScheduler {
      * @return 如果Silent满足条件则返回 true，否则返回 false。
      */
     private boolean isSilent(String content) {
-        return StrUtil.isNotBlank(content)
-                && content.trim().toUpperCase(java.util.Locale.ROOT).startsWith(SILENT_MARKER);
+        return MessageSupport.isSilentResponse(content);
     }
 
     /**

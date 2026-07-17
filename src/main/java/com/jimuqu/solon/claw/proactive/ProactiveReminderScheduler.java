@@ -139,7 +139,7 @@ public class ProactiveReminderScheduler {
             return;
         }
         String message = generateMessage(session, memory, state);
-        if (StrUtil.isBlank(message) || "[SILENT]".equals(message.trim())) {
+        if (StrUtil.isBlank(message) || MessageSupport.isSilentResponse(message)) {
             saveState(state);
             return;
         }
