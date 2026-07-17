@@ -26,7 +26,7 @@ public class MessagingToolsAttachmentTest {
         MessagingTools tools =
                 new MessagingTools(
                         env.deliveryService,
-                        "MEMORY:chat-1:user-1:thread-1",
+                        "MEMORY:chat-1:thread-1:user-1",
                         new AttachmentCacheService(env.appConfig),
                         env.appConfig);
 
@@ -117,7 +117,28 @@ public class MessagingToolsAttachmentTest {
 
         DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
         assertThat(request.getChatId()).isEqualTo("chat-2");
+        assertThat(request.getUserId()).isNull();
         assertThat(request.getText()).isEqualTo("额外投递");
+    }
+
+    /** 同源目标回写时必须保留来源用户和线程约束。 */
+    @Test
+    void shouldKeepSourceUserOnlyForSameTarget() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        MessagingTools tools =
+                new MessagingTools(
+                        env.deliveryService,
+                        "MEMORY:chat-1:thread-1:user-1",
+                        new AttachmentCacheService(env.appConfig),
+                        env.appConfig);
+
+        tools.sendMessage(
+                "MEMORY", "chat-1", "thread-1", "同源投递", Collections.<String>emptyList(), null);
+
+        DeliveryRequest request = env.memoryChannelAdapter.getLastRequest();
+        assertThat(request.getUserId()).isEqualTo("user-1");
+        assertThat(request.getThreadId()).isEqualTo("thread-1");
+        assertThat(request.isRecordInConversation()).isTrue();
     }
 
     @Test

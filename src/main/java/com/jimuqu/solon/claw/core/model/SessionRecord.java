@@ -51,6 +51,9 @@ public class SessionRecord {
     /** 会话消息 NDJSON。 */
     private String ndjson;
 
+    /** 从仓储加载时的会话消息基线，用于保存时合并并发追加。 */
+    private transient String persistedNdjson;
+
     /** 会话标题。 */
     private String title;
 

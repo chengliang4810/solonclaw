@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
+import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
@@ -365,6 +366,7 @@ public class SqliteSessionRepository implements SessionRepository {
             connection.setAutoCommit(false);
             SessionRecord persisted = findById(connection, sessionRecord.getSessionId());
             SessionRecord settings = mergeConcurrentSettings(persisted, sessionRecord);
+            String ndjson = mergeConcurrentMessages(persisted, sessionRecord);
             PreparedStatement statement =
                     connection.prepareStatement(
                             "insert or replace into sessions (session_id, source_key, branch_name, parent_session_id, model_override, service_tier_override, reasoning_effort_override, active_agent_name, platform_message_id, metadata_json, ndjson, title, compressed_summary, system_prompt_snapshot, agent_snapshot_json, goal_state_json, last_learning_at, last_compression_at, last_compression_input_tokens, compression_failure_count, last_compression_failed_at, last_input_tokens, last_output_tokens, last_reasoning_tokens, last_cache_read_tokens, last_cache_write_tokens, last_total_tokens, cumulative_input_tokens, cumulative_output_tokens, cumulative_reasoning_tokens, cumulative_cache_read_tokens, cumulative_cache_write_tokens, cumulative_total_tokens, last_usage_at, last_resolved_provider, last_resolved_model, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -378,7 +380,7 @@ public class SqliteSessionRepository implements SessionRepository {
             statement.setString(8, settings.getActiveAgentName());
             statement.setString(9, sessionRecord.getPlatformMessageId());
             statement.setString(10, sessionRecord.getMetadataJson());
-            statement.setString(11, sessionRecord.getNdjson());
+            statement.setString(11, ndjson);
             statement.setString(12, sessionRecord.getTitle());
             statement.setString(13, sessionRecord.getCompressedSummary());
             statement.setString(14, sessionRecord.getSystemPromptSnapshot());
@@ -409,11 +411,13 @@ public class SqliteSessionRepository implements SessionRepository {
             statement.executeUpdate();
             statement.close();
 
+            sessionRecord.setNdjson(ndjson);
             upsertSearchIndex(connection, sessionRecord);
             connection.commit();
             copyConcurrentSettings(settings, sessionRecord);
             sessionRecord.setCreatedAt(createdAt);
             sessionRecord.setUpdatedAt(updatedAt);
+            sessionRecord.setPersistedNdjson(ndjson);
             sessionRecord.setPersistedConcurrentSettings(concurrentSettings(sessionRecord));
         } catch (Exception e) {
             connection.rollback();
@@ -424,6 +428,52 @@ public class SqliteSessionRepository implements SessionRepository {
             } finally {
                 connection.close();
             }
+        }
+    }
+
+    /** 合并当前运行新增消息与仓储中并发追加的后台消息。 */
+    private String mergeConcurrentMessages(SessionRecord persisted, SessionRecord requested) {
+        if (persisted == null || requested == null || requested.getPersistedNdjson() == null) {
+            return requested == null ? null : requested.getNdjson();
+        }
+        String baseline = StrUtil.nullToEmpty(requested.getPersistedNdjson());
+        String stored = StrUtil.nullToEmpty(persisted.getNdjson());
+        String current = StrUtil.nullToEmpty(requested.getNdjson());
+        if (stored.equals(baseline)
+                || !stored.startsWith(baseline)
+                || !current.startsWith(baseline)) {
+            return current;
+        }
+        String storedDelta = stored.substring(baseline.length()).trim();
+        if (!isAssistantMessageDelta(storedDelta)) {
+            return current;
+        }
+        String currentDelta = current.substring(baseline.length()).trim();
+        if (currentDelta.length() == 0) {
+            return stored;
+        }
+        String currentWithoutTrailingLines = current.replaceAll("[\\r\\n]+$", "");
+        return currentWithoutTrailingLines + "\n" + storedDelta;
+    }
+
+    /** 判断并发增量是否仅包含可安全保留的 Agent 外发消息。 */
+    private boolean isAssistantMessageDelta(String delta) {
+        if (StrUtil.isBlank(delta)) {
+            return false;
+        }
+        try {
+            List<ChatMessage> messages = MessageSupport.loadMessages(delta);
+            if (messages.isEmpty()) {
+                return false;
+            }
+            for (ChatMessage message : messages) {
+                if (message == null || message.getRole() != ChatRole.ASSISTANT) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
 
@@ -485,18 +535,18 @@ public class SqliteSessionRepository implements SessionRepository {
     }
 
     /**
-     * 将外部投递说明原子追加到匹配渠道来源的当前绑定会话。
+     * 将外部投递内容作为 Agent 消息原子追加到唯一匹配的当前绑定会话。
      *
      * @param platform 目标渠道。
      * @param chatId 目标聊天标识。
      * @param threadId 可选线程标识；为空时不限制线程。
      * @param userId 可选用户标识；为空时仅允许唯一用户来源。
-     * @param content 作为用户上下文写入的投递说明。
+     * @param content 作为 Agent 消息写入的投递内容。
      * @return 成功写入返回 true；目标缺失或不唯一时返回 false。
      * @throws Exception 会话读取或写入失败时抛出异常。
      */
     @Override
-    public boolean appendBoundOriginUserMessage(
+    public boolean appendBoundOriginAssistantMessage(
             PlatformType platform, String chatId, String threadId, String userId, String content)
             throws Exception {
         if (platform == null || StrUtil.isBlank(chatId) || StrUtil.isBlank(content)) {
@@ -516,7 +566,8 @@ public class SqliteSessionRepository implements SessionRepository {
 
             String line =
                     MessageSupport.toNdjson(
-                                    Collections.singletonList(ChatMessage.ofUser(content.trim())))
+                                    Collections.singletonList(
+                                            ChatMessage.ofAssistant(content.trim())))
                             .trim();
             long now = System.currentTimeMillis();
             PreparedStatement update =
@@ -598,12 +649,16 @@ public class SqliteSessionRepository implements SessionRepository {
         }
         String expectedUserId = StrUtil.trimToNull(userId);
         if (expectedUserId != null) {
+            OriginSessionCandidate matched = null;
             for (OriginSessionCandidate candidate : candidates) {
                 if (expectedUserId.equals(candidate.userId)) {
-                    return candidate;
+                    if (matched != null && !matched.sessionId.equals(candidate.sessionId)) {
+                        return null;
+                    }
+                    matched = candidate;
                 }
             }
-            return candidates.size() == 1 ? candidates.get(0) : null;
+            return matched;
         }
 
         LinkedHashSet<String> users = new LinkedHashSet<String>();
@@ -614,7 +669,7 @@ public class SqliteSessionRepository implements SessionRepository {
                 users.add(candidate.userId);
             }
         }
-        return users.size() > 1 && sessions.size() > 1 ? null : candidates.get(0);
+        return sessions.size() == 1 ? candidates.get(0) : null;
     }
 
     /** 使用当前事务连接读取会话，供原子追加后同步全文索引。 */

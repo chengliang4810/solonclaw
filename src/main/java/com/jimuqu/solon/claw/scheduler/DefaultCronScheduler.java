@@ -1394,9 +1394,11 @@ public class DefaultCronScheduler {
             DeliveryRequest request = new DeliveryRequest();
             request.setPlatform(target.platform);
             request.setChatId(target.chatId);
+            request.setUserId(target.userId);
             request.setThreadId(target.threadId);
             request.setText(removeResolvedMediaTags(payload.text, resolvedMedia.resolved));
             request.setAttachments(resolvedMedia.attachments);
+            request.setRecordInConversation(true);
             try {
                 if (deliverLocalMemoryOrigin(job, target, request)) {
                     // 本地交互来源没有外部渠道适配器，直接写入会话历史作为可恢复回投。
@@ -1632,7 +1634,7 @@ public class DefaultCronScheduler {
                 return homeTarget(platform);
             }
             return new CronDeliveryTarget(
-                    platform, chatId.trim(), CronJobSupport.normalizeBlank(threadId));
+                    platform, chatId.trim(), CronJobSupport.normalizeBlank(threadId), null);
         }
 
         PlatformType platform = PlatformType.fromName(target);
@@ -1666,7 +1668,8 @@ public class DefaultCronScheduler {
                 return new CronDeliveryTarget(
                         platform,
                         job.getDeliverChatId(),
-                        CronJobSupport.normalizeBlank(job.getDeliverThreadId()));
+                        CronJobSupport.normalizeBlank(job.getDeliverThreadId()),
+                        null);
             }
         }
         String[] parts = SourceKeySupport.split(job.getSourceKey());
@@ -1678,7 +1681,8 @@ public class DefaultCronScheduler {
                 platform,
                 parts[1],
                 CronJobSupport.normalizeBlank(
-                        StrUtil.blankToDefault(job.getDeliverThreadId(), parts[3])));
+                        StrUtil.blankToDefault(job.getDeliverThreadId(), parts[3])),
+                CronJobSupport.normalizeBlank(parts[2]));
     }
 
     /**
@@ -1713,6 +1717,8 @@ public class DefaultCronScheduler {
                         origin, "chat_id", "chatId", "conversation_id", "conversationId");
         String threadId =
                 CronJobSupport.firstString(origin, "thread_id", "threadId", "topic_id", "topicId");
+        String userId =
+                CronJobSupport.firstString(origin, "user_id", "userId", "sender_id", "senderId");
         if (platform == null || StrUtil.isBlank(chatId)) {
             return null;
         }
@@ -1724,7 +1730,10 @@ public class DefaultCronScheduler {
                             origin, "user_id", "userId", "session_id", "sessionId");
         }
         return new CronDeliveryTarget(
-                platform, chatId.trim(), CronJobSupport.normalizeBlank(threadId));
+                platform,
+                chatId.trim(),
+                CronJobSupport.normalizeBlank(threadId),
+                CronJobSupport.normalizeBlank(userId));
     }
 
     /**
@@ -1751,7 +1760,10 @@ public class DefaultCronScheduler {
             return null;
         }
         return new CronDeliveryTarget(
-                platform, home.getChatId(), CronJobSupport.normalizeBlank(home.getThreadId()));
+                platform,
+                home.getChatId(),
+                CronJobSupport.normalizeBlank(home.getThreadId()),
+                null);
     }
 
     /**
@@ -1773,7 +1785,8 @@ public class DefaultCronScheduler {
                 return new CronDeliveryTarget(
                         home.getPlatform(),
                         home.getChatId(),
-                        CronJobSupport.normalizeBlank(home.getThreadId()));
+                        CronJobSupport.normalizeBlank(home.getThreadId()),
+                        null);
             }
         } catch (Exception e) {
             log.warn(
@@ -2737,17 +2750,23 @@ public class DefaultCronScheduler {
         /** 记录定时任务投递Target中的thread标识。 */
         private final String threadId;
 
+        /** 记录定时任务投递目标用户；为空时仅允许唯一会话回写。 */
+        private final String userId;
+
         /**
          * 创建定时任务投递Target实例，并注入运行所需依赖。
          *
          * @param platform 平台参数。
          * @param chatId 聊天标识。
          * @param threadId thread标识。
+         * @param userId 用户标识。
          */
-        private CronDeliveryTarget(PlatformType platform, String chatId, String threadId) {
+        private CronDeliveryTarget(
+                PlatformType platform, String chatId, String threadId, String userId) {
             this.platform = platform;
             this.chatId = chatId;
             this.threadId = threadId;
+            this.userId = userId;
         }
     }
 

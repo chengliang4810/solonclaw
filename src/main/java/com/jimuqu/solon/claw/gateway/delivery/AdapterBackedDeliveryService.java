@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
@@ -15,11 +16,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 基于渠道适配器集合实现的投递服务。 */
-@RequiredArgsConstructor
 public class AdapterBackedDeliveryService implements DeliveryService {
+    /** 后台消息会话回写失败时使用的日志记录器。 */
+    private static final Logger log = LoggerFactory.getLogger(AdapterBackedDeliveryService.class);
+
     /** 应用配置。 */
     private final AppConfig appConfig;
 
@@ -28,6 +32,29 @@ public class AdapterBackedDeliveryService implements DeliveryService {
 
     /** 网关授权策略仓储，用于解析 home channel。 */
     private final GatewayPolicyRepository gatewayPolicyRepository;
+
+    /** 会话仓储，用于让 Agent 记住成功发送的后台消息。 */
+    private final SessionRepository sessionRepository;
+
+    /** 创建不启用会话回写的投递服务，供隔离测试或精简运行时使用。 */
+    public AdapterBackedDeliveryService(
+            AppConfig appConfig,
+            Map<PlatformType, ChannelAdapter> adapters,
+            GatewayPolicyRepository gatewayPolicyRepository) {
+        this(appConfig, adapters, gatewayPolicyRepository, null);
+    }
+
+    /** 创建渠道投递服务，并注入可选的会话回写仓储。 */
+    public AdapterBackedDeliveryService(
+            AppConfig appConfig,
+            Map<PlatformType, ChannelAdapter> adapters,
+            GatewayPolicyRepository gatewayPolicyRepository,
+            SessionRepository sessionRepository) {
+        this.appConfig = appConfig;
+        this.adapters = adapters;
+        this.gatewayPolicyRepository = gatewayPolicyRepository;
+        this.sessionRepository = sessionRepository;
+    }
 
     /** 发送消息；若请求未指定 chatId，则回退到平台 home channel。 */
     @Override
@@ -60,6 +87,31 @@ public class AdapterBackedDeliveryService implements DeliveryService {
         }
 
         adapter.send(request);
+        recordDeliveredMessage(request);
+    }
+
+    /** 成功投递后台消息后，将正文回写到唯一匹配的普通会话。 */
+    private void recordDeliveredMessage(DeliveryRequest request) {
+        if (sessionRepository == null
+                || request == null
+                || !request.isRecordInConversation()
+                || StrUtil.isBlank(request.getText())) {
+            return;
+        }
+        try {
+            sessionRepository.appendBoundOriginAssistantMessage(
+                    request.getPlatform(),
+                    request.getChatId(),
+                    request.getThreadId(),
+                    request.getUserId(),
+                    request.getText());
+        } catch (Exception e) {
+            log.warn(
+                    "Delivered message conversation write-back failed: platform={}, chatId={}, error={}",
+                    request.getPlatform(),
+                    request.getChatId(),
+                    e.getClass().getSimpleName());
+        }
     }
 
     /**

@@ -149,6 +149,7 @@ public class ProactiveReminderScheduler {
         }
         DeliveryRequest request =
                 SourceKeySupport.toDeliveryRequest(session.getSourceKey(), message);
+        request.setRecordInConversation(true);
         deliveryService.deliver(request);
         state.lastSentAt = System.currentTimeMillis();
         state.lastMessage = SecretRedactor.redact(message, 500);

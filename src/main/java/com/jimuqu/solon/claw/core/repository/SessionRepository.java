@@ -44,7 +44,7 @@ public interface SessionRepository {
     void save(SessionRecord sessionRecord) throws Exception;
 
     /**
-     * 将外部投递上下文追加到匹配渠道来源的当前绑定会话。
+     * 将外部投递内容作为 Agent 消息追加到匹配渠道来源的当前绑定会话。
      *
      * <p>支持该能力的持久化实现应保证追加不会覆盖并发写入；无法唯一定位目标时必须返回 false，不得猜测用户会话。
      *
@@ -52,11 +52,11 @@ public interface SessionRepository {
      * @param chatId 目标聊天标识。
      * @param threadId 可选线程标识；为空时不限制线程。
      * @param userId 可选用户标识；为空时仅允许唯一用户来源。
-     * @param content 作为用户上下文写入的投递说明。
+     * @param content 作为 Agent 消息写入的投递内容。
      * @return 成功写入返回 true；目标缺失、不唯一或实现不支持时返回 false。
      * @throws Exception 会话读取或写入失败时抛出异常。
      */
-    default boolean appendBoundOriginUserMessage(
+    default boolean appendBoundOriginAssistantMessage(
             PlatformType platform, String chatId, String threadId, String userId, String content)
             throws Exception {
         return false;

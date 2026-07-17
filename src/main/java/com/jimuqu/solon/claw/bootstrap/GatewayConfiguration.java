@@ -148,9 +148,10 @@ public class GatewayConfiguration {
     public DeliveryService deliveryService(
             AppConfig appConfig,
             Map<PlatformType, ChannelAdapter> channelAdapters,
-            GatewayPolicyRepository gatewayPolicyRepository) {
+            GatewayPolicyRepository gatewayPolicyRepository,
+            SessionRepository sessionRepository) {
         return new AdapterBackedDeliveryService(
-                appConfig, channelAdapters, gatewayPolicyRepository);
+                appConfig, channelAdapters, gatewayPolicyRepository, sessionRepository);
     }
 
     /**

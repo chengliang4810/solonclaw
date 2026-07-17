@@ -162,6 +162,7 @@ public class HeartbeatScheduler {
         request.setChatId(home.getChatId());
         request.setThreadId(home.getThreadId());
         request.setText(reply.getContent());
+        request.setRecordInConversation(true);
         deliveryService.deliver(request);
         log.info(
                 "Heartbeat delivered: platform={}, chatId={}, chars={}",

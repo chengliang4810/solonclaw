@@ -540,6 +540,7 @@ public class DefaultGatewayService {
             request.setChatId(chatId);
             request.setThreadId(threadId);
             request.setText(text);
+            request.setRecordInConversation(true);
             deliveryService.deliver(request);
         } catch (Exception e) {
             log.warn(

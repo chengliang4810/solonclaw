@@ -69,7 +69,7 @@ class SqliteSessionRepositoryConnectionCleanupTest {
 
         assertResetFailureReleasesConnection(
                 () ->
-                        repository.appendBoundOriginUserMessage(
+                        repository.appendBoundOriginAssistantMessage(
                                 PlatformType.MEMORY, "append-room", null, "user", "delivered"));
     }
 

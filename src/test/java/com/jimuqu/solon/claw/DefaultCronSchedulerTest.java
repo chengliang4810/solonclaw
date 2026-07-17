@@ -918,6 +918,7 @@ public class DefaultCronSchedulerTest {
         assertThat(request.getChatId()).isEqualTo("feishu-home-room");
         assertThat(request.getThreadId()).isEqualTo("topic-home");
         assertThat(request.getText()).contains("home fallback ok");
+        assertThat(request.isRecordInConversation()).isTrue();
         assertThat(env.cronJobRepository.findById(job.getJobId()).getLastDeliveryError()).isNull();
     }
 

@@ -104,6 +104,7 @@ public class HeartbeatSchedulerTest {
         assertThat(deliveryService.requests.get(0).getPlatform()).isEqualTo(PlatformType.FEISHU);
         assertThat(deliveryService.requests.get(0).getChatId()).isEqualTo("chat-1");
         assertThat(deliveryService.requests.get(0).getText()).isEqualTo("今天需要提醒用户处理一件事");
+        assertThat(deliveryService.requests.get(0).isRecordInConversation()).isTrue();
     }
 
     /** 多个平台都有 home channel 时只运行显式选择的主要通知渠道。 */

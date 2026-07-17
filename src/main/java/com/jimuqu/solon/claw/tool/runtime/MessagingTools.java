@@ -117,7 +117,13 @@ public class MessagingTools {
                     .metadata("sourceKey", safeResult(sourceKey, 400))
                     .toJson();
         }
-        String targetUserId = StrUtil.blankToDefault(parts[2], null);
+        boolean sameSourceTarget =
+                sourcePlatform == targetPlatform
+                        && StrUtil.equals(sourceChatId, targetChatId)
+                        && StrUtil.equals(
+                                StrUtil.blankToDefault(sourceThreadId, null),
+                                StrUtil.blankToDefault(targetThreadId, null));
+        String targetUserId = sameSourceTarget ? StrUtil.blankToDefault(parts[2], null) : null;
         List<MessageAttachment> attachments = resolveAttachments(targetPlatform, mediaPaths);
         DeliveryRequest request = new DeliveryRequest();
         request.setPlatform(targetPlatform);
@@ -127,6 +133,7 @@ public class MessagingTools {
         request.setText(text);
         request.setAttachments(attachments);
         request.setChannelExtras(parseChannelExtras(channelExtrasJson));
+        request.setRecordInConversation(true);
         deliveryService.deliver(request);
         MessageDeliveryTracker.recordDirectDelivery(
                 sourceKey,

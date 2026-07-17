@@ -24,6 +24,7 @@ final class SessionRecordMapper {
         record.setPlatformMessageId(resultSet.getString("platform_message_id"));
         record.setMetadataJson(resultSet.getString("metadata_json"));
         record.setNdjson(resultSet.getString("ndjson"));
+        record.setPersistedNdjson(record.getNdjson());
         record.setTitle(resultSet.getString("title"));
         record.setCompressedSummary(resultSet.getString("compressed_summary"));
         record.setSystemPromptSnapshot(resultSet.getString("system_prompt_snapshot"));

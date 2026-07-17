@@ -40,6 +40,9 @@ public class DeliveryRequest {
     /** 要投递的文本内容。 */
     private String text;
 
+    /** 成功投递后是否把文本作为 Agent 消息回写到唯一匹配的普通会话。 */
+    private boolean recordInConversation;
+
     /** 要投递的附件列表。 */
     private List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
 

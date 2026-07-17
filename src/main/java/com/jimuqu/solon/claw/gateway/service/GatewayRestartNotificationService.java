@@ -109,6 +109,7 @@ public class GatewayRestartNotificationService {
             request.setChatType(blankToNull(asText(data.get("chat_type"))));
             request.setThreadId(blankToNull(asText(data.get("thread_id"))));
             request.setText(ONLINE_MESSAGE);
+            request.setRecordInConversation(true);
             return request;
         } catch (Exception e) {
             log.warn("Restart online notification marker is invalid: error={}", safeError(e));
