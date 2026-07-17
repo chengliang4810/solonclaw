@@ -425,6 +425,63 @@ final class AppConfigLoader {
                                         overrides,
                                         "solonclaw.skills.curator.archiveAfterDays",
                                         90)));
+        config.getCurator()
+                .setAiEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.skills.curator.aiEnabled",
+                                        true)));
+        config.getCurator()
+                .setAiProvider(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.skills.curator.aiProvider",
+                                        "")));
+        config.getCurator()
+                .setAiModel(
+                        resolveConfigString(
+                                readString(
+                                        props, overrides, "solonclaw.skills.curator.aiModel", "")));
+        config.getCurator()
+                .setAiTimeoutSeconds(
+                        Math.min(
+                                300,
+                                positiveInt(
+                                        resolveInt(
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.skills.curator.aiTimeoutSeconds",
+                                                        30)),
+                                        30)));
+        config.getCurator()
+                .setAiMaxCandidatesPerRun(
+                        Math.min(
+                                50,
+                                positiveInt(
+                                        resolveInt(
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.skills.curator.aiMaxCandidatesPerRun",
+                                                        5)),
+                                        5)));
+        config.getCurator()
+                .setRecentEvidenceLimit(
+                        Math.min(
+                                10,
+                                positiveInt(
+                                        resolveInt(
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.skills.curator.recentEvidenceLimit",
+                                                        5)),
+                                        5)));
         config.getReflection()
                 .setEnabled(
                         resolveBoolean(

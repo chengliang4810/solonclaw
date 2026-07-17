@@ -4,16 +4,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.SkillTools;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.core.Props;
 
 public class SkillUsageTrackerTest {
@@ -78,6 +83,40 @@ public class SkillUsageTrackerTest {
         assertThat(((Number) entry.get("loadCount")).intValue()).isEqualTo(1);
         assertThat(((Number) entry.get("callCount")).intValue()).isEqualTo(1);
         assertThat(((Number) entry.get("count")).intValue()).isEqualTo(3);
+    }
+
+    /** skill_view 必须把真实调用会话锚定到工具执行前的消息边界。 */
+    @Test
+    void shouldAnchorSkillViewEvidenceToCurrentSessionMessages() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:skill-evidence:user";
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Collections.singletonList(ChatMessage.ofUser("请加载技能"))));
+        env.sessionRepository.save(session);
+        SkillTools tools =
+                new SkillTools(env.localSkillService, null, env.sessionRepository, sourceKey);
+        tools.skillManage(
+                "create",
+                "anchored-tool-skill",
+                null,
+                "---\nname: anchored-tool-skill\ndescription: test\n---\n\n# Test\n",
+                null,
+                null,
+                null,
+                null);
+
+        tools.skillView("anchored-tool-skill", null);
+
+        Map<String, Object> entry =
+                new SkillUsageTracker(env.appConfig).getEntry("anchored-tool-skill");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> evidence =
+                (List<Map<String, Object>>) entry.get("recentSessionEvidence");
+        assertThat(evidence).hasSize(1);
+        assertThat(evidence.get(0).get("sessionId")).isEqualTo(session.getSessionId());
+        assertThat(((Number) evidence.get(0).get("messageCount")).intValue()).isEqualTo(1);
     }
 
     @Test

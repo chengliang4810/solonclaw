@@ -445,6 +445,12 @@ public class AppConfig {
         this.curator.setMinIdleHours(other.getMinIdleHours());
         this.curator.setStaleAfterDays(other.getStaleAfterDays());
         this.curator.setArchiveAfterDays(other.getArchiveAfterDays());
+        this.curator.setAiEnabled(other.isAiEnabled());
+        this.curator.setAiProvider(other.getAiProvider());
+        this.curator.setAiModel(other.getAiModel());
+        this.curator.setAiTimeoutSeconds(other.getAiTimeoutSeconds());
+        this.curator.setAiMaxCandidatesPerRun(other.getAiMaxCandidatesPerRun());
+        this.curator.setRecentEvidenceLimit(other.getRecentEvidenceLimit());
     }
 
     /**
@@ -1139,6 +1145,24 @@ public class AppConfig {
 
         /** 多久未使用后归档。 */
         private int archiveAfterDays = 90;
+
+        /** 是否启用结合技能正文、用量和真实会话的 AI 评估。 */
+        private boolean aiEnabled = true;
+
+        /** AI 评估专用 provider；留空时沿用默认路由。 */
+        private String aiProvider = "";
+
+        /** AI 评估专用 model；留空时沿用默认路由。 */
+        private String aiModel = "";
+
+        /** 单技能 AI 评估超时，单位秒。 */
+        private int aiTimeoutSeconds = 30;
+
+        /** 单轮最多提交给 AI 深度评估的技能数。 */
+        private int aiMaxCandidatesPerRun = 5;
+
+        /** 单技能最多读取的近期真实会话证据数。 */
+        private int recentEvidenceLimit = 5;
     }
 
     /** 基于近期真实会话生成派生洞察的跨会话反思配置。 */

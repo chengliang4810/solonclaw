@@ -586,6 +586,30 @@ public class LocalSkillService implements SkillCatalogService {
      * @param kind kind 参数。
      */
     public synchronized void bumpUsage(String nameOrPath, String kind) {
+        bumpUsage(nameOrPath, kind, null);
+    }
+
+    /**
+     * 记录一次成功技能活动，并保存用于后续整理的有界真实会话引用。
+     *
+     * @param nameOrPath 技能名称或技能文件路径。
+     * @param kind 活动类型。
+     * @param sessionId 触发活动的真实会话标识；为空时只累计次数。
+     */
+    public synchronized void bumpUsage(String nameOrPath, String kind, String sessionId) {
+        bumpUsage(nameOrPath, kind, sessionId, -1);
+    }
+
+    /**
+     * 记录一次成功技能活动，并将真实会话引用锚定到工具执行时的消息边界。
+     *
+     * @param nameOrPath 技能名称或技能文件路径。
+     * @param kind 活动类型。
+     * @param sessionId 触发活动的真实会话标识；为空时只累计次数。
+     * @param messageCount 工具执行时会话中已持久化的消息数；小于零时不生成会话证据。
+     */
+    public synchronized void bumpUsage(
+            String nameOrPath, String kind, String sessionId, int messageCount) {
         try {
             SkillDescriptor descriptor = findDescriptor(nameOrPath);
             if (descriptor == null) {
@@ -594,7 +618,10 @@ public class LocalSkillService implements SkillCatalogService {
             updateUsage(
                     descriptor.canonicalName(),
                     "call".equalsIgnoreCase(StrUtil.nullToEmpty(kind)) ? "callCount" : "loadCount",
-                    null);
+                    null,
+                    sessionId,
+                    kind,
+                    messageCount);
         } catch (Exception e) {
             log.debug(
                     "Skill usage counter update failed; normal skill loading continues: {}",
@@ -604,11 +631,23 @@ public class LocalSkillService implements SkillCatalogService {
 
     /** 记录一次成功的技能管理操作；删除后仍可使用操作前取得的规范技能名。 */
     public synchronized void bumpManage(String canonicalName, String action) {
-        updateUsage(canonicalName, "manageCount", StrUtil.blankToDefault(action, "unknown"));
+        updateUsage(
+                canonicalName,
+                "manageCount",
+                StrUtil.blankToDefault(action, "unknown"),
+                null,
+                "manage",
+                -1);
     }
 
     /** 在整理器共享状态中原子增加一种技能活动。 */
-    private void updateUsage(String canonicalName, String counter, String manageAction) {
+    private void updateUsage(
+            String canonicalName,
+            String counter,
+            String manageAction,
+            String sessionId,
+            String usageKind,
+            int messageCount) {
         if (StrUtil.isBlank(canonicalName)) {
             return;
         }
@@ -634,6 +673,8 @@ public class LocalSkillService implements SkillCatalogService {
                                     record.put("lastManagedAt", Long.valueOf(now));
                                     record.put("lastManageAction", manageAction);
                                 }
+                                recordSessionEvidence(
+                                        record, sessionId, usageKind, now, messageCount);
                                 skills.put(canonicalName, record);
                                 state.put("skills", skills);
                                 return null;
@@ -643,6 +684,56 @@ public class LocalSkillService implements SkillCatalogService {
                     "Skill usage counter update failed; normal skill operation continues: {}",
                     safeError(e));
         }
+    }
+
+    /** 将同一会话的多种技能活动合并为一条引用，并只保留最近十条。 */
+    @SuppressWarnings("unchecked")
+    private void recordSessionEvidence(
+            Map<String, Object> record,
+            String sessionId,
+            String usageKind,
+            long usedAt,
+            int messageCount) {
+        String normalizedSession = StrUtil.nullToEmpty(sessionId).trim();
+        if (StrUtil.isBlank(normalizedSession)
+                || normalizedSession.length() > 200
+                || messageCount <= 0) {
+            return;
+        }
+        List<Map<String, Object>> rows =
+                record.get("recentSessionEvidence") instanceof List
+                        ? (List<Map<String, Object>>) record.get("recentSessionEvidence")
+                        : new ArrayList<Map<String, Object>>();
+        Map<String, Object> matched = null;
+        for (Map<String, Object> row : rows) {
+            if (normalizedSession.equals(String.valueOf(row.get("sessionId")))) {
+                matched = row;
+                break;
+            }
+        }
+        if (matched == null) {
+            matched = new LinkedHashMap<String, Object>();
+            matched.put("sessionId", normalizedSession);
+        } else {
+            rows.remove(matched);
+        }
+        matched.put("usedAt", Long.valueOf(usedAt));
+        matched.put("messageCount", Integer.valueOf(messageCount));
+        @SuppressWarnings("unchecked")
+        List<String> kinds =
+                matched.get("kinds") instanceof List
+                        ? (List<String>) matched.get("kinds")
+                        : new ArrayList<String>();
+        String normalizedKind = StrUtil.blankToDefault(usageKind, "load").toLowerCase();
+        if (!kinds.contains(normalizedKind)) {
+            kinds.add(normalizedKind);
+        }
+        matched.put("kinds", kinds);
+        rows.add(matched);
+        while (rows.size() > 10) {
+            rows.remove(0);
+        }
+        record.put("recentSessionEvidence", rows);
     }
 
     /**

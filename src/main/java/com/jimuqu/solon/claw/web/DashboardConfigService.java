@@ -488,6 +488,33 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "skills.curator.archiveAfterDays", "number", "agent", "技能多久未使用后归档"));
+        addField(
+                new FieldDefinition(
+                        "skills.curator.aiEnabled", "boolean", "agent", "启用基于真实会话证据的技能 AI 评估"));
+        addField(
+                new FieldDefinition(
+                        "skills.curator.aiProvider",
+                        "text",
+                        "agent",
+                        "技能 AI 评估专用 Provider，留空沿用默认路由"));
+        addField(
+                new FieldDefinition(
+                        "skills.curator.aiModel", "text", "agent", "技能 AI 评估专用模型，留空沿用默认路由"));
+        addField(
+                new FieldDefinition(
+                        "skills.curator.aiTimeoutSeconds", "number", "agent", "单技能 AI 评估超时（秒）"));
+        addField(
+                new FieldDefinition(
+                        "skills.curator.aiMaxCandidatesPerRun",
+                        "number",
+                        "agent",
+                        "单轮最多 AI 深度评估技能数"));
+        addField(
+                new FieldDefinition(
+                        "skills.curator.recentEvidenceLimit",
+                        "number",
+                        "agent",
+                        "单技能最多读取的真实会话证据数"));
         addField(new FieldDefinition("reflection.enabled", "boolean", "agent", "启用基于真实会话的跨会话反思"));
         addField(
                 new FieldDefinition(

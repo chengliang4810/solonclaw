@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
 import java.io.File;
@@ -149,11 +150,21 @@ public class SkillTools {
             @Param(name = "filePath", description = "可选支持文件相对路径", required = false) String filePath)
             throws Exception {
         try {
+            SessionEvidenceAnchor evidenceAnchor = currentSessionEvidenceAnchor();
             SkillView view =
-                    localSkillService.viewSkill(name, filePath, agentScope, currentSessionId());
+                    localSkillService.viewSkill(
+                            name, filePath, agentScope, evidenceAnchor.sessionId);
             registerSkillEnvironmentPassthrough(filePath, view);
-            localSkillService.bumpUsage(view.getDescriptor().canonicalName(), "load");
-            localSkillService.bumpUsage(view.getDescriptor().canonicalName(), "call");
+            localSkillService.bumpUsage(
+                    view.getDescriptor().canonicalName(),
+                    "load",
+                    evidenceAnchor.sessionId,
+                    evidenceAnchor.messageCount);
+            localSkillService.bumpUsage(
+                    view.getDescriptor().canonicalName(),
+                    "call",
+                    evidenceAnchor.sessionId,
+                    evidenceAnchor.messageCount);
             return safeResult(ONode.serialize(view), 20000);
         } catch (Exception e) {
             return toolError(e.getMessage());
@@ -397,22 +408,44 @@ public class SkillTools {
                         view.getDescriptor().getMetadata()));
     }
 
-    /**
-     * 执行当前会话标识相关逻辑。
-     *
-     * @return 返回当前会话标识。
-     */
-    private String currentSessionId() {
+    /** 读取当前会话及工具执行前的持久化消息边界，无法确认时不生成整理证据。 */
+    private SessionEvidenceAnchor currentSessionEvidenceAnchor() {
         try {
             SessionRecord session =
                     sessionRepository == null ? null : sessionRepository.getBoundSession(sourceKey);
-            return session == null ? null : session.getSessionId();
+            if (session == null || StrUtil.isBlank(session.getSessionId())) {
+                return SessionEvidenceAnchor.empty();
+            }
+            int messageCount = MessageSupport.countMessages(session.getNdjson());
+            return new SessionEvidenceAnchor(session.getSessionId(), messageCount);
         } catch (Exception e) {
             log.debug(
-                    "技能工具读取当前会话失败，使用无会话上下文兜底 source={} error={}",
+                    "技能工具读取会话证据边界失败，仅记录无会话用量 source={} error={}",
                     safeError(sourceKey),
                     e.getClass().getSimpleName());
-            return null;
+            return SessionEvidenceAnchor.empty();
+        }
+    }
+
+    /** 保存技能工具执行时的会话标识和消息数量。 */
+    private static final class SessionEvidenceAnchor {
+        /** 当前真实会话标识。 */
+        private final String sessionId;
+
+        /** 工具执行前已持久化的消息数量。 */
+        private final int messageCount;
+
+        /** 创建一条会话证据锚点。 */
+        private SessionEvidenceAnchor(String sessionId, int messageCount) {
+            this.sessionId = sessionId;
+            this.messageCount = messageCount;
+        }
+
+        /**
+         * @return 无法定位到会话消息边界的空锚点。
+         */
+        private static SessionEvidenceAnchor empty() {
+            return new SessionEvidenceAnchor(null, -1);
         }
     }
 

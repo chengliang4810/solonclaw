@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import java.sql.Connection;
@@ -10,6 +11,19 @@ import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
 public class DashboardCuratorServiceTest {
+    /** 后台直接调用核心服务后，注册的统一出口仍应把报告写入 Dashboard 数据库。 */
+    @Test
+    void shouldPersistReportsProducedOutsideDashboardEndpoint() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SkillCuratorService curator = new SkillCuratorService(env.appConfig, env.localSkillService);
+        DashboardCuratorService dashboard =
+                new DashboardCuratorService(curator, env.sqliteDatabase);
+
+        curator.runOnce(true);
+
+        assertThat(ONode.serialize(dashboard.list(10))).contains("items=").contains("status=ok");
+    }
+
     @Test
     void shouldRedactSecretsFromCuratorReportsAndImprovements() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -25,6 +39,10 @@ public class DashboardCuratorServiceTest {
         assertRedacted(detail);
         assertRedacted(improvements);
         assertThat(detail).contains("curator://report").contains("skill://curator-skill");
+        assertThat(improvements)
+                .contains("\"source\":\"ai\"")
+                .contains("\"source\":\"learning\"")
+                .doesNotContain("\"fallback_reason\":\"null\"");
     }
 
     private void insertReport(TestEnvironment env) throws Exception {
@@ -39,7 +57,7 @@ public class DashboardCuratorServiceTest {
             statement.setString(4, "/tmp/token-report-ghp_curatorpath12345.json");
             statement.setString(
                     5,
-                    "{\"stateFile\":\"/tmp/token-state-ghp_curatorstate12345.json\",\"items\":[{\"name\":\"curator-skill\",\"path\":\"/tmp/token-skill-ghp_curatorskill12345.md\",\"note\":\"api_key=sk-test-curatornote\"}]}");
+                    "{\"stateFile\":\"/tmp/token-state-ghp_curatorstate12345.json\",\"items\":[{\"name\":\"curator-skill\",\"path\":\"/tmp/token-skill-ghp_curatorskill12345.md\",\"note\":\"api_key=sk-test-curatornote\",\"suggestions\":[\"保留并继续评估\"],\"evaluation\":{\"mode\":\"ai\",\"verdict\":\"keep\",\"confidence\":0.9}}]}");
             statement.setLong(6, 1L);
             statement.setLong(7, 2L);
             statement.executeUpdate();

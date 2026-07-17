@@ -134,12 +134,17 @@ public class ContextConfiguration {
      *
      * @param appConfig 应用运行配置。
      * @param localSkillService 本地技能服务依赖。
+     * @param sessionRepository 会话仓储。
+     * @param llmGateway 模型网关。
      * @return 返回技能技能维护服务结果。
      */
-    @Bean
+    @Bean(destroyMethod = "shutdown")
     public SkillCuratorService skillCuratorService(
-            AppConfig appConfig, LocalSkillService localSkillService) {
-        return new SkillCuratorService(appConfig, localSkillService);
+            AppConfig appConfig,
+            LocalSkillService localSkillService,
+            SessionRepository sessionRepository,
+            LlmGateway llmGateway) {
+        return new SkillCuratorService(appConfig, localSkillService, sessionRepository, llmGateway);
     }
 
     /**

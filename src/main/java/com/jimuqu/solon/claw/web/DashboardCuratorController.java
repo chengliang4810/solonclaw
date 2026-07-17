@@ -46,6 +46,36 @@ public class DashboardCuratorController {
     }
 
     /**
+     * 查询技能整理器运行状态和 AI 配置摘要。
+     *
+     * @return 返回整理器状态。
+     */
+    @Mapping(value = "/api/curator/status", method = MethodType.GET)
+    public Map<String, Object> status() {
+        return DashboardResponse.ok(curatorService.status());
+    }
+
+    /**
+     * 暂停后台技能整理。
+     *
+     * @return 返回暂停后的状态。
+     */
+    @Mapping(value = "/api/curator/pause", method = MethodType.POST)
+    public Map<String, Object> pause() {
+        return DashboardResponse.ok(curatorService.pause());
+    }
+
+    /**
+     * 恢复后台技能整理。
+     *
+     * @return 返回恢复后的状态。
+     */
+    @Mapping(value = "/api/curator/resume", method = MethodType.POST)
+    public Map<String, Object> resume() {
+        return DashboardResponse.ok(curatorService.resume());
+    }
+
+    /**
      * 执行详情相关逻辑。
      *
      * @param reportId report标识。

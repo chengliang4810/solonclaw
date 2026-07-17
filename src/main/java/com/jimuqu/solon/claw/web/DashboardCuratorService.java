@@ -33,6 +33,9 @@ public class DashboardCuratorService {
             SkillCuratorService skillCuratorService, SqliteDatabase database) {
         this.skillCuratorService = skillCuratorService;
         this.database = database;
+        if (this.skillCuratorService != null) {
+            this.skillCuratorService.setReportSink(this::saveReport);
+        }
     }
 
     /**
@@ -43,7 +46,6 @@ public class DashboardCuratorService {
      */
     public Map<String, Object> run(boolean force) throws Exception {
         Map<String, Object> report = skillCuratorService.runOnce(force);
-        saveReport(report);
         return sanitizeReport(report);
     }
 
@@ -164,36 +166,89 @@ public class DashboardCuratorService {
      */
     public Map<String, Object> improvements(int limit) throws Exception {
         List<Map<String, Object>> improvements = new ArrayList<Map<String, Object>>();
+        int max = Math.max(1, Math.min(limit <= 0 ? 20 : limit, 100));
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select * from skill_improvements order by created_at desc limit ?");
-            statement.setInt(1, Math.max(1, Math.min(limit <= 0 ? 20 : limit, 100)));
+                            "select report_id, report_json, started_at from curator_reports order by started_at desc limit 100");
             ResultSet resultSet = statement.executeQuery();
             try {
-                while (resultSet.next()) {
-                    Map<String, Object> item = new LinkedHashMap<String, Object>();
-                    item.put("improvement_id", resultSet.getString("improvement_id"));
-                    item.put("session_id", safe(resultSet.getString("session_id"), 200));
-                    item.put("run_id", safe(resultSet.getString("run_id"), 200));
-                    item.put("skill_name", safe(resultSet.getString("skill_name"), 400));
-                    item.put("action", safe(resultSet.getString("action"), 200));
-                    item.put("summary", safe(resultSet.getString("summary"), 2000));
-                    item.put(
-                            "changed_files",
-                            sanitizeObject(parseJson(resultSet.getString("changed_files_json"))));
-                    item.put(
-                            "evidence",
-                            sanitizeObject(parseJson(resultSet.getString("evidence_json"))));
-                    item.put("needs_review", resultSet.getInt("needs_review") != 0);
-                    item.put("created_at", resultSet.getLong("created_at"));
-                    improvements.add(item);
+                java.util.Set<String> seen = new java.util.LinkedHashSet<String>();
+                while (resultSet.next() && improvements.size() < max) {
+                    Object parsed = parseJson(resultSet.getString("report_json"));
+                    if (!(parsed instanceof Map)) {
+                        continue;
+                    }
+                    Object rawItems = ((Map<?, ?>) parsed).get("items");
+                    if (!(rawItems instanceof List)) {
+                        continue;
+                    }
+                    int itemIndex = 0;
+                    for (Object rawItem : (List<?>) rawItems) {
+                        itemIndex++;
+                        if (!(rawItem instanceof Map)) {
+                            continue;
+                        }
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> reportItem = (Map<String, Object>) rawItem;
+                        String skillName = safe(String.valueOf(reportItem.get("name")), 400);
+                        Object rawSuggestions = reportItem.get("suggestions");
+                        if (!(rawSuggestions instanceof List)) {
+                            continue;
+                        }
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> evaluation =
+                                reportItem.get("evaluation") instanceof Map
+                                        ? (Map<String, Object>) reportItem.get("evaluation")
+                                        : new LinkedHashMap<String, Object>();
+                        int suggestionIndex = 0;
+                        for (Object rawSuggestion : (List<?>) rawSuggestions) {
+                            suggestionIndex++;
+                            String suggestion = safe(String.valueOf(rawSuggestion), 2000);
+                            String dedupeKey = skillName + "\n" + suggestion;
+                            if (StrUtil.isBlank(suggestion) || !seen.add(dedupeKey)) {
+                                continue;
+                            }
+                            Map<String, Object> item = new LinkedHashMap<String, Object>();
+                            item.put(
+                                    "improvement_id",
+                                    resultSet.getString("report_id")
+                                            + "-"
+                                            + itemIndex
+                                            + "-"
+                                            + suggestionIndex);
+                            item.put("skill_name", skillName);
+                            item.put(
+                                    "action", safe(String.valueOf(evaluation.get("verdict")), 100));
+                            item.put("summary", suggestion);
+                            item.put("source", safe(String.valueOf(evaluation.get("mode")), 100));
+                            item.put("confidence", evaluation.get("confidence"));
+                            item.put(
+                                    "evidence_refs",
+                                    sanitizeObject(evaluation.get("evidenceRefs")));
+                            String fallbackReason =
+                                    nullableString(evaluation.get("fallbackReason"));
+                            if (StrUtil.isNotBlank(fallbackReason)) {
+                                item.put("fallback_reason", safe(fallbackReason, 300));
+                            }
+                            item.put("needs_review", Boolean.TRUE);
+                            item.put("created_at", resultSet.getLong("started_at"));
+                            improvements.add(item);
+                            if (improvements.size() >= max) {
+                                break;
+                            }
+                        }
+                        if (improvements.size() >= max) {
+                            break;
+                        }
+                    }
                 }
             } finally {
                 resultSet.close();
                 statement.close();
             }
+            appendLearningImprovements(connection, improvements, max);
         } finally {
             connection.close();
         }
@@ -202,12 +257,55 @@ public class DashboardCuratorService {
         return result;
     }
 
+    /** 在 Curator 建议之后补充自动学习产生的历史技能改进记录。 */
+    private void appendLearningImprovements(
+            Connection connection, List<Map<String, Object>> improvements, int max)
+            throws Exception {
+        if (improvements.size() >= max) {
+            return;
+        }
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "select * from skill_improvements order by created_at desc limit ?");
+        statement.setInt(1, max - improvements.size());
+        ResultSet resultSet = statement.executeQuery();
+        try {
+            while (resultSet.next() && improvements.size() < max) {
+                Map<String, Object> item = new LinkedHashMap<String, Object>();
+                item.put("improvement_id", resultSet.getString("improvement_id"));
+                item.put("session_id", safe(resultSet.getString("session_id"), 200));
+                item.put("run_id", safe(resultSet.getString("run_id"), 200));
+                item.put("skill_name", safe(resultSet.getString("skill_name"), 400));
+                item.put("action", safe(resultSet.getString("action"), 200));
+                item.put("summary", safe(resultSet.getString("summary"), 2000));
+                item.put(
+                        "changed_files",
+                        sanitizeObject(parseJson(resultSet.getString("changed_files_json"))));
+                item.put(
+                        "evidence",
+                        sanitizeObject(parseJson(resultSet.getString("evidence_json"))));
+                item.put("source", "learning");
+                item.put("needs_review", resultSet.getInt("needs_review") != 0);
+                item.put("created_at", resultSet.getLong("created_at"));
+                improvements.add(item);
+            }
+        } finally {
+            resultSet.close();
+            statement.close();
+        }
+    }
+
+    /** 将可选字段转换为字符串，避免把空值持久化为字面量 null。 */
+    private String nullableString(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
     /**
      * 保存Report。
      *
      * @param report report 参数。
      */
-    private void saveReport(Map<String, Object> report) throws Exception {
+    public void saveReport(Map<String, Object> report) throws Exception {
         long startedAt = TimeSupport.millisOrNow(report.get("startedAt"));
         long finishedAt = TimeSupport.millisOrNow(report.get("finishedAt"));
         String status = StrUtil.blankToDefault(String.valueOf(report.get("status")), "unknown");
