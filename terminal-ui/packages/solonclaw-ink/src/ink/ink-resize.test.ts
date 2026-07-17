@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events'
 
 import React from 'react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import Text from './components/Text.js'
 import Ink from './ink.js'
@@ -24,7 +24,13 @@ class FakeTty extends EventEmitter {
 const tick = () => new Promise<void>(resolve => queueMicrotask(resolve))
 
 describe('Ink resize healing', () => {
-  it('heals same-dimension alt-screen resize events with an erase before repaint', async () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it.each([
+    ['default terminal', '', ERASE_SCREEN + CURSOR_HOME],
+    ['Apple Terminal', 'Apple_Terminal', ERASE_SCREEN + ERASE_SCROLLBACK + CURSOR_HOME]
+  ])('heals same-dimension alt-screen resize events in %s', async (_name, termProgram, expectedErase) => {
+    vi.stubEnv('TERM_PROGRAM', termProgram)
     const stdout = new FakeTty()
     const stdin = new FakeTty()
     const stderr = new FakeTty()
@@ -46,7 +52,7 @@ describe('Ink resize healing', () => {
     ink.onRender()
     await tick()
 
-    expect(stdout.chunks.join('')).toContain(ERASE_SCREEN + ERASE_SCROLLBACK + CURSOR_HOME)
+    expect(stdout.chunks.join('')).toContain(expectedErase)
 
     ink.unmount()
   })
