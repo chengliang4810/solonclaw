@@ -86,6 +86,12 @@ export default [
     }
   },
   {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'unused-imports/no-unused-vars': 'error'
+    }
+  },
+  {
     files: ['packages/solonclaw-ink/**/*.{ts,tsx}'],
     rules: {
       '@typescript-eslint/consistent-type-imports': 'off',

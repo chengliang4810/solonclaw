@@ -308,7 +308,8 @@ export const coreCommands: SlashCommand[] = [
           return transcript.sys(DETAILS_SECTION_USAGE)
         }
 
-        const { [first]: _drop, ...rest } = ui.sections
+        const rest = { ...ui.sections }
+        delete rest[first]
 
         patchUiState({ sections: mode ? { ...rest, [first]: mode } : rest })
         gateway

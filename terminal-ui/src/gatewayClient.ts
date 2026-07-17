@@ -340,7 +340,7 @@ export class GatewayClient extends EventEmitter {
       ws.addEventListener('error', () => {
         this.pushLog('[sidecar] mirror connection error')
       })
-    } catch (err) {
+    } catch {
       this.pushLog(`[sidecar] failed to connect ${redactUrl(this.sidecarUrl)} (constructor error)`)
       this.sidecarWs = null
     }
