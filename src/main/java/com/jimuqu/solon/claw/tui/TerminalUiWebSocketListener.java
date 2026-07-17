@@ -660,7 +660,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         if ("subagent.interrupt".equals(method)) {
             return rpcService.subagentInterrupt(params.get("subagent_id").getString());
         }
-        if ("spawn_tree.list".equals(method) || "spawn_tree.save".equals(method)) {
+        if ("spawn_tree.list".equals(method)) {
             return rpcService.spawnTreeList(
                     params.get("session_id").getString(), params.get("limit").getInt());
         }

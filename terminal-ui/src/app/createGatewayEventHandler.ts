@@ -16,7 +16,6 @@ import {
   keepTerminalSubagentStatusElseRunning,
   normalizeSubagentStatus
 } from '../lib/subagentStatus.js'
-import { topLevelSubagents } from '../lib/subagentTree.js'
 import { formatAbandonedClarify, formatToolCall, stripAnsi } from '../lib/text.js'
 import { fromSkin } from '../theme.js'
 import type { Msg } from '../types.js'
@@ -87,38 +86,6 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
       text: formatAbandonedClarify(clarify.question, clarify.choices, 'timed out')
     })
     patchOverlayState({ clarify: null })
-  }
-
-  // Inject the disk-save callback into turnController so recordMessageComplete
-  // can fire-and-forget a persist without having to plumb a gateway ref around.
-  turnController.persistSpawnTree = async (subagents, sessionId) => {
-    try {
-      const startedAt = subagents.reduce<number>((min, s) => {
-        if (!s.startedAt) {
-          return min
-        }
-
-        return min === 0 ? s.startedAt : Math.min(min, s.startedAt)
-      }, 0)
-
-      const top = topLevelSubagents(subagents)
-        .map(s => s.goal)
-        .filter(Boolean)
-        .slice(0, 2)
-
-      const label = top.length ? top.join(' · ') : `${subagents.length} subagents`
-
-      await rpc('spawn_tree.save', {
-        finished_at: Date.now() / 1000,
-        label: label.slice(0, 120),
-        session_id: sessionId ?? 'default',
-        started_at: startedAt ? startedAt / 1000 : null,
-        subagents
-      })
-    } catch {
-      // Persistence is best-effort; in-memory history is the authoritative
-      // same-session source.  A write failure doesn't block the turn.
-    }
   }
 
   // Refresh delegation caps at most every 5s so the status bar HUD can

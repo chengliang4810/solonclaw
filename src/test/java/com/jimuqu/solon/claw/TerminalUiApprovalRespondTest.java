@@ -3,8 +3,10 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
+import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.ClarifyRequestCoordinator;
@@ -31,6 +33,59 @@ import org.noear.solon.net.websocket.WebSocket;
 class TerminalUiApprovalRespondTest {
     /** 测试 TUI WebSocket 统一使用的 Dashboard 访问令牌。 */
     private static final String TEST_DASHBOARD_TOKEN = "test-token";
+
+    /** 验证运行树只从后端运行仓储读取，并明确拒绝不存在的快照保存契约。 */
+    @Test
+    void spawnTreeRpcRejectsSaveAndKeepsRepositoryListAvailable() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TerminalUiWebSocketListener listener = newTuiListener(env);
+        RecordingSocket socket = new RecordingSocket();
+        listener.onOpen(socket);
+
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-spawn-tree");
+        run.setSessionId("session-1");
+        run.setSourceKey("MEMORY:terminal-ui:session-1");
+        run.setInputPreview("检查运行树归档");
+        run.setStatus("success");
+        run.setStartedAt(1_800_000_000_000L);
+        run.setFinishedAt(1_800_000_001_000L);
+        env.agentRunRepository.saveRun(run);
+        SubagentRunRecord subagent = new SubagentRunRecord();
+        subagent.setSubagentId("subagent-spawn-tree");
+        subagent.setParentRunId(run.getRunId());
+        subagent.setSessionId(run.getSessionId());
+        subagent.setGoalPreview("核对归档来源");
+        subagent.setStatus("success");
+        env.agentRunRepository.saveSubagentRun(subagent);
+
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-spawn-list\","
+                        + "\"method\":\"spawn_tree.list\",\"params\":{"
+                        + "\"session_id\":\"session-1\",\"limit\":30}}");
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-spawn-save\","
+                        + "\"method\":\"spawn_tree.save\",\"params\":{"
+                        + "\"session_id\":\"session-1\",\"subagents\":[]}}");
+
+        assertThat(socket.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"id\":\"rpc-spawn-list\"")
+                                        && text.contains("\"path\":\"run:run-spawn-tree\"")
+                                        && text.contains("\"count\":1")
+                                        && text.contains("\"label\":\"检查运行树归档\""));
+        assertThat(socket.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"id\":\"rpc-spawn-save\"")
+                                        && text.contains("\"error\":{")
+                                        && !text.contains("\"result\":")
+                                        && text.contains(
+                                                "spawn_tree.save is not available in the current backend"));
+    }
 
     /** 验证本机无令牌连接会被策略关闭，且不会收到 server.ready。 */
     @Test
@@ -608,7 +663,7 @@ class TerminalUiApprovalRespondTest {
                 null,
                 null,
                 null,
-                null,
+                env.agentRunRepository,
                 env.runtimeSettingsService,
                 env.globalSettingRepository);
     }

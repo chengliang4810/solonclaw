@@ -113,7 +113,6 @@ class TurnController {
   interrupted = false
   lastStatusNote = ''
   persistedToolLabels = new Set<string>()
-  persistSpawnTree?: (subagents: SubagentProgress[], sessionId: null | string) => Promise<void>
   protocolWarned = false
   reasoningText = ''
   segmentMessages: Msg[] = []
@@ -529,10 +528,6 @@ class TurnController {
 
     if (finishedSubagents.length > 0) {
       pushSnapshot(finishedSubagents, { sessionId, startedAt: null })
-      // Fire-and-forget disk persistence so /replay survives process restarts.
-      // The same snapshot lives in memory via spawnHistoryStore for immediate
-      // recall — disk is the long-term archive.
-      void this.persistSpawnTree?.(finishedSubagents, sessionId)
     }
 
     this.idle()
