@@ -7,7 +7,7 @@ COPY web/package*.json /workspace/web/
 RUN npm ci
 
 COPY web /workspace/web
-RUN npm run build
+RUN npm test && npm run build
 
 FROM node:24-bookworm-slim AS terminal-ui
 
@@ -18,7 +18,7 @@ COPY terminal-ui/packages/solonclaw-ink/package.json /workspace/terminal-ui/pack
 RUN npm ci
 
 COPY terminal-ui /workspace/terminal-ui
-RUN npm run build
+RUN npm run lint && npm run type-check && npm test && npm run build
 
 FROM maven:3.9.9-eclipse-temurin-17 AS builder
 
@@ -30,7 +30,7 @@ COPY config.example.yml /workspace/config.example.yml
 COPY src /workspace/src
 COPY --from=frontend /workspace/web/dist /workspace/web/dist
 
-RUN mvn -DskipTests -Dskip.web.build=true package \
+RUN mvn -Dskip.web.build=true package \
     && cp "$(find target -maxdepth 1 -type f -name 'solonclaw-*.jar' ! -name 'original-*' | head -n 1)" /tmp/solonclaw.jar
 
 FROM eclipse-temurin:17-jre

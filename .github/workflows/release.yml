@@ -89,6 +89,20 @@ jobs:
         id: release_range
         run: python3 scripts/resolve-release-range.py
 
+      - name: Test Dashboard
+        working-directory: web
+        run: |
+          npm ci
+          npm test
+
+      - name: Test Terminal UI
+        working-directory: terminal-ui
+        run: |
+          npm ci
+          npm run lint
+          npm run type-check
+          npm test
+
       - name: Create tag for main push
         if: github.event_name == 'push' && github.ref_type == 'branch' && github.ref_name == 'main'
         shell: bash
@@ -110,7 +124,7 @@ jobs:
           fi
 
       - name: Build release artifact
-        run: mvn -B -DskipTests package
+        run: mvn -B package
 
       - name: Prepare release files
         id: artifact
