@@ -157,7 +157,7 @@ const renderedToolResult = computed(() => {
 <template>
   <div
     class="message"
-    :class="[message.role, { highlight }]"
+    :class="[message.role, { highlight, progress: message.isProgress }]"
     :id="`message-${message.id}`"
   >
     <template v-if="message.role === 'tool'">
@@ -351,6 +351,21 @@ const renderedToolResult = computed(() => {
     .message-bubble {
       background-color: $msg-assistant-bg;
       border-radius: 10px;
+    }
+
+    &.progress {
+      .msg-avatar {
+        width: 28px;
+        height: 28px;
+      }
+
+      .message-bubble {
+        border-left: 3px solid $accent-primary;
+        border-radius: $radius-sm;
+        background-color: rgba(var(--accent-primary-rgb), 0.06);
+        color: $text-secondary;
+        font-size: 13px;
+      }
     }
   }
 

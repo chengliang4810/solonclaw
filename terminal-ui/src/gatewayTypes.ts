@@ -602,6 +602,7 @@ export type GatewayEvent =
       session_id?: string
       type: 'status.update'
     }
+  | { payload?: { text?: string }; session_id?: string; type: 'progress.update' }
   | { payload?: { state?: 'idle' | 'listening' | 'transcribing' }; session_id?: string; type: 'voice.status' }
   | { payload?: { no_speech_limit?: boolean; text?: string }; session_id?: string; type: 'voice.transcript' }
   | { payload: { line: string }; session_id?: string; type: 'gateway.stderr' }

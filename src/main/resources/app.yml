@@ -83,11 +83,11 @@ solonclaw.rollback.enabled: true
 solonclaw.rollback.maxCheckpointsPerSource: 20
 
 # 聊天窗口显示
-solonclaw.display.toolProgress: all
+solonclaw.display.toolProgress: off
 solonclaw.display.showReasoning: false
 solonclaw.display.resumeDisplay: full
 solonclaw.display.toolPreviewLength: 80
-solonclaw.display.progressThrottleMs: 1500
+solonclaw.display.progressThrottleMs: 5000
 
 # ReAct 推理控制
 solonclaw.react.maxSteps: 12
@@ -184,7 +184,7 @@ solonclaw.channels.feishu.botOpenId:
 solonclaw.channels.feishu.botUserId:
 solonclaw.channels.feishu.botName:
 solonclaw.channels.feishu.websocketUrl:
-solonclaw.channels.feishu.toolProgress: all
+solonclaw.channels.feishu.toolProgress: off
 
 # 钉钉渠道，仅支持 stream mode 入站与官方机器人出站
 solonclaw.channels.dingtalk.enabled: false
@@ -197,7 +197,7 @@ solonclaw.channels.dingtalk.unauthorizedDmBehavior: pair
 solonclaw.channels.dingtalk.robotCode:
 solonclaw.channels.dingtalk.coolAppCode:
 solonclaw.channels.dingtalk.streamUrl:
-solonclaw.channels.dingtalk.toolProgress: all
+solonclaw.channels.dingtalk.toolProgress: off
 solonclaw.channels.dingtalk.progressCardTemplateId:
 
 # 企微渠道
@@ -209,7 +209,7 @@ solonclaw.channels.wecom.groupAllowedUsers:
 solonclaw.channels.wecom.allowAllUsers: false
 solonclaw.channels.wecom.unauthorizedDmBehavior: pair
 solonclaw.channels.wecom.websocketUrl:
-solonclaw.channels.wecom.toolProgress: all
+solonclaw.channels.wecom.toolProgress: off
 
 # 微信渠道
 solonclaw.channels.weixin.enabled: false

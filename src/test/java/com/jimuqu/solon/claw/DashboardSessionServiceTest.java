@@ -12,15 +12,53 @@ import com.jimuqu.solon.claw.web.DashboardSessionService;
 import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.ToolMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 
 public class DashboardSessionServiceTest {
+    /** 旧工具调用历史在 Dashboard 恢复时也必须执行阶段说明安全过滤。 */
+    @Test
+    void shouldSanitizeLegacyToolCallPreamblesWhenLoadingHistory() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:dash-progress:user");
+        String longText =
+                "正在核对配置\n token=sk-dashboard-history-secret "
+                        + String.join("", Collections.nCopies(50, "较长内容"));
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("检查配置"),
+                                assistantWithToolCall(
+                                        "<ana\u200Ely\uFEFFsis>secret plan</ana\u200Ely\uFEFFsis>",
+                                        "call_unsafe_progress"),
+                                ChatMessage.ofTool("done", "read_file", "call_unsafe_progress"),
+                                assistantWithToolCall(longText, "call_safe_progress"),
+                                ChatMessage.ofTool("done", "read_file", "call_safe_progress"))));
+        env.sessionRepository.save(session);
+
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+        Map<String, Object> detail = service.getSessionMessages(session.getSessionId());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> messages = (List<Map<String, Object>>) detail.get("messages");
+        String unsafe = String.valueOf(messages.get(1).get("content"));
+        String safe = String.valueOf(messages.get(3).get("content"));
+        assertThat(unsafe).isEmpty();
+        assertThat(safe)
+                .doesNotContain("\n", "\r", "sk-dashboard-history-secret")
+                .contains("token=***")
+                .hasSizeLessThanOrEqualTo(240);
+    }
+
     @Test
     void shouldExposeAssistantReasoningAndCompressionMetadata() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -606,6 +644,21 @@ public class DashboardSessionServiceTest {
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> messages(Map<String, Object> page) {
         return (List<Map<String, Object>>) page.get("messages");
+    }
+
+    /** 构造携带一个原生工具调用的 assistant 历史消息。 */
+    private static AssistantMessage assistantWithToolCall(String content, String callId) {
+        Map<String, Object> arguments = new LinkedHashMap<String, Object>();
+        arguments.put("path", "workspace/config.yml");
+        List<ToolCall> calls = new ArrayList<ToolCall>();
+        calls.add(
+                new ToolCall(
+                        "0",
+                        callId,
+                        "read_file",
+                        "{\"path\":\"workspace/config.yml\"}",
+                        arguments));
+        return new AssistantMessage(content, false, null, null, calls, null);
     }
 
     private static void insertCheckpoint(

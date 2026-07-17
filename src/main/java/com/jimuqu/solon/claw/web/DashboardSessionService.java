@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.storage.repository.ReadOnlyProfileSessionRepository
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.ProgressUpdateSanitizer;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
@@ -420,7 +421,11 @@ public class DashboardSessionService {
             item.put("role", message.getRole().name().toLowerCase(Locale.ROOT));
             String content = message.getContent();
             if (message instanceof AssistantMessage) {
-                content = MessageSupport.assistantText((AssistantMessage) message);
+                AssistantMessage assistant = (AssistantMessage) message;
+                content = MessageSupport.assistantText(assistant);
+                if (assistant.getToolCalls() != null && !assistant.getToolCalls().isEmpty()) {
+                    content = ProgressUpdateSanitizer.sanitize(content);
+                }
             }
             item.put("content", SecretRedactor.redact(content, 8000));
             item.put("timestamp", null);

@@ -92,6 +92,13 @@ public interface ConversationEventSink {
     default void onAssistantDelta(String delta) {}
 
     /**
+     * 长任务的用户可见阶段说明；该事件独立于最终 assistant 正文，展示层不得把两者拼接。
+     *
+     * @param text 已完成安全过滤的单行阶段说明。
+     */
+    default void onProgressUpdate(String text) {}
+
+    /**
      * 撤销当前候选模型已经发送的 assistant 增量，供备用模型重新生成完整答复。
      *
      * @param reason 触发撤销的标准化结束原因。

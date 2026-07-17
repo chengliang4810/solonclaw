@@ -105,6 +105,18 @@ describe('createGatewayEventHandler', () => {
     })
   })
 
+  it('renders progress updates in activity without creating assistant text', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    onEvent({ payload: { text: '正在核对依赖关系' }, type: 'progress.update' } as any)
+
+    expect(getTurnState().activity).toEqual([
+      expect.objectContaining({ text: '正在核对依赖关系', tone: 'info' })
+    ])
+    expect(appended).toEqual([])
+  })
+
   it('keeps the current todo list visible when the next message starts', () => {
     const appended: Msg[] = []
     const todos = [{ content: 'Boil water', id: 'boil', status: 'in_progress' }]

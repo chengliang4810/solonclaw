@@ -149,6 +149,20 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
+     * 向消息渠道发送独立语义阶段说明，不受逐工具进度开关影响。
+     *
+     * @param text 已完成安全过滤的阶段说明。
+     */
+    @Override
+    public void onProgressUpdate(String text) {
+        String normalized = normalize(text);
+        if (StrUtil.isBlank(normalized)) {
+            return;
+        }
+        sendText("【进度】" + truncate(normalized, 240));
+    }
+
+    /**
      * 在最终回复时更新钉钉进度卡为完成态。
      *
      * @param finalReply 本轮最终回复文本。

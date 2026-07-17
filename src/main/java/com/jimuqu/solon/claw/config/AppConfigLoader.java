@@ -414,7 +414,7 @@ final class AppConfigLoader {
                                         props,
                                         overrides,
                                         "solonclaw.display.toolProgress",
-                                        "all")));
+                                        "off")));
         config.getDisplay()
                 .setShowReasoning(
                         resolveBoolean(
@@ -446,7 +446,7 @@ final class AppConfigLoader {
                                         props,
                                         overrides,
                                         "solonclaw.display.progressThrottleMs",
-                                        1500)));
+                                        5000)));
         config.getDisplay()
                 .getRuntimeFooter()
                 .setEnabled(
@@ -550,7 +550,7 @@ final class AppConfigLoader {
                                         props,
                                         overrides,
                                         "solonclaw.channels.feishu.toolProgress",
-                                        "all")));
+                                        "off")));
         config.getChannels()
                 .getFeishu()
                 .setCommentEnabled(
@@ -648,7 +648,7 @@ final class AppConfigLoader {
                                         props,
                                         overrides,
                                         "solonclaw.channels.dingtalk.toolProgress",
-                                        "all")));
+                                        "off")));
         config.getChannels()
                 .getDingtalk()
                 .setProgressCardTemplateId(
@@ -722,7 +722,7 @@ final class AppConfigLoader {
                                         props,
                                         overrides,
                                         "solonclaw.channels.wecom.toolProgress",
-                                        "all")));
+                                        "off")));
         config.getChannels()
                 .getWecom()
                 .setGroupMemberAllowedUsers(
@@ -940,7 +940,7 @@ final class AppConfigLoader {
                                         props,
                                         overrides,
                                         "solonclaw.channels.qqbot.toolProgress",
-                                        "all")));
+                                        "off")));
         config.getChannels()
                 .getQqbot()
                 .setRuntimeFooterEnabled(
@@ -1014,7 +1014,7 @@ final class AppConfigLoader {
                                         props,
                                         overrides,
                                         "solonclaw.channels.yuanbao.toolProgress",
-                                        "all")));
+                                        "off")));
         config.getChannels()
                 .getYuanbao()
                 .setRuntimeFooterEnabled(

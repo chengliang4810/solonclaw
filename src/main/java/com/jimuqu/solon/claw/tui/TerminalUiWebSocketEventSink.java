@@ -171,6 +171,19 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         send("assistant.delta", pair("delta", delta));
     }
 
+    /**
+     * 推送独立阶段说明事件；终端前端把它放入活动区，不进入最终消息缓冲。
+     *
+     * @param text 已完成安全过滤的阶段说明。
+     */
+    @Override
+    public void onProgressUpdate(String text) {
+        if (StrUtil.isBlank(text)) {
+            return;
+        }
+        send("progress.update", pair("text", safe(text)), activeSessionId);
+    }
+
     /** 丢弃当前候选尚未刷出的增量，并通知终端 UI 清除已展示的流式正文。 */
     @Override
     public void onAssistantReset(String reason) {

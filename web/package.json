@@ -19,6 +19,7 @@
     "test:runs-request-isolation": "node --experimental-strip-types tests/runsRequestIsolation.test.ts",
     "test:chat-api-model-catalog": "node --experimental-strip-types tests/chatApiModelCatalogStatic.test.ts",
     "test:chat-prestream-error-persistence": "node --experimental-strip-types tests/chatPreStreamErrorPersistenceStatic.test.ts",
+    "test:chat-progress-update": "node --experimental-strip-types tests/chatProgressUpdateStatic.test.ts",
     "test:session-selection": "node --experimental-strip-types tests/sessionSelection.test.ts",
     "test:chat-goal-display": "node --experimental-strip-types tests/chatGoalDisplay.test.ts",
     "test:chat-context-usage": "node --experimental-strip-types tests/chatContextUsage.test.ts",

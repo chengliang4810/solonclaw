@@ -36,6 +36,7 @@ export interface RunEvent {
   run_id?: string
   session_id?: string
   delta?: string
+  text?: string
   tool?: string
   name?: string
   preview?: string

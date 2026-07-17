@@ -744,6 +744,21 @@ public class DashboardChatService {
             enqueue(state, "message.delta", payload);
         }
 
+        /**
+         * 发送独立阶段说明事件，避免与最终 assistant 正文增量拼接。
+         *
+         * @param text 已完成安全过滤的阶段说明。
+         */
+        @Override
+        public void onProgressUpdate(String text) {
+            if (StrUtil.isBlank(text) || state.completed || state.canceled) {
+                return;
+            }
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("text", safeText(text, 240));
+            enqueue(state, "progress.update", payload);
+        }
+
         /** 撤销当前候选已发送的正文，确保备用模型答复不会与部分响应拼接。 */
         @Override
         public void onAssistantReset(String reason) {
@@ -1193,6 +1208,12 @@ public class DashboardChatService {
                 assistantBuffer.append(delta);
             }
             delegate.onAssistantDelta(delta);
+        }
+
+        /** 转发独立阶段说明，且不把它写入直连命令的最终正文缓冲。 */
+        @Override
+        public void onProgressUpdate(String text) {
+            delegate.onProgressUpdate(text);
         }
 
         /** 清除命令包装器累计的候选正文并转发撤销事件。 */

@@ -30,6 +30,7 @@ public class DashboardChatServiceEventSinkTest {
         result.setReasoningText("reasoning bearer " + SECRET);
 
         sink.onReasoningDelta("token=" + SECRET);
+        sink.onProgressUpdate("正在读取配置 token=" + SECRET);
         sink.onToolStarted("terminal", args);
         sink.onToolCompleted("terminal", "bearer " + SECRET, 12L);
         sink.onAttemptStarted("agent-" + SECRET, 1, "provider?api_key=" + SECRET, "model");
@@ -50,6 +51,22 @@ public class DashboardChatServiceEventSinkTest {
                 .contains("api_key=***")
                 .contains("bearer ***")
                 .doesNotContain(SECRET);
+    }
+
+    /** 阶段说明必须使用独立 SSE 事件，不能伪装成最终正文增量。 */
+    @Test
+    void shouldEmitProgressUpdateSeparatelyFromAssistantDelta() throws Exception {
+        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        Object state = newState("run-progress", "session-progress");
+        ConversationEventSink sink = newEventSink(service, state);
+
+        sink.onProgressUpdate("正在核对配置");
+        sink.onAssistantDelta("最终答复");
+
+        List<Object> emitted = drainEventList(state);
+        assertThat(eventNames(emitted)).containsExactly("progress.update", "message.delta");
+        assertThat(eventData(emitted.get(0))).containsEntry("text", "正在核对配置");
+        assertThat(eventData(emitted.get(1))).containsEntry("delta", "最终答复");
     }
 
     @Test

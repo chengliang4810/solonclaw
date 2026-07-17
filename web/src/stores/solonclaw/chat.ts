@@ -33,6 +33,7 @@ export interface Message {
   toolResult?: string
   toolStatus?: 'running' | 'done' | 'error'
   reasoning?: string
+  isProgress?: boolean
   isStreaming?: boolean
   attachments?: Attachment[]
 }
@@ -165,6 +166,7 @@ function mapSolonClawMessages(msgs: SolonClawMessage[]): Message[] {
       role: msg.role,
       content: normalized.content,
       reasoning: msg.reasoning || normalized.reasoning,
+      isProgress: msg.role === 'assistant' && Boolean(msg.tool_calls?.length && normalized.content.trim()),
       timestamp: Math.round(msg.timestamp * 1000),
     })
   }
@@ -1090,6 +1092,21 @@ export const useChatStore = defineStore('chat', () => {
                 })
               }
               schedulePersist()
+              break
+            }
+
+            case 'progress.update': {
+              const text = (evt.text || '').trim()
+              if (text) {
+                addMessage(sid, {
+                  id: uid(),
+                  role: 'assistant',
+                  content: text,
+                  timestamp: Date.now(),
+                  isProgress: true,
+                })
+                schedulePersist()
+              }
               break
             }
 

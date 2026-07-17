@@ -1178,8 +1178,8 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class DisplayConfig {
-        /** 默认工具进度模式。 */
-        private String toolProgress = "all";
+        /** 默认关闭逐工具进度，避免与语义阶段说明重复刷屏。 */
+        private String toolProgress = "off";
 
         /** 是否默认展示 reasoning。 */
         private boolean showReasoning;
@@ -1191,7 +1191,7 @@ public class AppConfig {
         private int toolPreviewLength = 80;
 
         /** reasoning/进度消息节流毫秒数。 */
-        private int progressThrottleMs = 1500;
+        private int progressThrottleMs = 5000;
 
         /** 最终回复运行态 footer。 */
         private RuntimeFooterConfig runtimeFooter = new RuntimeFooterConfig();

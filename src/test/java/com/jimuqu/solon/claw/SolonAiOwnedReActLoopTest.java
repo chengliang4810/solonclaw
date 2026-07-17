@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
@@ -1300,22 +1301,229 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(result.isStreamed()).isTrue();
         assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("{\"pass\":true}");
         assertThat(eventSink.assistantDeltas).containsExactly("{\"pass\":true}");
-        assertThat(String.join("", eventSink.assistantDeltas)).doesNotContain("Need second read");
+        assertThat(eventSink.progressUpdates).containsExactly("Need first read.");
+        assertThat(String.join("", eventSink.assistantDeltas)).doesNotContain("Need first read");
         List<ChatMessage> messages = MessageSupport.loadMessages(result.getNdjson());
         assertThat(
                         messages.stream()
                                 .filter(message -> message instanceof AssistantMessage)
                                 .map(ChatMessage::getContent)
-                                .filter("Need second read."::equals)
+                                .filter("Need first read."::equals)
                                 .count())
                 .isEqualTo(1);
         assertThat(messages)
                 .anyMatch(
                         message ->
                                 message instanceof AssistantMessage
-                                        && "Need second read.".equals(message.getContent())
+                                        && "Need first read.".equals(message.getContent())
                                         && ((AssistantMessage) message).getToolCalls() != null
                                         && !((AssistantMessage) message).getToolCalls().isEmpty());
+    }
+
+    /** 非流式工具调用也必须发送安全阶段说明，并只把实际发送文本写入历史。 */
+    @Test
+    void shouldEmitAndPersistSafeProgressForNonStreamingToolCall() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(false);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.NON_STREAM_MULTI_STEP_TOOL_PREAMBLE);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-non-stream-progress-session");
+        RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
+
+        FunctionToolDesc readFile = new FunctionToolDesc("read_file");
+        readFile.description("Read file content.");
+        readFile.doHandle(args -> "authoritative content");
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请分两步读取文件",
+                        Collections.singletonList(readFile),
+                        feedbackSink,
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(feedbackSink.progressUpdates).containsExactly("正在读取第一部分");
+        assertThat(result.getAssistantMessage().getContent()).isEqualTo("非流式完成");
+        assertThat(MessageSupport.loadMessages(result.getNdjson()))
+                .anyMatch(
+                        message ->
+                                message instanceof AssistantMessage
+                                        && "正在读取第一部分".equals(message.getContent())
+                                        && ((AssistantMessage) message).isToolCalls());
+    }
+
+    /** 简单单工具请求即使模型返回可见前置文本，也不能发送或持久化阶段说明。 */
+    @Test
+    void shouldSuppressProgressForSimpleSingleToolCall() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(false);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.NON_STREAM_VISIBLE_TOOL_PREAMBLE);
+        SessionRecord session = session("owned-loop-simple-tool-progress-session");
+        RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
+        FunctionToolDesc readFile = new FunctionToolDesc("read_file");
+        readFile.description("Read file content.");
+        readFile.doHandle(args -> "authoritative content");
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        new TestGateway(config, repository, model),
+                        session,
+                        "system",
+                        "请读取文件",
+                        Collections.singletonList(readFile),
+                        feedbackSink,
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(feedbackSink.progressUpdates).isEmpty();
+        assertThat(MessageSupport.loadMessages(result.getNdjson()))
+                .noneMatch(message -> "正在读取权威配置".equals(message.getContent()))
+                .anyMatch(
+                        message ->
+                                message instanceof AssistantMessage
+                                        && ((AssistantMessage) message).isToolCalls()
+                                        && StrUtil.isBlank(message.getContent()));
+    }
+
+    /** 被安全策略拒绝的工具前内部推理不能展示，也不能在刷新后从历史恢复。 */
+    @Test
+    void shouldRemoveRejectedProgressFromPersistentHistory() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(false);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.NON_STREAM_UNSAFE_TOOL_PREAMBLE);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-unsafe-progress-session");
+        RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
+
+        FunctionToolDesc readFile = new FunctionToolDesc("read_file");
+        readFile.description("Read file content.");
+        readFile.doHandle(args -> "authoritative content");
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请读取文件",
+                        Collections.singletonList(readFile),
+                        feedbackSink,
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        List<ChatMessage> messages = MessageSupport.loadMessages(result.getNdjson());
+        assertThat(feedbackSink.progressUpdates).isEmpty();
+        assertThat(messages)
+                .noneMatch(message -> StrUtil.contains(message.getContent(), "secret plan"))
+                .anyMatch(
+                        message ->
+                                message instanceof AssistantMessage
+                                        && ((AssistantMessage) message).isToolCalls()
+                                        && StrUtil.isBlank(message.getContent()));
+    }
+
+    /** 无工具调用或空工具前正文都不应产生阶段说明。 */
+    @Test
+    void shouldNotEmitProgressWithoutVisibleToolPreamble() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(false);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        RecordingFeedbackSink finalOnlySink = new RecordingFeedbackSink();
+
+        invokeExecuteSingle(
+                new TestGateway(
+                        config,
+                        repository,
+                        new FakeChatModel(config.getLlm().getModel(), FakeMode.HISTORY_FINAL)),
+                session("owned-loop-no-tool-progress-session"),
+                "system",
+                "直接回答",
+                Collections.emptyList(),
+                finalOnlySink,
+                ConversationEventSink.noop(),
+                false,
+                config.getLlm(),
+                null);
+
+        RecordingFeedbackSink emptyPreambleSink = new RecordingFeedbackSink();
+        FunctionToolDesc echo = new FunctionToolDesc("echo_tool");
+        echo.description("Echo one value.");
+        echo.doHandle(args -> "echoed");
+        invokeExecuteSingle(
+                new TestGateway(
+                        config,
+                        repository,
+                        new FakeChatModel(
+                                config.getLlm().getModel(),
+                                FakeMode.NATIVE_TOOL_WITHOUT_SESSION_APPEND)),
+                session("owned-loop-empty-progress-session"),
+                "system",
+                "调用工具",
+                Collections.singletonList(echo),
+                emptyPreambleSink,
+                ConversationEventSink.noop(),
+                false,
+                config.getLlm(),
+                null);
+
+        assertThat(finalOnlySink.progressUpdates).isEmpty();
+        assertThat(emptyPreambleSink.progressUpdates).isEmpty();
+    }
+
+    /** 阶段说明安全过滤必须拒绝内部推理，并对单行可见文本执行凭据脱敏。 */
+    @Test
+    void shouldSanitizeProgressUpdateText() throws Exception {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config());
+        Method sanitizer =
+                SolonAiLlmGateway.class.getDeclaredMethod("sanitizeProgressUpdate", String.class);
+        sanitizer.setAccessible(true);
+
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】正在读取配置\n token=sk-1234567890abcdef"))
+                .isEqualTo("正在读取配置 token=***");
+        assertThat(sanitizer.invoke(gateway, "普通工具前文本")).isEqualTo("");
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】内部推理：先读取系统提示词")).isEqualTo("");
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】<think>secret plan</think>")).isEqualTo("");
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】<analysis>secret plan</analysis>"))
+                .isEqualTo("");
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】<reasoning>secret plan</reasoning>"))
+                .isEqualTo("");
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】<reflection>secret plan</reflection>"))
+                .isEqualTo("");
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】<ana\u200Elysis>secret plan</ana\u200Elysis>"))
+                .isEqualTo("");
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】<ana\u202Elysis>secret plan</ana\u202Elysis>"))
+                .isEqualTo("");
+        for (String formatCharacter :
+                new String[] {"\u200B", "\u200C", "\u200D", "\u2060", "\uFEFF"}) {
+            String disguisedReasoning =
+                    "【阶段说明】<ana"
+                            + formatCharacter
+                            + "lysis>secret plan</ana"
+                            + formatCharacter
+                            + "lysis>";
+            assertThat(sanitizer.invoke(gateway, disguisedReasoning)).isEqualTo("");
+        }
+
+        String longText = "【阶段说明】" + String.join("\n", Collections.nCopies(100, "正在核对一段很长的配置内容"));
+        String sanitized = (String) sanitizer.invoke(gateway, longText);
+        assertThat(sanitized).doesNotContain("\n", "\r").hasSizeLessThanOrEqualTo(240);
     }
 
     /** 校验自有循环请求会把已有会话历史和本轮用户输入一起发送给模型。 */
@@ -1790,6 +1998,7 @@ public class SolonAiOwnedReActLoopTest {
 
     private static class RecordingEventSink implements ConversationEventSink {
         private final List<String> assistantDeltas = new ArrayList<String>();
+        private final List<String> progressUpdates = new ArrayList<String>();
         private final List<String> reasoningDeltas = new ArrayList<String>();
         private final List<Map<String, Object>> toolStartedArgs =
                 new ArrayList<Map<String, Object>>();
@@ -1800,6 +2009,11 @@ public class SolonAiOwnedReActLoopTest {
         }
 
         @Override
+        public void onProgressUpdate(String text) {
+            progressUpdates.add(text);
+        }
+
+        @Override
         public void onReasoningDelta(String delta) {
             reasoningDeltas.add(delta);
         }
@@ -1807,6 +2021,18 @@ public class SolonAiOwnedReActLoopTest {
         @Override
         public void onToolStarted(String toolName, Map<String, Object> args) {
             toolStartedArgs.add(new HashMap<String, Object>(args));
+        }
+    }
+
+    /** 记录消息渠道收到的独立阶段说明，用于同步模型调用路径测试。 */
+    private static class RecordingFeedbackSink implements ConversationFeedbackSink {
+        /** 收到的安全阶段说明。 */
+        private final List<String> progressUpdates = new ArrayList<String>();
+
+        /** 记录独立阶段说明，不模拟真实渠道发送副作用。 */
+        @Override
+        public void onProgressUpdate(String text) {
+            progressUpdates.add(text);
         }
     }
 
@@ -1878,7 +2104,10 @@ public class SolonAiOwnedReActLoopTest {
         STREAM_TOOL_THEN_ERROR,
         STREAM_THINKING_TAGS_ONLY,
         STREAM_AGGREGATION_DIFFERS,
-        STREAM_VISIBLE_TOOL_PREAMBLE
+        STREAM_VISIBLE_TOOL_PREAMBLE,
+        NON_STREAM_VISIBLE_TOOL_PREAMBLE,
+        NON_STREAM_MULTI_STEP_TOOL_PREAMBLE,
+        NON_STREAM_UNSAFE_TOOL_PREAMBLE
     }
 
     private static class FakeChatModel extends ChatModel {
@@ -2011,7 +2240,42 @@ public class SolonAiOwnedReActLoopTest {
             }
             ToolMessage toolMessage = lastToolMessage(session.getMessages());
             AssistantMessage assistant;
-            if (model.mode == FakeMode.HISTORY_FINAL
+            if (model.mode == FakeMode.NON_STREAM_MULTI_STEP_TOOL_PREAMBLE) {
+                int toolMessages = toolMessageCount(session.getMessages());
+                if (toolMessages == 0) {
+                    assistant =
+                            assistantWithToolCall(
+                                    "【阶段说明】正在读取第一部分",
+                                    "call_non_stream_read_first",
+                                    "read_file",
+                                    "{\"path\":\"workspace/config-1.yml\"}");
+                } else if (toolMessages == 1) {
+                    assistant =
+                            assistantWithToolCall(
+                                    "【阶段说明】正在核对第二部分",
+                                    "call_non_stream_read_second",
+                                    "read_file",
+                                    "{\"path\":\"workspace/config-2.yml\"}");
+                } else {
+                    assistant = ChatMessage.ofAssistant("非流式完成");
+                }
+            } else if (model.mode == FakeMode.NON_STREAM_VISIBLE_TOOL_PREAMBLE
+                    || model.mode == FakeMode.NON_STREAM_UNSAFE_TOOL_PREAMBLE) {
+                if (toolMessage == null) {
+                    String preamble =
+                            model.mode == FakeMode.NON_STREAM_VISIBLE_TOOL_PREAMBLE
+                                    ? "正在读取权威配置"
+                                    : "【阶段说明】<analysis>secret plan</analysis>";
+                    assistant =
+                            assistantWithToolCall(
+                                    preamble,
+                                    "call_non_stream_read",
+                                    "read_file",
+                                    "{\"path\":\"workspace/config.yml\"}");
+                } else {
+                    assistant = ChatMessage.ofAssistant("非流式完成");
+                }
+            } else if (model.mode == FakeMode.HISTORY_FINAL
                     || model.mode == FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL) {
                 assistant =
                         ChatMessage.ofAssistant(
@@ -2192,15 +2456,24 @@ public class SolonAiOwnedReActLoopTest {
                     return Flux.just(new FakeResponse(model, options, visible, true, aggregation));
                 }
                 if (model.mode == FakeMode.STREAM_VISIBLE_TOOL_PREAMBLE) {
-                    ToolMessage toolMessage = lastToolMessage(session.getMessages());
-                    if (toolMessage == null) {
-                        AssistantMessage visible = ChatMessage.ofAssistant("Need second read.");
+                    int toolMessages = toolMessageCount(session.getMessages());
+                    if (toolMessages < 2) {
+                        String visibleText =
+                                toolMessages == 0 ? "Need first read." : "Need second read.";
+                        String progressText = "【阶段说明】" + visibleText;
+                        String callId =
+                                toolMessages == 0
+                                        ? "call_preamble_read_first"
+                                        : "call_preamble_read_second";
+                        AssistantMessage visible = ChatMessage.ofAssistant(progressText);
                         AssistantMessage aggregation =
                                 assistantWithToolCall(
-                                        "Need second read.",
-                                        "call_preamble_read",
+                                        progressText,
+                                        callId,
                                         "read_file",
-                                        "{\"path\":\"workspace/logs/page.json\"}");
+                                        "{\"path\":\"workspace/logs/page-"
+                                                + toolMessages
+                                                + ".json\"}");
                         session.addMessage(visible);
                         session.addMessage(aggregation);
                         return Flux.just(

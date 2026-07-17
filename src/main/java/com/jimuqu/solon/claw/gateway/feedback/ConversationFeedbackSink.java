@@ -16,6 +16,13 @@ public interface ConversationFeedbackSink {
     /** reasoning/thought 中间态。 */
     default void onReasoning(String thought) {}
 
+    /**
+     * 发送独立于最终回复的语义阶段说明。
+     *
+     * @param text 已完成安全过滤的单行阶段说明。
+     */
+    default void onProgressUpdate(String text) {}
+
     /** 本轮最终回复。 */
     default void onFinalReply(String finalReply) {}
 

@@ -322,7 +322,7 @@ solonclaw:
   # 中间态显示配置。
   display:
     # 默认工具进度模式：off 不显示，new 仅显示新工具，all 显示每次调用，verbose 显示完整参数。
-    toolProgress: all
+    toolProgress: off
     # 是否默认展示 reasoning/思考中间态。
     showReasoning: false
     # 恢复会话时是否展示紧凑历史：full 展示，minimal 只恢复不展示历史。
@@ -330,7 +330,7 @@ solonclaw:
     # 工具参数预览最大长度。
     toolPreviewLength: 80
     # 中间态消息节流间隔，单位毫秒。
-    progressThrottleMs: 1500
+    progressThrottleMs: 5000
     # 最终 agent 回复 metadata footer；默认关闭，避免污染普通聊天。
     metadataFooter:
       # 是否追加 metadata footer。
@@ -535,7 +535,7 @@ solonclaw:
       # 飞书机器人名称。
       botName: ""
       # 飞书工具进度模式：off、new、all、verbose。
-      toolProgress: all
+      toolProgress: off
       # 飞书文档评论智能回复；启用后会监听 drive.notice.comment_add_v1。
       comment:
         enabled: false
@@ -571,7 +571,7 @@ solonclaw:
       # 钉钉群聊会话硬白名单；非空时只响应列表内群聊，私聊不受影响。
       allowedChats: []
       # 钉钉工具进度模式：off、new、all、verbose。
-      toolProgress: all
+      toolProgress: off
       # 钉钉长任务进度卡片模板 ID；留空时使用文本消息。
       progressCardTemplateId: ""
       # AI Card 增量更新开关；关闭后 update 请求会回退为普通文本投递。
@@ -607,7 +607,7 @@ solonclaw:
           # 该群内允许触发机器人的成员 ID 列表。
           allowFrom: []
       # 企业微信工具进度模式：off、new、all、verbose。
-      toolProgress: all
+      toolProgress: off
 
     # 微信渠道配置。
     weixin:
@@ -677,7 +677,7 @@ solonclaw:
       # QQBot 允许访问的群 ID 列表。
       groupAllowedUsers: []
       # QQBot 工具进度模式：off、new、all、verbose。
-      toolProgress: all
+      toolProgress: off
 
     # 腾讯元宝渠道配置。
     yuanbao:
@@ -706,7 +706,7 @@ solonclaw:
       # 元宝允许访问的群 ID 列表。
       groupAllowedUsers: []
       # 元宝工具进度模式：off、new、all、verbose。
-      toolProgress: all
+      toolProgress: off
 
   # 网关通用授权与注入配置。
   gateway:

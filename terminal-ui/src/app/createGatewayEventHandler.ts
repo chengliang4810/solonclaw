@@ -577,6 +577,18 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
         return
 
+      case 'progress.update': {
+        const text = String(ev.payload?.text ?? '').trim()
+
+        if (text) {
+          turnController.pushActivity(text, 'info')
+          setStatus(text)
+          restoreStatusAfter(4000)
+        }
+
+        return
+      }
+
       case 'reasoning.available':
         turnController.recordReasoningAvailable(String(ev.payload?.text ?? ''), Boolean(ev.payload?.verbose))
 

@@ -261,6 +261,20 @@ class TerminalUiApprovalRespondTest {
         assertThat(payload.get("text").getString()).contains("fallback primary -> backup");
     }
 
+    /** 阶段说明必须使用独立事件，且不能改变 assistant 正文增量状态。 */
+    @Test
+    void progressUpdateUsesIndependentEvent() {
+        RecordingSocket socket = new RecordingSocket();
+        TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket, true);
+
+        sink.onRunStarted("tui-progress-session");
+        sink.onProgressUpdate("正在核对依赖关系");
+
+        ONode payload = eventPayload(socket.sentText(), "progress.update");
+        assertThat(payload.get("text").getString()).isEqualTo("正在核对依赖关系");
+        assertThat(sink.hasAssistantDeltaSent()).isFalse();
+    }
+
     /** 候选撤销事件必须清掉尚未刷出的主模型分片并携带标准化原因。 */
     @Test
     void assistantResetDropsBufferedDeltaAndUsesRpcEnvelope() {

@@ -79,6 +79,15 @@ public class AgentRunContext {
     /** 记录本轮已经尝试的工具调用次数，包含被策略拒绝的调用。 */
     private int attemptedToolCalls;
 
+    /** 本轮已经发送的语义阶段说明数量，跨模型重试和恢复共享。 */
+    private int progressUpdateCount;
+
+    /** 本轮已经发送的语义阶段说明集合，用于跨模型尝试执行全量去重。 */
+    private final Set<String> emittedProgressUpdates = new LinkedHashSet<String>();
+
+    /** 本轮上一次发送语义阶段说明的时间戳。 */
+    private long lastProgressUpdateAt;
+
     /**
      * 创建 Agent run 上下文。
      *
@@ -160,6 +169,30 @@ public class AgentRunContext {
         this.attemptNo = attemptNo;
         this.provider = provider;
         this.model = model;
+    }
+
+    /**
+     * 原子登记一条阶段说明，确保模型重试、故障切换和恢复调用共享数量及时间限制。
+     *
+     * @param text 已完成安全过滤的阶段说明。
+     * @param now 当前时间戳。
+     * @param minIntervalMs 相邻说明的最小间隔。
+     * @param maxCount 本轮允许发送的最大数量。
+     * @return 满足约束并已登记时返回 true。
+     */
+    public synchronized boolean tryRegisterProgressUpdate(
+            String text, long now, long minIntervalMs, int maxCount) {
+        if (StrUtil.isBlank(text)
+                || progressUpdateCount >= Math.max(0, maxCount)
+                || emittedProgressUpdates.contains(text)
+                || (lastProgressUpdateAt > 0
+                        && now - lastProgressUpdateAt < Math.max(0L, minIntervalMs))) {
+            return false;
+        }
+        progressUpdateCount++;
+        emittedProgressUpdates.add(text);
+        lastProgressUpdateAt = now;
+        return true;
     }
 
     /**

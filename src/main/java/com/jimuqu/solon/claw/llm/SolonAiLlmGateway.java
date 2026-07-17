@@ -23,6 +23,7 @@ import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
+import com.jimuqu.solon.claw.support.ProgressUpdateSanitizer;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.ToolMessageStatusSupport;
@@ -113,6 +114,12 @@ public class SolonAiLlmGateway implements LlmGateway {
     /** 单轮正文因长度限制被截断后允许的最大续写次数。 */
     private static final int MAX_LENGTH_CONTINUATIONS = 4;
 
+    /** 单轮最多向用户发送的语义阶段说明数量。 */
+    private static final int MAX_PROGRESS_UPDATES = 3;
+
+    /** 相邻语义阶段说明的最小间隔，避免配置过低时刷屏。 */
+    private static final long MIN_PROGRESS_UPDATE_INTERVAL_MS = 5000L;
+
     /** 长度截断后的内部续写提示，只要求返回尚未输出的正文。 */
     private static final String LENGTH_CONTINUATION_PROMPT = "请从刚才被截断的位置继续，不要重复已经输出的内容，只输出续写部分。";
 
@@ -142,6 +149,10 @@ public class SolonAiLlmGateway implements LlmGateway {
 
     /** 注入应用配置，用于SolonAi大模型消息网关。 */
     private final AppConfig appConfig;
+
+    /** 当前线程 Failover 尝试共享的阶段说明发送器，不改变普通运行上下文语义。 */
+    private final ThreadLocal<ProgressUpdateEmitter> failoverProgressEmitter =
+            new ThreadLocal<ProgressUpdateEmitter>();
 
     /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
@@ -509,6 +520,8 @@ public class SolonAiLlmGateway implements LlmGateway {
         Throwable lastError = null;
         boolean primary = true;
         boolean continueFromSnapshot = resume;
+        ProgressUpdateEmitter progressUpdateEmitter =
+                new ProgressUpdateEmitter(feedbackSink, eventSink, null);
 
         for (AppConfig.LlmConfig resolved : candidates) {
             int maxAttempts = configuredRetryMax(session) + 1;
@@ -516,17 +529,28 @@ public class SolonAiLlmGateway implements LlmGateway {
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                 String previousNdjson = session == null ? null : session.getNdjson();
                 try {
-                    LlmResult result =
-                            executeSingle(
-                                    session,
-                                    systemPrompt,
-                                    userMessage,
-                                    toolObjects,
-                                    feedbackSink,
-                                    eventSink,
-                                    resume || continueFromSnapshot,
-                                    resolved,
-                                    null);
+                    ProgressUpdateEmitter previousEmitter = failoverProgressEmitter.get();
+                    failoverProgressEmitter.set(progressUpdateEmitter);
+                    LlmResult result;
+                    try {
+                        result =
+                                executeSingle(
+                                        session,
+                                        systemPrompt,
+                                        userMessage,
+                                        toolObjects,
+                                        feedbackSink,
+                                        eventSink,
+                                        resume || continueFromSnapshot,
+                                        resolved,
+                                        null);
+                    } finally {
+                        if (previousEmitter == null) {
+                            failoverProgressEmitter.remove();
+                        } else {
+                            failoverProgressEmitter.set(previousEmitter);
+                        }
+                    }
                     if (isIncompleteFinishReason(result)) {
                         String finishReason = result.getFinishReason();
                         continueFromSnapshot =
@@ -713,6 +737,35 @@ public class SolonAiLlmGateway implements LlmGateway {
             AppConfig.LlmConfig resolved,
             AgentRunContext runContext)
             throws Exception {
+        ProgressUpdateEmitter progressUpdateEmitter = failoverProgressEmitter.get();
+        return executeSingleWithProgress(
+                session,
+                systemPrompt,
+                userMessage,
+                toolObjects,
+                feedbackSink,
+                eventSink,
+                resume,
+                resolved,
+                runContext,
+                progressUpdateEmitter == null
+                        ? new ProgressUpdateEmitter(feedbackSink, eventSink, runContext)
+                        : progressUpdateEmitter);
+    }
+
+    /** 在主备模型尝试之间复用同一阶段说明限流器，保证单轮总上限不会因故障切换重置。 */
+    private LlmResult executeSingleWithProgress(
+            SessionRecord session,
+            String systemPrompt,
+            String userMessage,
+            List<Object> toolObjects,
+            ConversationFeedbackSink feedbackSink,
+            ConversationEventSink eventSink,
+            boolean resume,
+            AppConfig.LlmConfig resolved,
+            AgentRunContext runContext,
+            ProgressUpdateEmitter progressUpdateEmitter)
+            throws Exception {
         validate(resolved);
         log.info(
                 "LLM {}: provider={}, dialect={}, model={}, sessionId={}, stream={}, sessionOverride={}",
@@ -736,7 +789,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                 eventSink,
                 resume,
                 resolved,
-                runContext);
+                runContext,
+                progressUpdateEmitter);
     }
 
     /**
@@ -764,7 +818,8 @@ public class SolonAiLlmGateway implements LlmGateway {
             ConversationEventSink eventSink,
             boolean resume,
             AppConfig.LlmConfig resolved,
-            AgentRunContext runContext)
+            AgentRunContext runContext,
+            ProgressUpdateEmitter progressUpdateEmitter)
             throws Exception {
         ChatModel chatModel = buildChatModel(resolved, session);
         UsageCollector usageCollector = new UsageCollector();
@@ -818,7 +873,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                                     feedbackSink,
                                     eventSink,
                                     usageCollector,
-                                    resolved.isStream());
+                                    resolved.isStream(),
+                                    progressUpdateEmitter);
                     modelResponse =
                             continueLengthLimitedResponse(
                                     chatModel,
@@ -829,7 +885,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                                     feedbackSink,
                                     eventSink,
                                     usageCollector,
-                                    resolved.isStream());
+                                    resolved.isStream(),
+                                    progressUpdateEmitter);
                     rawResponse = modelResponse.rawResponse;
                     assistantMessage = modelResponse.assistantMessage;
                     finishReason = modelResponse.finishReason;
@@ -975,7 +1032,8 @@ public class SolonAiLlmGateway implements LlmGateway {
             ConversationFeedbackSink feedbackSink,
             ConversationEventSink eventSink,
             UsageCollector usageCollector,
-            boolean streamConfigured)
+            boolean streamConfigured,
+            ProgressUpdateEmitter progressUpdateEmitter)
             throws Exception {
         if (initial == null
                 || !"length".equals(initial.finishReason)
@@ -1009,7 +1067,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                                 feedbackSink,
                                 bufferedSink,
                                 usageCollector,
-                                streamConfigured);
+                                streamConfigured,
+                                progressUpdateEmitter);
                 ensureOwnedAssistantRecorded(agentSession, next.assistantMessage);
                 reasoningText = StrUtil.blankToDefault(next.reasoningText, reasoningText);
 
@@ -1148,15 +1207,25 @@ public class SolonAiLlmGateway implements LlmGateway {
             ConversationFeedbackSink feedbackSink,
             ConversationEventSink eventSink,
             UsageCollector usageCollector,
-            boolean streamConfigured)
+            boolean streamConfigured,
+            ProgressUpdateEmitter progressUpdateEmitter)
             throws Exception {
         boolean hasEventSink = eventSink != null && eventSink != ConversationEventSink.noop();
         if (!streamConfigured && !hasEventSink) {
             ChatResponse response = requestDesc.call();
             logIncompleteFinishReason(response);
+            AssistantMessage responseMessage =
+                    response == null ? null : response.getAggregationMessage();
+            if (responseMessage == null && response != null) {
+                responseMessage = response.getMessage();
+            }
+            if (responseMessage != null && responseMessage.isToolCalls()) {
+                String progressText = progressUpdateEmitter.emit(extractText(responseMessage));
+                responseMessage = copyAssistantWithProgressText(responseMessage, progressText);
+            }
             return new OwnedModelResponse(
                     response,
-                    response == null ? null : response.getMessage(),
+                    responseMessage,
                     response == null ? "" : StrUtil.nullToEmpty(response.getContent()),
                     false,
                     null,
@@ -1251,7 +1320,9 @@ public class SolonAiLlmGateway implements LlmGateway {
 
         String finalText = visibleResponseText(extractText(assistantMessage));
         if (assistantMessage.isToolCalls()) {
-            // 工具调用轮可能带有“我需要继续读取”等中间可见文本；这些文本不是最终答复，不能推给前端消息流。
+            // 工具调用轮的短文本作为独立阶段说明发送，不能进入最终答复增量。
+            String progressText = progressUpdateEmitter.emit(finalText);
+            assistantMessage = copyAssistantWithProgressText(assistantMessage, progressText);
             return new OwnedModelResponse(
                     response,
                     assistantMessage,
@@ -2353,6 +2424,15 @@ public class SolonAiLlmGateway implements LlmGateway {
         int assistantIndex = lastAssistantMessageIndex(messages);
         if (assistantIndex >= 0
                 && sameToolCallIds((AssistantMessage) messages.get(assistantIndex), calls)) {
+            AssistantMessage existing = (AssistantMessage) messages.get(assistantIndex);
+            int previousAssistantIndex = previousAssistantMessageIndex(messages, assistantIndex);
+            if (previousAssistantIndex >= 0
+                    && MessageSupport.sameVisibleContent(
+                            (AssistantMessage) messages.get(previousAssistantIndex), existing)) {
+                messages.remove(previousAssistantIndex);
+                assistantIndex--;
+            }
+            messages.set(assistantIndex, assistantMessage);
             return;
         }
         if (assistantIndex >= 0 && messages.get(assistantIndex) instanceof AssistantMessage) {
@@ -2661,6 +2741,39 @@ public class SolonAiLlmGateway implements LlmGateway {
     private String visibleResponseText(String value) {
         return suppressUnrecognizedToolXml(
                 MemoryContextBoundary.scrubVisibleText(ThinkingStreamSplitter.visibleText(value)));
+    }
+
+    /**
+     * 将工具调用轮的可见短文本收敛为安全阶段说明。
+     *
+     * @param value 模型在工具调用轮返回的可见文本。
+     * @return 可发送的单行阶段说明；疑似思维链或内部提示词时返回空串。
+     */
+    private String sanitizeProgressUpdate(String value) {
+        return ProgressUpdateSanitizer.sanitizeDeclared(visibleResponseText(value));
+    }
+
+    /**
+     * 复制工具调用 assistant，并只保留实际发送给用户的安全阶段说明正文。
+     *
+     * @param source 原始工具调用 assistant。
+     * @param progressText 已通过过滤和限流的阶段说明；未发送时为空。
+     * @return 可安全进入模型历史和持久化会话的 assistant。
+     */
+    private AssistantMessage copyAssistantWithProgressText(
+            AssistantMessage source, String progressText) {
+        AssistantMessage replacement =
+                new AssistantMessage(
+                        StrUtil.nullToEmpty(progressText),
+                        false,
+                        null,
+                        source == null ? null : source.getToolCallsRaw(),
+                        source == null ? null : source.getToolCalls(),
+                        source == null ? null : source.getSearchResultsRaw());
+        if (source != null) {
+            replacement.reasoningFieldName(source.getReasoningFieldName());
+        }
+        return replacement;
     }
 
     /** 从公开选择项或默认响应聚合状态中提取标准化结束原因。 */
@@ -3683,6 +3796,93 @@ public class SolonAiLlmGateway implements LlmGateway {
             this.streamed = streamed;
             this.reasoningText = reasoningText;
             this.finishReason = StrUtil.nullToEmpty(finishReason);
+        }
+    }
+
+    /** 对单轮阶段说明执行安全过滤、去重、节流和数量限制，并隔离展示端异常。 */
+    private final class ProgressUpdateEmitter {
+        /** 渠道反馈接收器。 */
+        private final ConversationFeedbackSink feedbackSink;
+
+        /** Dashboard 或 TUI 运行事件接收器。 */
+        private final ConversationEventSink eventSink;
+
+        /** Agent 运行上下文，用于跨模型尝试共享阶段说明限制。 */
+        private final AgentRunContext runContext;
+
+        /** 已发送的阶段说明集合，用于无运行上下文时执行全量去重。 */
+        private final Set<String> emittedTexts = new HashSet<String>();
+
+        /** 上一次发送阶段说明的时间戳。 */
+        private long lastEmittedAt;
+
+        /** 当前模型运行已经发送的阶段说明数量。 */
+        private int emittedCount;
+
+        /**
+         * 创建阶段说明发送器。
+         *
+         * @param feedbackSink 渠道反馈接收器。
+         * @param eventSink 运行事件接收器。
+         * @param runContext Agent 运行上下文。
+         */
+        private ProgressUpdateEmitter(
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                AgentRunContext runContext) {
+            this.feedbackSink =
+                    feedbackSink == null ? ConversationFeedbackSink.noop() : feedbackSink;
+            this.eventSink = eventSink == null ? ConversationEventSink.noop() : eventSink;
+            this.runContext = runContext;
+        }
+
+        /**
+         * 在符合安全和频率约束时发送一条阶段说明。
+         *
+         * @param rawText 模型工具调用轮中的原始可见文本。
+         */
+        private String emit(String rawText) {
+            if ((feedbackSink == ConversationFeedbackSink.noop()
+                    && eventSink == ConversationEventSink.noop())) {
+                return "";
+            }
+            String text = sanitizeProgressUpdate(rawText);
+            if (StrUtil.isBlank(text)) {
+                return "";
+            }
+            long now = System.currentTimeMillis();
+            long interval =
+                    Math.max(
+                            MIN_PROGRESS_UPDATE_INTERVAL_MS,
+                            appConfig.getDisplay().getProgressThrottleMs());
+            if (runContext != null) {
+                if (!runContext.tryRegisterProgressUpdate(
+                        text, now, interval, MAX_PROGRESS_UPDATES)) {
+                    return "";
+                }
+            } else {
+                if (emittedCount >= MAX_PROGRESS_UPDATES
+                        || emittedTexts.contains(text)
+                        || (lastEmittedAt > 0 && now - lastEmittedAt < interval)) {
+                    return "";
+                }
+                emittedCount++;
+                emittedTexts.add(text);
+                lastEmittedAt = now;
+            }
+            try {
+                eventSink.onProgressUpdate(text);
+            } catch (RuntimeException e) {
+                log.warn("Progress event delivery failed: error={}", ErrorTextSupport.safeError(e));
+            }
+            try {
+                feedbackSink.onProgressUpdate(text);
+            } catch (RuntimeException e) {
+                log.warn(
+                        "Progress feedback delivery failed: error={}",
+                        ErrorTextSupport.safeError(e));
+            }
+            return text;
         }
     }
 
