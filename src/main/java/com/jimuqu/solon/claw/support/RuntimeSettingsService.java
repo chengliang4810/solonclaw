@@ -72,6 +72,9 @@ public class RuntimeSettingsService {
                     "skills.curator.minIdleHours",
                     "skills.curator.staleAfterDays",
                     "skills.curator.archiveAfterDays",
+                    "reflection.enabled",
+                    "reflection.intervalHours",
+                    "reflection.lookbackDays",
                     "task.busyPolicy",
                     "task.toolOutputInlineLimit",
                     "task.toolOutputTurnBudget",
@@ -549,6 +552,7 @@ public class RuntimeSettingsService {
                 || "learning.enabled".equals(key)
                 || "rollback.enabled".equals(key)
                 || "skills.curator.enabled".equals(key)
+                || "reflection.enabled".equals(key)
                 || "gateway.allowAllUsers".equals(key)
                 || "security.allowPrivateUrls".equals(key)
                 || "solonclaw.browser.rewriteLoopbackUrls".equals(key)
@@ -586,6 +590,8 @@ public class RuntimeSettingsService {
                 || "skills.curator.intervalHours".equals(key)
                 || "skills.curator.staleAfterDays".equals(key)
                 || "skills.curator.archiveAfterDays".equals(key)
+                || "reflection.intervalHours".equals(key)
+                || "reflection.lookbackDays".equals(key)
                 || "display.toolPreviewLength".equals(key)
                 || "display.progressThrottleMs".equals(key)
                 || "llm.maxTokens".equals(key)

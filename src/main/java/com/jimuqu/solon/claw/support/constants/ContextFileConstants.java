@@ -32,6 +32,9 @@ public final class ContextFileConstants {
     /** 键记忆的统一常量值。 */
     public static final String KEY_MEMORY = "memory";
 
+    /** 键跨会话反思的统一常量值。 */
+    public static final String KEY_REFLECTION = "reflection";
+
     /** 键记忆TODAY的统一常量值。 */
     public static final String KEY_MEMORY_TODAY = "memory_today";
 
@@ -64,6 +67,9 @@ public final class ContextFileConstants {
 
     /** 文件记忆的统一常量值。 */
     public static final String FILE_MEMORY = "MEMORY.md";
+
+    /** 跨会话反思派生快照文件名。 */
+    public static final String FILE_REFLECTION = "REFLECTION.md";
 
     /** 首次启动引导文件名。 */
     public static final String FILE_BOOTSTRAP = "BOOTSTRAP.md";

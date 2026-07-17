@@ -175,6 +175,9 @@ solonclaw:
 | `solonclaw.proactive.topicCooldownHours` | `8` | 相同话题再次提醒前的最短间隔 |
 | `solonclaw.proactive.quietHoursEnabled` | `true` | 是否启用免打扰时段 |
 | `solonclaw.proactive.quietStart` / `quietEnd` | `22:00` / `08:00` | 本地免打扰起止时间 |
+| `solonclaw.reflection.enabled` | `true` | 是否基于近期真实会话生成跨会话反思 |
+| `solonclaw.reflection.intervalHours` | `24` | 跨会话反思周期，单位小时 |
+| `solonclaw.reflection.lookbackDays` | `7` | 反思读取真实会话的回看天数 |
 | `solonclaw.browser.rewriteLoopbackUrls` | `false` | 容器内浏览器访问宿主机 loopback 服务时是否改写 URL |
 | `security.tirithEnabled` | `true` | 是否启用 Tirith 命令内容扫描 |
 | `security.tirithFailOpen` | `true` | Tirith 不可用或超时时是否放行；设为 `false` 会 fail-closed |

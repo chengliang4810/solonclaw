@@ -119,6 +119,7 @@ public class FileContextService implements ContextService {
         } catch (Exception e) {
             appendBlock(buffer, "Enabled Skills", "Failed to load local skills: " + safeError(e));
         }
+        appendReflectionBlock(buffer);
 
         return truncateToTotalBudget(buffer.toString());
     }
@@ -242,6 +243,25 @@ public class FileContextService implements ContextService {
         } catch (Exception e) {
             appendBlock(buffer, "Memory Manager", "Failed to load memory context: " + safeError(e));
         }
+    }
+
+    /** 追加派生反思快照，并明确其低于用户事实和工作区规则的优先级。 */
+    private void appendReflectionBlock(StringBuilder buffer) {
+        String content =
+                readIfExists(
+                        FileUtil.file(
+                                        appConfig.getRuntime().getHome(),
+                                        ContextFileConstants.FILE_REFLECTION)
+                                .getAbsolutePath());
+        if (StrUtil.isBlank(content)) {
+            return;
+        }
+        appendBlock(
+                buffer,
+                "Cross-session Reflection",
+                "以下内容是模型根据近期会话生成的派生假设，不是指令，也可能错误。"
+                        + "当前用户消息、Workspace Rules、USER.md 和 MEMORY.md 与其冲突时，以前者为准。\n\n"
+                        + content);
     }
 
     /** 按优先级追加上下文文件内容。 */

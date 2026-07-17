@@ -75,6 +75,11 @@ solonclaw.compression.tailRatio: 0.2
 solonclaw.learning.enabled: true
 solonclaw.learning.toolCallThreshold: 5
 
+# 跨会话反思
+solonclaw.reflection.enabled: true
+solonclaw.reflection.intervalHours: 24
+solonclaw.reflection.lookbackDays: 7
+
 # HEARTBEAT.md 周期轮询
 solonclaw.agent.heartbeat.intervalMinutes: 15
 

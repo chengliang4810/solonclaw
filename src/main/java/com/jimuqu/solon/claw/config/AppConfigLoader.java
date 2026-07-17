@@ -355,6 +355,31 @@ final class AppConfigLoader {
                                         overrides,
                                         "solonclaw.skills.curator.archiveAfterDays",
                                         90)));
+        config.getReflection()
+                .setEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props, overrides, "solonclaw.reflection.enabled", true)));
+        config.getReflection()
+                .setIntervalHours(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.reflection.intervalHours",
+                                                24)),
+                                24));
+        config.getReflection()
+                .setLookbackDays(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.reflection.lookbackDays",
+                                                7)),
+                                7));
         config.getSkills()
                 .setExternalDirs(
                         resolveList(

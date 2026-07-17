@@ -466,6 +466,11 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "skills.curator.archiveAfterDays", "number", "agent", "技能多久未使用后归档"));
+        addField(new FieldDefinition("reflection.enabled", "boolean", "agent", "启用基于真实会话的跨会话反思"));
+        addField(
+                new FieldDefinition(
+                        "reflection.intervalHours", "number", "agent", "跨会话反思周期（小时，修改后重启生效）"));
+        addField(new FieldDefinition("reflection.lookbackDays", "number", "agent", "跨会话反思回看天数"));
         addField(
                 new FieldDefinition("task.busyPolicy", "select", "agent", "运行中输入策略")
                         .options("queue", "steer", "interrupt", "reject"));

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.bootstrap;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.CrossSessionReflectionService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
@@ -20,6 +21,7 @@ import com.jimuqu.solon.claw.proactive.ProactiveReminderScheduler;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.HeartbeatScheduler;
+import com.jimuqu.solon.claw.scheduler.ReflectionScheduler;
 import com.jimuqu.solon.claw.scheduler.SkillCuratorScheduler;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -170,6 +172,25 @@ public class SchedulerConfiguration {
             AgentRunControlService agentRunControlService) {
         SkillCuratorScheduler scheduler =
                 new SkillCuratorScheduler(appConfig, skillCuratorService, agentRunControlService);
+        scheduler.start();
+        return scheduler;
+    }
+
+    /**
+     * 创建并启动跨会话反思调度器。
+     *
+     * @param appConfig 应用配置。
+     * @param reflectionService 跨会话反思服务。
+     * @param agentRunControlService Agent 运行控制服务。
+     * @return 已启动的跨会话反思调度器。
+     */
+    @Bean(destroyMethod = "shutdown")
+    public ReflectionScheduler reflectionScheduler(
+            AppConfig appConfig,
+            CrossSessionReflectionService reflectionService,
+            AgentRunControlService agentRunControlService) {
+        ReflectionScheduler scheduler =
+                new ReflectionScheduler(appConfig, reflectionService, agentRunControlService);
         scheduler.start();
         return scheduler;
     }

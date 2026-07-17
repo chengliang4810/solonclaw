@@ -154,6 +154,9 @@ public class SolonAiLlmGateway implements LlmGateway {
     private final ThreadLocal<ProgressUpdateEmitter> failoverProgressEmitter =
             new ThreadLocal<ProgressUpdateEmitter>();
 
+    /** 标记当前纯文本辅助调用不得附加 PDF 等内建工具。 */
+    private final ThreadLocal<Boolean> textOnlyCall = new ThreadLocal<Boolean>();
+
     /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
 
@@ -348,6 +351,30 @@ public class SolonAiLlmGateway implements LlmGateway {
             throws Exception {
         return chat(
                 session, systemPrompt, userMessage, toolObjects, ConversationFeedbackSink.noop());
+    }
+
+    /**
+     * 发起不携带任何调用方或内建工具的纯文本辅助调用。
+     *
+     * @param session 不持久化的辅助会话。
+     * @param systemPrompt 系统提示词。
+     * @param userMessage 用户输入。
+     * @return 模型调用结果。
+     */
+    @Override
+    public LlmResult chatTextOnly(SessionRecord session, String systemPrompt, String userMessage)
+            throws Exception {
+        Boolean previous = textOnlyCall.get();
+        textOnlyCall.set(Boolean.TRUE);
+        try {
+            return chat(session, systemPrompt, userMessage, Collections.emptyList());
+        } finally {
+            if (previous == null) {
+                textOnlyCall.remove();
+            } else {
+                textOnlyCall.set(previous);
+            }
+        }
     }
 
     /**
@@ -1993,11 +2020,18 @@ public class SolonAiLlmGateway implements LlmGateway {
                         Prompt.of(StrUtil.nullToEmpty(userMessage)));
             }
         }
-        addOwnedLoopTool(
-                options,
-                sanitizeToolObject(pdfSkill()),
-                Prompt.of(StrUtil.nullToEmpty(userMessage)));
+        if (shouldAttachBuiltinTools()) {
+            addOwnedLoopTool(
+                    options,
+                    sanitizeToolObject(pdfSkill()),
+                    Prompt.of(StrUtil.nullToEmpty(userMessage)));
+        }
         return options;
+    }
+
+    /** 当前调用允许附加 PDF 等内建工具时返回 true。 */
+    boolean shouldAttachBuiltinTools() {
+        return !Boolean.TRUE.equals(textOnlyCall.get());
     }
 
     /**

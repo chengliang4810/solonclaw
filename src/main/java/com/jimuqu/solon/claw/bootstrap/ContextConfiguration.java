@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.agent.AgentRuntimeService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.AsyncSkillLearningService;
 import com.jimuqu.solon.claw.context.BuiltinMemoryProvider;
+import com.jimuqu.solon.claw.context.CrossSessionReflectionService;
 import com.jimuqu.solon.claw.context.DefaultMemoryManager;
 import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.FileMemoryService;
@@ -138,6 +139,25 @@ public class ContextConfiguration {
     public SkillCuratorService skillCuratorService(
             AppConfig appConfig, LocalSkillService localSkillService) {
         return new SkillCuratorService(appConfig, localSkillService);
+    }
+
+    /**
+     * 创建跨会话反思服务。
+     *
+     * @param appConfig 应用配置。
+     * @param sessionRepository 会话仓储。
+     * @param llmGateway 模型网关。
+     * @param globalSettingRepository 全局设置仓储。
+     * @return 跨会话反思服务。
+     */
+    @Bean(destroyMethod = "shutdown")
+    public CrossSessionReflectionService crossSessionReflectionService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            LlmGateway llmGateway,
+            GlobalSettingRepository globalSettingRepository) {
+        return new CrossSessionReflectionService(
+                appConfig, sessionRepository, llmGateway, globalSettingRepository);
     }
 
     /**

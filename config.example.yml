@@ -294,6 +294,15 @@ solonclaw:
       # 多久未触达后标记 archived；不会自动删除。
       archiveAfterDays: 90
 
+  # 跨会话反思配置。
+  reflection:
+    # 是否启用基于近期真实会话的跨会话反思。
+    enabled: true
+    # 反思运行周期，单位小时。
+    intervalHours: 24
+    # 读取真实会话的回看天数。
+    lookbackDays: 7
+
   # checkpoint 回滚配置。
   rollback:
     # 是否启用 checkpoint 回滚。

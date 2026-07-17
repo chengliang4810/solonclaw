@@ -937,7 +937,7 @@ public class SqliteSessionRepository implements SessionRepository {
                             "select "
                                     + SELECT_COLUMNS
                                     + " "
-                                    + "from sessions order by updated_at desc limit ? offset ?");
+                                    + "from sessions order by updated_at desc, session_id desc limit ? offset ?");
             statement.setInt(1, limit);
             statement.setInt(2, Math.max(0, offset));
             ResultSet resultSet = statement.executeQuery();

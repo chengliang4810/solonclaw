@@ -62,6 +62,9 @@ public class AppConfig {
     /** 技能后台维护配置。 */
     private CuratorConfig curator = new CuratorConfig();
 
+    /** 跨会话反思配置。 */
+    private ReflectionConfig reflection = new ReflectionConfig();
+
     /** 技能目录配置。 */
     private SkillsConfig skills = new SkillsConfig();
 
@@ -187,6 +190,7 @@ public class AppConfig {
         copyLearning(other.getLearning());
         copyGoal(other.getGoal());
         copyCurator(other.getCurator());
+        copyReflection(other.getReflection());
         copySkills(other.getSkills());
         copyRollback(other.getRollback());
         copyDisplay(other.getDisplay());
@@ -418,6 +422,17 @@ public class AppConfig {
         this.curator.setMinIdleHours(other.getMinIdleHours());
         this.curator.setStaleAfterDays(other.getStaleAfterDays());
         this.curator.setArchiveAfterDays(other.getArchiveAfterDays());
+    }
+
+    /**
+     * 复制跨会话反思配置。
+     *
+     * @param other 源配置。
+     */
+    private void copyReflection(ReflectionConfig other) {
+        this.reflection.setEnabled(other.isEnabled());
+        this.reflection.setIntervalHours(other.getIntervalHours());
+        this.reflection.setLookbackDays(other.getLookbackDays());
     }
 
     /**
@@ -1068,6 +1083,21 @@ public class AppConfig {
 
         /** 多久未使用后归档。 */
         private int archiveAfterDays = 90;
+    }
+
+    /** 基于近期真实会话生成派生洞察的跨会话反思配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class ReflectionConfig {
+        /** 是否启用跨会话反思。 */
+        private boolean enabled = true;
+
+        /** 后台反思周期，单位小时。 */
+        private int intervalHours = 24;
+
+        /** 反思读取真实会话的回看天数。 */
+        private int lookbackDays = 7;
     }
 
     /** 技能目录配置。 */

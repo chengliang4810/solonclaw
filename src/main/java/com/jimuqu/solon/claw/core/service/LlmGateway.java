@@ -25,6 +25,20 @@ public interface LlmGateway {
             List<Object> toolObjects)
             throws Exception;
 
+    /**
+     * 发起一次纯文本辅助调用，生产实现必须保证请求不携带调用方工具或内建工具。
+     *
+     * @param session 不绑定持久化历史的辅助会话。
+     * @param systemPrompt 系统提示词。
+     * @param userMessage 用户输入。
+     * @return 模型调用结果。
+     * @throws Exception 模型调用失败时抛出异常。
+     */
+    default LlmResult chatTextOnly(SessionRecord session, String systemPrompt, String userMessage)
+            throws Exception {
+        return chat(session, systemPrompt, userMessage, java.util.Collections.emptyList());
+    }
+
     /** 发起一次带中间态反馈的聊天调用。 */
     default LlmResult chat(
             SessionRecord session,

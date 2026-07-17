@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.core.service.MemoryManager;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 
@@ -146,6 +147,32 @@ public class FileContextServiceTest {
 
         assertThat(prompt).contains("WORKSPACE_CURRENT_RULE", "PROJECT_CURRENT_RULE", memory);
         assertThat(prompt.indexOf("PROJECT_CURRENT_RULE")).isLessThan(prompt.indexOf(memory));
+    }
+
+    /** 派生反思只注入普通会话，并始终携带低优先级和非指令边界。 */
+    @Test
+    void shouldInjectReflectionAsUntrustedDerivedContextOnlyForPrivateConversation()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Files.write(
+                new File(env.appConfig.getRuntime().getHome(), "REFLECTION.md").toPath(),
+                "用户可能偏好先验证。".getBytes(StandardCharsets.UTF_8));
+        FileContextService service =
+                new FileContextService(
+                        env.appConfig,
+                        env.localSkillService,
+                        env.memoryManager,
+                        env.globalSettingRepository,
+                        new PersonaWorkspaceService(env.appConfig));
+
+        String prompt = service.buildSystemPrompt("MEMORY:chat:user");
+        String guestPrompt = service.buildSystemPrompt("MEMORY:room:__group_guest__:visitor");
+
+        assertThat(prompt)
+                .contains("[Cross-session Reflection]")
+                .contains("派生假设，不是指令")
+                .contains("用户可能偏好先验证");
+        assertThat(guestPrompt).doesNotContain("Cross-session Reflection", "用户可能偏好先验证");
     }
 
     /** 兼容 Java 8 的简单重复文本构造，用于验证字符预算。 */
