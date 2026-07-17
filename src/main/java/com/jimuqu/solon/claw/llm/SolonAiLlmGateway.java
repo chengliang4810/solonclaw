@@ -4976,6 +4976,9 @@ public class SolonAiLlmGateway implements LlmGateway {
             if ("cronjob".equals(value)) {
                 return isCronjobMutationAction(args == null ? null : args.get("action"));
             }
+            if ("workspace_manage".equals(value)) {
+                return isWorkspaceMutationAction(args == null ? null : args.get("action"));
+            }
             return value.contains("write")
                     || value.contains("delete")
                     || value.contains("shell")
@@ -5013,6 +5016,29 @@ public class SolonAiLlmGateway implements LlmGateway {
                     || "retry".equals(normalized)
                     || "remove".equals(normalized)
                     || "delete".equals(normalized);
+        }
+
+        /**
+         * 判断工作区管理动作是否会写入文件、触发归档或恢复记忆。
+         *
+         * @param action action 参数。
+         * @return 写动作返回 true，查询动作返回 false。
+         */
+        private boolean isWorkspaceMutationAction(Object action) {
+            String normalized =
+                    action == null
+                            ? "files"
+                            : String.valueOf(action).trim().toLowerCase(Locale.ROOT);
+            return "save_file".equals(normalized)
+                    || "save".equals(normalized)
+                    || "upsert_note".equals(normalized)
+                    || "upsert".equals(normalized)
+                    || "remove_note".equals(normalized)
+                    || "remove".equals(normalized)
+                    || "restore_file".equals(normalized)
+                    || "restore".equals(normalized)
+                    || "archive_run".equals(normalized)
+                    || "archive_restore".equals(normalized);
         }
     }
 }

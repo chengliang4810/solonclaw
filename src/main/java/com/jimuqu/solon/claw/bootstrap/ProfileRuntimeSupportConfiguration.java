@@ -3,6 +3,8 @@ package com.jimuqu.solon.claw.bootstrap;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
+import com.jimuqu.solon.claw.context.MemoryArchiveService;
+import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
@@ -43,6 +45,7 @@ import com.jimuqu.solon.claw.web.DashboardProfileScope;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
+import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
 import com.jimuqu.solon.claw.web.McpPackageSecurityService;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
@@ -127,6 +130,16 @@ public class ProfileRuntimeSupportConfiguration {
         return new SessionArtifactService(appConfig);
     }
 
+    /** 创建绑定当前命名 Profile 工作区与归档服务的 Agent 工具支撑。 */
+    @Bean
+    public DashboardWorkspaceService dashboardWorkspaceService(
+            AppConfig appConfig,
+            PersonaWorkspaceService personaWorkspaceService,
+            MemoryArchiveService memoryArchiveService) {
+        return new DashboardWorkspaceService(
+                personaWorkspaceService, profileScope(appConfig), memoryArchiveService);
+    }
+
     /** 创建绑定当前子运行时身份与配置的解析器，不向 Bean 容器暴露主机级 ProfileManager。 */
     private DashboardProfileScope profileScope(AppConfig appConfig) {
         return new DashboardProfileScope(
@@ -160,6 +173,7 @@ public class ProfileRuntimeSupportConfiguration {
             DashboardProviderService dashboardProviderService,
             DashboardConfigService dashboardConfigService,
             DashboardRuntimeConfigService dashboardRuntimeConfigService,
+            DashboardWorkspaceService dashboardWorkspaceService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -194,6 +208,7 @@ public class ProfileRuntimeSupportConfiguration {
                 .dashboardProviderService(dashboardProviderService)
                 .dashboardConfigService(dashboardConfigService)
                 .dashboardRuntimeConfigService(dashboardRuntimeConfigService)
+                .dashboardWorkspaceService(dashboardWorkspaceService)
                 .browserRuntimeService(browserRuntimeService)
                 .imageGenerationService(imageGenerationService)
                 .speechService(speechService)

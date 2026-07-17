@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.bootstrap;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
+import com.jimuqu.solon.claw.context.MemoryArchiveService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
@@ -449,10 +450,12 @@ public class DashboardConfiguration {
     @Bean
     public DashboardWorkspaceService dashboardWorkspaceService(
             PersonaWorkspaceService personaWorkspaceService,
-            DashboardProfileContext dashboardProfileContext) {
+            DashboardProfileContext dashboardProfileContext,
+            MemoryArchiveService memoryArchiveService) {
         return new DashboardWorkspaceService(
                 personaWorkspaceService,
-                new com.jimuqu.solon.claw.web.DashboardProfileScope(dashboardProfileContext));
+                new com.jimuqu.solon.claw.web.DashboardProfileScope(dashboardProfileContext),
+                memoryArchiveService);
     }
 
     /**

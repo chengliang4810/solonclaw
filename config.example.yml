@@ -263,6 +263,22 @@ solonclaw:
     # 自动学习分类/技能总结等辅助模型调用的总超时，单位秒。
     auxiliaryTimeoutSeconds: 60
 
+  # 旧每日记忆生命周期配置。
+  memory:
+    archive:
+      # 是否启用不可变原文归档和可重建派生摘要。
+      enabled: true
+      # 每日记忆在 memory/ 根目录保留的天数。
+      retentionDays: 30
+      # 后台检查周期，单位小时；修改后重启生效。
+      intervalHours: 24
+      # 单轮最多归档或补摘要的文件数。
+      maxFilesPerRun: 7
+      # 是否优先使用 AI 分析真实条目；失败时自动使用数据驱动摘要。
+      aiSummaryEnabled: true
+      # 单个 AI 摘要调用超时，单位秒。
+      auxiliaryTimeoutSeconds: 60
+
   # goal 目标循环配置：跨轮长目标 + judge 驱动自动续轮
   goal:
     maxTurns: 20              # 默认轮次预算上限，超过自动暂停

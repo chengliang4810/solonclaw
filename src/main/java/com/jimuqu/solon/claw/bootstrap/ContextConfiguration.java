@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.context.DefaultMemoryManager;
 import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.FileMemoryService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
+import com.jimuqu.solon.claw.context.MemoryArchiveService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
@@ -158,6 +159,25 @@ public class ContextConfiguration {
             GlobalSettingRepository globalSettingRepository) {
         return new CrossSessionReflectionService(
                 appConfig, sessionRepository, llmGateway, globalSettingRepository);
+    }
+
+    /**
+     * 创建旧每日记忆不可变归档与派生摘要服务。
+     *
+     * @param appConfig 应用配置。
+     * @param memoryService 现有记忆服务。
+     * @param llmGateway 模型网关。
+     * @param globalSettingRepository 全局设置仓储。
+     * @return 记忆归档服务。
+     */
+    @Bean(destroyMethod = "shutdown")
+    public MemoryArchiveService memoryArchiveService(
+            AppConfig appConfig,
+            MemoryService memoryService,
+            LlmGateway llmGateway,
+            GlobalSettingRepository globalSettingRepository) {
+        return new MemoryArchiveService(
+                appConfig, memoryService, llmGateway, globalSettingRepository);
     }
 
     /**

@@ -413,6 +413,57 @@ public class SolonAiOwnedReActLoopTest {
     }
 
     @Test
+    void shouldAuditWorkspaceArchiveReadsAndMutationsWithCorrectExecutionPolicy() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.WORKSPACE_ARCHIVE_AUDIT);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-workspace-archive-audit-session");
+        Map<String, ToolCallRecord> records = new LinkedHashMap<String, ToolCallRecord>();
+        AgentRunContext runContext =
+                new AgentRunContext(
+                        recordingRunRepository(records),
+                        "run-workspace-archive-audit",
+                        session.getSessionId(),
+                        session.getSourceKey());
+
+        FunctionToolDesc workspace = new FunctionToolDesc("workspace_manage");
+        workspace.description("Manage workspace archives.");
+        workspace.doHandle(args -> "handled " + args.get("action"));
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "检查归档状态、执行归档并恢复原文",
+                        Collections.singletonList(workspace),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(result.getAssistantMessage().getResultContent())
+                .isEqualTo("workspace archive audit ok");
+        List<ToolCallRecord> calls = new ArrayList<ToolCallRecord>(records.values());
+        assertThat(calls).hasSize(3);
+        assertThat(calls.get(0).getArgsPreview()).contains("action=archive_status");
+        assertThat(calls.get(0).isSideEffecting()).isFalse();
+        assertThat(calls.get(0).isReadOnly()).isTrue();
+        assertThat(calls.get(0).getExecutionPolicy()).isEqualTo("parallel_readonly");
+        assertThat(calls.get(1).getArgsPreview()).contains("action=archive_run");
+        assertThat(calls.get(1).isSideEffecting()).isTrue();
+        assertThat(calls.get(1).isReadOnly()).isFalse();
+        assertThat(calls.get(1).getExecutionPolicy()).isEqualTo("serial");
+        assertThat(calls.get(2).getArgsPreview()).contains("action=archive_restore");
+        assertThat(calls.get(2).isSideEffecting()).isTrue();
+        assertThat(calls.get(2).isReadOnly()).isFalse();
+        assertThat(calls.get(2).getExecutionPolicy()).isEqualTo("serial");
+    }
+
+    @Test
     void shouldRejectOwnedLoopToolCallWhenWebRunBudgetIsExceeded() throws Exception {
         AppConfig config = config();
         config.getReact().setMaxSteps(5);
@@ -2086,6 +2137,7 @@ public class SolonAiOwnedReActLoopTest {
         CRONJOB_MISSING_BOOLEAN_ARGS,
         TODO_WRITE_THEN_READ,
         CRONJOB_INSPECT_THEN_CREATE,
+        WORKSPACE_ARCHIVE_AUDIT,
         THREE_TOOL_CALLS_THEN_FINAL,
         PENDING_APPROVAL,
         OUTSIDE_WORKSPACE_WRITE_APPROVAL,
@@ -2313,6 +2365,29 @@ public class SolonAiOwnedReActLoopTest {
                                             + "Action Input: {\"action\":\"create\",\"name\":\"job-new\",\"schedule\":\"2m\",\"deliver\":\"origin\",\"no_agent\":false,\"wrap_response\":true}");
                 } else {
                     assistant = ChatMessage.ofAssistant("cronjob audit ok");
+                }
+            } else if (model.mode == FakeMode.WORKSPACE_ARCHIVE_AUDIT) {
+                int toolMessages = toolMessageCount(session.getMessages());
+                if (toolMessages == 0) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 先读取归档状态\n"
+                                            + "Action: workspace_manage\n"
+                                            + "Action Input: {\"action\":\"archive_status\"}");
+                } else if (toolMessages == 1) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 再执行归档\n"
+                                            + "Action: workspace_manage\n"
+                                            + "Action Input: {\"action\":\"archive_run\"}");
+                } else if (toolMessages == 2) {
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 最后恢复归档\n"
+                                            + "Action: workspace_manage\n"
+                                            + "Action Input: {\"action\":\"archive_restore\",\"relativePath\":\"memory/archive/2024/01/example.md\"}");
+                } else {
+                    assistant = ChatMessage.ofAssistant("workspace archive audit ok");
                 }
             } else if (model.mode == FakeMode.THREE_TOOL_CALLS_THEN_FINAL) {
                 int toolMessages = toolMessageCount(session.getMessages());

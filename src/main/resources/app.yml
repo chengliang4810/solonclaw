@@ -75,6 +75,14 @@ solonclaw.compression.tailRatio: 0.2
 solonclaw.learning.enabled: true
 solonclaw.learning.toolCallThreshold: 5
 
+# 旧每日记忆不可变归档与派生摘要
+solonclaw.memory.archive.enabled: true
+solonclaw.memory.archive.retentionDays: 30
+solonclaw.memory.archive.intervalHours: 24
+solonclaw.memory.archive.maxFilesPerRun: 7
+solonclaw.memory.archive.aiSummaryEnabled: true
+solonclaw.memory.archive.auxiliaryTimeoutSeconds: 60
+
 # 跨会话反思
 solonclaw.reflection.enabled: true
 solonclaw.reflection.intervalHours: 24

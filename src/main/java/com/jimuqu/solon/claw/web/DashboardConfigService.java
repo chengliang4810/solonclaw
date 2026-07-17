@@ -451,6 +451,28 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "learning.auxiliaryTimeoutSeconds", "number", "agent", "自动学习辅助模型调用总超时（秒）"));
+        addField(new FieldDefinition("memory.archive.enabled", "boolean", "agent", "启用旧每日记忆不可变归档"));
+        addField(
+                new FieldDefinition(
+                        "memory.archive.retentionDays", "number", "agent", "每日记忆活动保留天数"));
+        addField(
+                new FieldDefinition(
+                        "memory.archive.intervalHours",
+                        "number",
+                        "agent",
+                        "每日记忆归档检查周期（小时，修改后重启生效）"));
+        addField(
+                new FieldDefinition(
+                        "memory.archive.maxFilesPerRun", "number", "agent", "单轮最多归档或补摘要文件数"));
+        addField(
+                new FieldDefinition(
+                        "memory.archive.aiSummaryEnabled", "boolean", "agent", "优先用 AI 归纳归档记忆"));
+        addField(
+                new FieldDefinition(
+                        "memory.archive.auxiliaryTimeoutSeconds",
+                        "number",
+                        "agent",
+                        "单个记忆归纳模型调用超时（秒）"));
         addField(
                 new FieldDefinition(
                         "skills.curator.enabled", "boolean", "agent", "启用技能后台维护 Curator"));

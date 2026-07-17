@@ -77,6 +77,14 @@ public class CoreConfigOverrideLoadTest {
                         + "    enabled: false\n"
                         + "    thresholdPercent: 0.75\n"
                         + "    summaryModel: gpt-5.4-mini\n"
+                        + "  memory:\n"
+                        + "    archive:\n"
+                        + "      enabled: false\n"
+                        + "      retentionDays: 45\n"
+                        + "      intervalHours: 12\n"
+                        + "      maxFilesPerRun: 9\n"
+                        + "      aiSummaryEnabled: false\n"
+                        + "      auxiliaryTimeoutSeconds: 75\n"
                         + "  channels:\n"
                         + "    feishu:\n"
                         + "      enabled: true\n"
@@ -172,6 +180,12 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getCompression().isEnabled()).isFalse();
         assertThat(config.getCompression().getThresholdPercent()).isEqualTo(0.75D);
         assertThat(config.getCompression().getSummaryModel()).isEqualTo("gpt-5.4-mini");
+        assertThat(config.getMemory().getArchive().isEnabled()).isFalse();
+        assertThat(config.getMemory().getArchive().getRetentionDays()).isEqualTo(45);
+        assertThat(config.getMemory().getArchive().getIntervalHours()).isEqualTo(12);
+        assertThat(config.getMemory().getArchive().getMaxFilesPerRun()).isEqualTo(9);
+        assertThat(config.getMemory().getArchive().isAiSummaryEnabled()).isFalse();
+        assertThat(config.getMemory().getArchive().getAuxiliaryTimeoutSeconds()).isEqualTo(75);
 
         assertThat(config.getChannels().getFeishu().isEnabled()).isTrue();
         assertThat(config.getChannels().getFeishu().getWebsocketUrl())

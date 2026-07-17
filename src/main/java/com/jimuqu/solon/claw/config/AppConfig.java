@@ -56,6 +56,9 @@ public class AppConfig {
     /** 任务后自动学习配置。 */
     private LearningConfig learning = new LearningConfig();
 
+    /** 长期记忆生命周期配置。 */
+    private MemoryConfig memory = new MemoryConfig();
+
     /** goal 目标循环配置。 */
     private GoalConfig goal = new GoalConfig();
 
@@ -188,6 +191,7 @@ public class AppConfig {
         copyScheduler(other.getScheduler());
         copyCompression(other.getCompression());
         copyLearning(other.getLearning());
+        copyMemory(other.getMemory());
         copyGoal(other.getGoal());
         copyCurator(other.getCurator());
         copyReflection(other.getReflection());
@@ -395,6 +399,25 @@ public class AppConfig {
         this.learning.setEnabled(other.isEnabled());
         this.learning.setToolCallThreshold(other.getToolCallThreshold());
         this.learning.setAuxiliaryTimeoutSeconds(other.getAuxiliaryTimeoutSeconds());
+    }
+
+    /**
+     * 复制长期记忆生命周期配置。
+     *
+     * @param other 源配置。
+     */
+    private void copyMemory(MemoryConfig other) {
+        if (other == null || other.getArchive() == null) {
+            return;
+        }
+        this.memory.getArchive().setEnabled(other.getArchive().isEnabled());
+        this.memory.getArchive().setRetentionDays(other.getArchive().getRetentionDays());
+        this.memory.getArchive().setIntervalHours(other.getArchive().getIntervalHours());
+        this.memory.getArchive().setMaxFilesPerRun(other.getArchive().getMaxFilesPerRun());
+        this.memory.getArchive().setAiSummaryEnabled(other.getArchive().isAiSummaryEnabled());
+        this.memory
+                .getArchive()
+                .setAuxiliaryTimeoutSeconds(other.getArchive().getAuxiliaryTimeoutSeconds());
     }
 
     /**
@@ -1037,6 +1060,39 @@ public class AppConfig {
         private int toolCallThreshold = 5;
 
         /** 辅助模型分类/总结调用总超时，单位秒。 */
+        private int auxiliaryTimeoutSeconds = 60;
+    }
+
+    /** 长期记忆生命周期配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class MemoryConfig {
+        /** 旧每日记忆归档配置。 */
+        private MemoryArchiveConfig archive = new MemoryArchiveConfig();
+    }
+
+    /** 旧每日记忆不可变归档和派生摘要配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class MemoryArchiveConfig {
+        /** 是否启用旧每日记忆后台归档。 */
+        private boolean enabled = true;
+
+        /** 每日记忆保留在活动目录的天数。 */
+        private int retentionDays = 30;
+
+        /** 后台归档检查周期，单位小时。 */
+        private int intervalHours = 24;
+
+        /** 单轮最多处理的原文或缺失摘要文件数量。 */
+        private int maxFilesPerRun = 7;
+
+        /** 是否优先使用辅助模型生成内容摘要和长期记忆候选。 */
+        private boolean aiSummaryEnabled = true;
+
+        /** 单个辅助模型摘要调用的超时时间，单位秒。 */
         private int auxiliaryTimeoutSeconds = 60;
     }
 

@@ -36,6 +36,7 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -2662,6 +2663,133 @@ public class DashboardControllerHttpTest {
                 .contains("请求体 JSON 解析失败")
                 .doesNotContain("ghp_workspaceparse12345")
                 .doesNotContain("token=");
+    }
+
+    /** 归档状态、立即运行和非覆盖恢复均可通过受鉴权 Dashboard API 到达。 */
+    @Test
+    void shouldExposeAuthenticatedMemoryArchiveOperations() throws Exception {
+        String token = DASHBOARD_TEST_TOKEN;
+        HttpResult unauthorized = request("GET", "/api/workspace/memory/archive", null, null);
+        assertThat(unauthorized.status).isEqualTo(401);
+
+        HttpResult status = request("GET", "/api/workspace/memory/archive", null, token);
+        HttpResult run = request("POST", "/api/workspace/memory/archive/run", "{}", token);
+        assertThat(status.status).isEqualTo(200);
+        assertThat(status.body).contains("lastOutcome");
+        assertThat(run.status).isEqualTo(200);
+
+        Path runtimeHome = FileUtil.file(bean(AppConfig.class).getRuntime().getHome()).toPath();
+        byte[] original =
+                "# 2024-01-02\n- dashboard-restore-marker\n".getBytes(StandardCharsets.UTF_8);
+        String digest = cn.hutool.crypto.digest.DigestUtil.sha256Hex(original);
+        Path archive =
+                runtimeHome
+                        .resolve("memory/archive/2024/01")
+                        .resolve("2024-01-02--" + digest.substring(0, 12) + ".md");
+        Files.createDirectories(archive.getParent());
+        Files.deleteIfExists(runtimeHome.resolve("memory/2024-01-02.md"));
+        Files.write(archive, original);
+
+        HttpResult restored =
+                request(
+                        "POST",
+                        "/api/workspace/memory/archive/restore",
+                        "{\"path\":\"memory/archive/2024/01/" + archive.getFileName() + "\"}",
+                        token);
+
+        assertThat(restored.status).isEqualTo(200);
+        assertThat(restored.body).contains("已恢复").doesNotContain(runtimeHome.toString());
+        assertThat(Files.readAllBytes(runtimeHome.resolve("memory/2024-01-02.md")))
+                .isEqualTo(original);
+        assertThat(Files.readAllBytes(archive)).isEqualTo(original);
+    }
+
+    /** 同一路径在 default 与命名 Profile 中内容不同时，归档和恢复必须严格落到请求 Profile。 */
+    @Test
+    void shouldIsolateMemoryArchiveOperationsByRequestedProfile() throws Exception {
+        String token = DASHBOARD_TEST_TOKEN;
+        Path defaultHome = FileUtil.file(bean(AppConfig.class).getRuntime().getHome()).toPath();
+        Path namedHome = defaultHome.resolve("profiles/archive-isolation");
+        Files.createDirectories(namedHome);
+        Files.write(
+                namedHome.resolve("config.yml"),
+                ("solonclaw:\n"
+                                + "  scheduler:\n"
+                                + "    enabled: false\n"
+                                + "  memory:\n"
+                                + "    archive:\n"
+                                + "      enabled: true\n"
+                                + "      retentionDays: 30\n"
+                                + "      aiSummaryEnabled: false\n")
+                        .getBytes(StandardCharsets.UTF_8));
+        Path defaultDaily = defaultHome.resolve("memory/2024-01-03.md");
+        Path namedDaily = namedHome.resolve("memory/2024-01-03.md");
+        byte[] defaultBytes =
+                "# 2024-01-03\n- default-profile-marker\n".getBytes(StandardCharsets.UTF_8);
+        byte[] namedBytes =
+                "# 2024-01-03\n- named-profile-marker\n".getBytes(StandardCharsets.UTF_8);
+        Files.createDirectories(defaultDaily.getParent());
+        Files.createDirectories(namedDaily.getParent());
+        Files.write(defaultDaily, defaultBytes);
+        Files.write(namedDaily, namedBytes);
+        try {
+            HttpResult run =
+                    request(
+                            "POST",
+                            "/api/workspace/memory/archive/run?profile=default",
+                            "{\"profile\":\"archive-isolation\"}",
+                            token);
+
+            assertThat(run.status).isEqualTo(200);
+            assertThat(Files.readAllBytes(defaultDaily)).isEqualTo(defaultBytes);
+            assertThat(Files.exists(namedDaily)).isFalse();
+            Path namedArchive;
+            try (java.util.stream.Stream<Path> files =
+                    Files.walk(namedHome.resolve("memory/archive"))) {
+                namedArchive =
+                        files.filter(Files::isRegularFile)
+                                .filter(
+                                        path ->
+                                                path.getFileName()
+                                                        .toString()
+                                                        .matches("2024-01-03--[0-9a-f]{12}\\.md"))
+                                .findFirst()
+                                .orElseThrow(() -> new AssertionError("命名 Profile 缺少归档原文"));
+            }
+            assertThat(Files.readAllBytes(namedArchive)).isEqualTo(namedBytes);
+            String defaultDigest = cn.hutool.crypto.digest.DigestUtil.sha256Hex(defaultBytes);
+            assertThat(
+                            Files.exists(
+                                    defaultHome
+                                            .resolve("memory/archive/2024/01")
+                                            .resolve(
+                                                    "2024-01-03--"
+                                                            + defaultDigest.substring(0, 12)
+                                                            + ".md")))
+                    .isFalse();
+
+            String relative =
+                    namedHome.relativize(namedArchive).toString().replace(File.separatorChar, '/');
+            HttpResult restored =
+                    request(
+                            "POST",
+                            "/api/workspace/memory/archive/restore?profile=default",
+                            "{\"profile\":\"archive-isolation\",\"path\":\"" + relative + "\"}",
+                            token);
+            HttpResult status =
+                    request(
+                            "GET",
+                            "/api/workspace/memory/archive?profile=archive-isolation",
+                            null,
+                            token);
+
+            assertThat(restored.status).isEqualTo(200);
+            assertThat(status.status).isEqualTo(200);
+            assertThat(Files.readAllBytes(namedDaily)).isEqualTo(namedBytes);
+            assertThat(Files.readAllBytes(defaultDaily)).isEqualTo(defaultBytes);
+        } finally {
+            Files.deleteIfExists(defaultDaily);
+        }
     }
 
     @Test

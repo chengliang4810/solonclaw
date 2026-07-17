@@ -3,11 +3,18 @@ package com.jimuqu.solon.claw.tool.runtime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.FileMemoryService;
+import com.jimuqu.solon.claw.context.MemoryArchiveService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
+import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
+import com.jimuqu.solon.claw.web.DashboardProfileScope;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
 import java.io.File;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -24,6 +31,9 @@ class WorkspaceManageToolsTest {
     /** 被测工作区管理工具。 */
     private WorkspaceManageTools tool;
 
+    /** 测试结束时关闭的归档服务。 */
+    private MemoryArchiveService archiveService;
+
     /** 为每个用例创建隔离工作区和工具实例。 */
     @BeforeEach
     void setUp() {
@@ -33,7 +43,19 @@ class WorkspaceManageToolsTest {
         config.getRuntime().setContextDir(new File(runtimeDir, "context").getAbsolutePath());
         config.getWorkspace().setDir(new File(tempDir.toFile(), "workspace").getAbsolutePath());
         workspace = new PersonaWorkspaceService(config);
-        tool = new WorkspaceManageTools(new DashboardWorkspaceService(workspace));
+        archiveService =
+                new MemoryArchiveService(
+                        config, new FileMemoryService(config), null, new InMemorySettings());
+        tool =
+                new WorkspaceManageTools(
+                        new DashboardWorkspaceService(
+                                workspace, new DashboardProfileScope(), archiveService));
+    }
+
+    /** 释放归档辅助执行器。 */
+    @AfterEach
+    void tearDown() {
+        archiveService.shutdown();
     }
 
     /** 同一标签再次写入时更新原条目，并保留其他小节和无关条目。 */
@@ -108,6 +130,18 @@ class WorkspaceManageToolsTest {
         assertThat(workspace.read(ContextFileConstants.KEY_TOOLS)).doesNotContain(secret);
     }
 
+    /** Agent 可通过工作区管理工具读取状态并立即执行归档。 */
+    @Test
+    void shouldExposeMemoryArchiveStatusAndRunActions() {
+        ONode status = invoke("archive_status", null, null, null);
+        ONode run = invoke("archive_run", null, null, null);
+
+        assertSuccess(status);
+        assertSuccess(run);
+        assertThat(status.toJson()).contains("NEVER_RUN");
+        assertThat(run.toJson()).contains("NO_WORK");
+    }
+
     /** 调用被测工具并解析统一结果信封。 */
     private ONode invoke(String action, String key, String section, String content) {
         return ONode.ofJson(tool.workspaceManage(action, key, section, content));
@@ -132,5 +166,29 @@ class WorkspaceManageToolsTest {
             index += value.length();
         }
         return count;
+    }
+
+    /** 供归档状态持久化使用的内存设置仓储。 */
+    private static final class InMemorySettings implements GlobalSettingRepository {
+        /** 设置值。 */
+        private final Map<String, String> values = new LinkedHashMap<String, String>();
+
+        /** 读取设置值。 */
+        @Override
+        public String get(String key) {
+            return values.get(key);
+        }
+
+        /** 保存设置值。 */
+        @Override
+        public void set(String key, String value) {
+            values.put(key, value);
+        }
+
+        /** 删除设置值。 */
+        @Override
+        public void remove(String key) {
+            values.remove(key);
+        }
     }
 }

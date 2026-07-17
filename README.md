@@ -178,6 +178,12 @@ solonclaw:
 | `solonclaw.reflection.enabled` | `true` | 是否基于近期真实会话生成跨会话反思 |
 | `solonclaw.reflection.intervalHours` | `24` | 跨会话反思周期，单位小时 |
 | `solonclaw.reflection.lookbackDays` | `7` | 反思读取真实会话的回看天数 |
+| `solonclaw.memory.archive.enabled` | `true` | 是否归档超出保留期的每日记忆；修改调度配置后需重启 |
+| `solonclaw.memory.archive.retentionDays` | `30` | 每日记忆在活动目录保留的天数 |
+| `solonclaw.memory.archive.intervalHours` | `24` | 记忆归档检查周期，单位小时 |
+| `solonclaw.memory.archive.maxFilesPerRun` | `7` | 单轮最多归档或补摘要的文件数 |
+| `solonclaw.memory.archive.aiSummaryEnabled` | `true` | 是否优先用 AI 分析真实记忆条目，失败时使用数据摘要 |
+| `solonclaw.memory.archive.auxiliaryTimeoutSeconds` | `60` | 单个记忆归纳模型调用超时，单位秒 |
 | `solonclaw.browser.rewriteLoopbackUrls` | `false` | 容器内浏览器访问宿主机 loopback 服务时是否改写 URL |
 | `security.tirithEnabled` | `true` | 是否启用 Tirith 命令内容扫描 |
 | `security.tirithFailOpen` | `true` | Tirith 不可用或超时时是否放行；设为 `false` 会 fail-closed |

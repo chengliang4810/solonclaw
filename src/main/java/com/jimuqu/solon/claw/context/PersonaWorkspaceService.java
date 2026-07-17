@@ -114,7 +114,7 @@ public class PersonaWorkspaceService {
         write(key, readTemplate(key));
     }
 
-    /** 返回所有日记文件，相对路径按日期倒序排列。 */
+    /** 返回所有日记文件；活动日记优先，归档原文和派生摘要随后各自倒序排列。 */
     public List<String> listDiaryRelativePaths() {
         if (!memoryDir.exists()) {
             return Collections.emptyList();
@@ -123,13 +123,37 @@ public class PersonaWorkspaceService {
         List<File> files =
                 FileUtil.loopFiles(
                         memoryDir, file -> file.isFile() && file.getName().endsWith(".md"));
-        files.sort((left, right) -> right.getName().compareTo(left.getName()));
+        files.sort(
+                (left, right) -> {
+                    String leftPath = relativeDiaryPath(left);
+                    String rightPath = relativeDiaryPath(right);
+                    int categoryCompare =
+                            Integer.compare(diaryCategory(leftPath), diaryCategory(rightPath));
+                    return categoryCompare != 0 ? categoryCompare : rightPath.compareTo(leftPath);
+                });
 
         List<String> result = new ArrayList<String>();
         for (File file : files) {
-            result.add(ContextFileConstants.MEMORY_DIR + "/" + file.getName());
+            result.add(ContextFileConstants.MEMORY_DIR + "/" + relativeDiaryPath(file));
         }
         return result;
+    }
+
+    /** 将日记文件转换为保留子目录的正斜杠相对路径。 */
+    private String relativeDiaryPath(File file) {
+        return memoryDir
+                .toPath()
+                .relativize(file.toPath())
+                .toString()
+                .replace(File.separatorChar, '/');
+    }
+
+    /** 把活动日记、不可变归档原文和派生摘要分为稳定展示顺序。 */
+    private int diaryCategory(String relativePath) {
+        if (!relativePath.startsWith("archive/")) {
+            return 0;
+        }
+        return relativePath.endsWith(".summary.md") ? 2 : 1;
     }
 
     /**

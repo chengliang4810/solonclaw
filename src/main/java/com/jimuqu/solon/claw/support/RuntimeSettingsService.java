@@ -67,6 +67,12 @@ public class RuntimeSettingsService {
                     "learning.enabled",
                     "learning.toolCallThreshold",
                     "learning.auxiliaryTimeoutSeconds",
+                    "memory.archive.enabled",
+                    "memory.archive.retentionDays",
+                    "memory.archive.intervalHours",
+                    "memory.archive.maxFilesPerRun",
+                    "memory.archive.aiSummaryEnabled",
+                    "memory.archive.auxiliaryTimeoutSeconds",
                     "skills.curator.enabled",
                     "skills.curator.intervalHours",
                     "skills.curator.minIdleHours",
@@ -550,6 +556,8 @@ public class RuntimeSettingsService {
                 || "scheduler.wrapResponse".equals(key)
                 || "compression.enabled".equals(key)
                 || "learning.enabled".equals(key)
+                || "memory.archive.enabled".equals(key)
+                || "memory.archive.aiSummaryEnabled".equals(key)
                 || "rollback.enabled".equals(key)
                 || "skills.curator.enabled".equals(key)
                 || "reflection.enabled".equals(key)
@@ -569,6 +577,10 @@ public class RuntimeSettingsService {
                 || "scheduler.tickSeconds".equals(key)
                 || "learning.toolCallThreshold".equals(key)
                 || "learning.auxiliaryTimeoutSeconds".equals(key)
+                || "memory.archive.retentionDays".equals(key)
+                || "memory.archive.intervalHours".equals(key)
+                || "memory.archive.maxFilesPerRun".equals(key)
+                || "memory.archive.auxiliaryTimeoutSeconds".equals(key)
                 || "agent.heartbeat.intervalMinutes".equals(key)
                 || "rollback.maxCheckpointsPerSource".equals(key)
                 || "rollback.maxFileSizeMb".equals(key)

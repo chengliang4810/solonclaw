@@ -90,6 +90,31 @@ class PersonaWorkspaceServiceTest {
         assertThat(reloaded.exists(ContextFileConstants.KEY_BOOTSTRAP)).isFalse();
     }
 
+    /** 活动日记始终排在归档原文和派生摘要之前，避免页面默认打开旧归档。 */
+    @Test
+    void shouldListActiveDiariesBeforeArchiveOriginalsAndSummaries() throws Exception {
+        AppConfig config = appConfig();
+        Path memory = new File(config.getWorkspace().getDir(), "memory").toPath();
+        Files.createDirectories(memory.resolve("archive/2026/05"));
+        Files.write(
+                memory.resolve("2026-07-17.md"),
+                "active".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Files.write(
+                memory.resolve("archive/2026/05/2026-05-01--123456789abc.md"),
+                "archive".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        Files.write(
+                memory.resolve("archive/2026/05/2026-05-01--123456789abc.md.summary.md"),
+                "summary".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        PersonaWorkspaceService service = new PersonaWorkspaceService(config);
+
+        assertThat(service.listDiaryRelativePaths())
+                .containsExactly(
+                        "memory/2026-07-17.md",
+                        "memory/archive/2026/05/2026-05-01--123456789abc.md",
+                        "memory/archive/2026/05/2026-05-01--123456789abc.md.summary.md");
+    }
+
     @Test
     void restoresFileBackToTemplate() {
         PersonaWorkspaceService service = new PersonaWorkspaceService(appConfig());

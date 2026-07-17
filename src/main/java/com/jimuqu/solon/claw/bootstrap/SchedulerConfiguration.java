@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.bootstrap;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.CrossSessionReflectionService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
+import com.jimuqu.solon.claw.context.MemoryArchiveService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
@@ -21,6 +22,7 @@ import com.jimuqu.solon.claw.proactive.ProactiveReminderScheduler;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.scheduler.HeartbeatScheduler;
+import com.jimuqu.solon.claw.scheduler.MemoryArchiveScheduler;
 import com.jimuqu.solon.claw.scheduler.ReflectionScheduler;
 import com.jimuqu.solon.claw.scheduler.SkillCuratorScheduler;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -191,6 +193,25 @@ public class SchedulerConfiguration {
             AgentRunControlService agentRunControlService) {
         ReflectionScheduler scheduler =
                 new ReflectionScheduler(appConfig, reflectionService, agentRunControlService);
+        scheduler.start();
+        return scheduler;
+    }
+
+    /**
+     * 创建并启动旧每日记忆归档调度器。
+     *
+     * @param appConfig 应用配置。
+     * @param memoryArchiveService 记忆归档服务。
+     * @param agentRunControlService Agent 运行控制服务。
+     * @return 已启动的记忆归档调度器。
+     */
+    @Bean(destroyMethod = "shutdown")
+    public MemoryArchiveScheduler memoryArchiveScheduler(
+            AppConfig appConfig,
+            MemoryArchiveService memoryArchiveService,
+            AgentRunControlService agentRunControlService) {
+        MemoryArchiveScheduler scheduler =
+                new MemoryArchiveScheduler(appConfig, memoryArchiveService, agentRunControlService);
         scheduler.start();
         return scheduler;
     }

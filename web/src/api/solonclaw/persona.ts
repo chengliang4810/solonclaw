@@ -15,6 +15,22 @@ export interface PersonaDiaryEntry {
   name: string
   relativePath: string
   path: string
+  kind: 'active' | 'archive' | 'summary'
+}
+
+export interface MemoryArchiveState {
+  lastStartedAt: number
+  lastCompletedAt: number
+  lastOutcome: string
+  selectedCount: number
+  archivedCount: number
+  summarizedByAiCount: number
+  summarizedByFallbackCount: number
+  memoryCandidateCount: number
+  failedCount: number
+  lastError: string
+  lastFallbackReason: string
+  durationMs: number
 }
 
 export function personaMeta(key: string) {
@@ -50,4 +66,19 @@ export async function fetchPersonaDiary(relativePath: string): Promise<{
   content: string
 }> {
   return request(`/api/workspace/diaries/read?path=${encodeURIComponent(relativePath)}`)
+}
+
+export async function fetchMemoryArchiveState(): Promise<MemoryArchiveState> {
+  return request('/api/workspace/memory/archive')
+}
+
+export async function runMemoryArchive(): Promise<MemoryArchiveState> {
+  return request('/api/workspace/memory/archive/run', { method: 'POST' })
+}
+
+export async function restoreMemoryArchive(path: string): Promise<{ message: string }> {
+  return request('/api/workspace/memory/archive/restore', {
+    method: 'POST',
+    body: JSON.stringify({ path }),
+  })
 }

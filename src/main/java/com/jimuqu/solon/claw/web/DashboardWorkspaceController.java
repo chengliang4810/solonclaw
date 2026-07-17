@@ -167,6 +167,50 @@ public class DashboardWorkspaceController {
                 });
     }
 
+    /** 返回当前 Profile 的旧每日记忆归档状态。 */
+    @Mapping(value = "/api/workspace/memory/archive", method = MethodType.GET)
+    public Map<String, Object> memoryArchiveState(Context context) {
+        return execute(
+                context,
+                new Callback() {
+                    /** 读取持久化归档状态。 */
+                    @Override
+                    public Map<String, Object> run() {
+                        return workspaceService.memoryArchiveState(context.param("profile"));
+                    }
+                });
+    }
+
+    /** 立即执行一轮旧每日记忆归档。 */
+    @Mapping(value = "/api/workspace/memory/archive/run", method = MethodType.POST)
+    public Map<String, Object> runMemoryArchive(Context context) {
+        return execute(
+                context,
+                new Callback() {
+                    /** 执行归档并返回本轮状态。 */
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        return workspaceService.runMemoryArchive(profile(context));
+                    }
+                });
+    }
+
+    /** 从指定不可变归档原文恢复活动每日记忆。 */
+    @Mapping(value = "/api/workspace/memory/archive/restore", method = MethodType.POST)
+    public Map<String, Object> restoreMemoryArchive(Context context) {
+        return execute(
+                context,
+                new Callback() {
+                    /** 读取受控路径并执行非覆盖恢复。 */
+                    @Override
+                    public Map<String, Object> run() throws Exception {
+                        Object path = body(context).get("path");
+                        return workspaceService.restoreMemoryArchive(
+                                profile(context), path == null ? "" : String.valueOf(path));
+                    }
+                });
+    }
+
     /**
      * 下载受控工作区文件；仅允许工作区固定文件 key 或文件名。
      *
@@ -207,6 +251,12 @@ public class DashboardWorkspaceController {
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("WORKSPACE_BAD_REQUEST", workspaceErrorMessage(e));
+        } catch (IllegalStateException e) {
+            context.status(409);
+            return DashboardResponse.error("WORKSPACE_CONFLICT", workspaceErrorMessage(e));
+        } catch (Exception e) {
+            context.status(500);
+            return DashboardResponse.error("WORKSPACE_ARCHIVE_FAILED", "每日记忆归档操作失败。");
         }
     }
 
@@ -278,6 +328,6 @@ public class DashboardWorkspaceController {
          *
          * @return 返回运行结果。
          */
-        Map<String, Object> run();
+        Map<String, Object> run() throws Exception;
     }
 }

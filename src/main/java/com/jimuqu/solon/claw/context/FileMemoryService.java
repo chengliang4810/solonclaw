@@ -11,14 +11,11 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.MemoryConstants;
 import java.io.File;
 import java.io.IOException;
-import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -32,7 +29,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 
@@ -40,10 +36,6 @@ import org.noear.snack4.ONode;
 public class FileMemoryService implements MemoryService {
     /** 专题名称只允许字母、数字、中文、点、下划线和短横线，阻断路径穿越。 */
     private static final Pattern TOPIC_NAME_PATTERN = Pattern.compile("[\\p{L}\\p{N}._-]{1,80}");
-
-    /** 同一 JVM 内按状态文件隔离锁，避免 FileChannel 重叠锁异常和实例间覆盖。 */
-    private static final Map<String, Object> APPROVAL_STATE_LOCKS =
-            new ConcurrentHashMap<String, Object>();
 
     /** 批量处理全部待审批变更时使用的固定参数。 */
     private static final String ALL = "all";
@@ -62,9 +54,13 @@ public class FileMemoryService implements MemoryService {
     /** 应用配置。 */
     private final AppConfig appConfig;
 
+    /** 审批、归档和恢复共用的记忆文件锁。 */
+    private final MemoryFileLock memoryFileLock;
+
     /** 构造文件记忆服务。 */
     public FileMemoryService(AppConfig appConfig) {
         this.appConfig = appConfig;
+        this.memoryFileLock = new MemoryFileLock(appConfig);
         FileUtil.mkdir(appConfig.getRuntime().getHome());
         FileUtil.mkdir(appConfig.getRuntime().getContextDir());
         FileUtil.mkdir(memoryDir());
@@ -143,23 +139,35 @@ public class FileMemoryService implements MemoryService {
 
     /** 用当前磁盘内容重建小型记忆索引，确保外部编辑立即可检索。 */
     private void rebuildMemoryIndex(Connection connection) throws Exception {
-        try (Statement statement = connection.createStatement()) {
-            statement.execute(
-                    "create virtual table if not exists memory_fts using fts5(path unindexed, content)");
-            statement.execute("delete from memory_fts");
-        }
-        String sql = "insert into memory_fts(path, content) values(?, ?)";
-        try (PreparedStatement insert = connection.prepareStatement(sql)) {
-            indexFile(insert, MemoryConstants.MEMORY_FILE_NAME);
-            indexFile(insert, MemoryConstants.USER_FILE_NAME);
-            File directory = memoryDir();
-            if (directory.exists()) {
-                for (File file :
-                        FileUtil.loopFiles(directory, item -> item.getName().endsWith(".md"))) {
-                    String relative = directory.toPath().relativize(file.toPath()).toString();
-                    indexFile(insert, MemoryConstants.DAILY_MEMORY_DIR_NAME + "/" + relative);
+        boolean originalAutoCommit = connection.getAutoCommit();
+        connection.setAutoCommit(false);
+        try {
+            try (Statement statement = connection.createStatement()) {
+                statement.execute(
+                        "create virtual table if not exists memory_fts using fts5(path unindexed, content)");
+                statement.execute("delete from memory_fts");
+            }
+            String sql = "insert into memory_fts(path, content) values(?, ?)";
+            try (PreparedStatement insert = connection.prepareStatement(sql)) {
+                indexFile(insert, MemoryConstants.MEMORY_FILE_NAME);
+                indexFile(insert, MemoryConstants.USER_FILE_NAME);
+                File directory = memoryDir();
+                if (directory.exists()) {
+                    for (File file :
+                            FileUtil.loopFiles(
+                                    directory,
+                                    item -> item.isFile() && item.getName().endsWith(".md"))) {
+                        String relative = directory.toPath().relativize(file.toPath()).toString();
+                        indexFile(insert, MemoryConstants.DAILY_MEMORY_DIR_NAME + "/" + relative);
+                    }
                 }
             }
+            connection.commit();
+        } catch (Exception e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(originalAutoCommit);
         }
     }
 
@@ -368,10 +376,21 @@ public class FileMemoryService implements MemoryService {
                     if (!state.enabled) {
                         return applyDirect(action, target, content, oldText);
                     }
+                    String normalizedTarget = normalizePendingTarget(target);
+                    if ("add".equals(action)
+                            && !MemoryConstants.TARGET_TODAY.equalsIgnoreCase(normalizedTarget)
+                            && containsEntry(readEntries(normalizedTarget), content)) {
+                        return "记忆条目已存在，无需重复写入或审批。";
+                    }
+                    PendingMutation duplicate =
+                            findPendingDuplicate(state, action, normalizedTarget, content, oldText);
+                    if (duplicate != null) {
+                        return "已存在相同待审批记忆变更，ID: " + duplicate.id + "。";
+                    }
                     PendingMutation pending = new PendingMutation();
                     pending.id = newPendingId(state);
                     pending.action = action;
-                    pending.target = normalizePendingTarget(target);
+                    pending.target = normalizedTarget;
                     pending.content = content;
                     pending.oldText = oldText;
                     pending.origin = normalizeApprovalOrigin(origin);
@@ -380,6 +399,25 @@ public class FileMemoryService implements MemoryService {
                     writeApprovalState(state);
                     return "已暂存待审批记忆变更，ID: " + pending.id + "。";
                 });
+    }
+
+    /** 查找动作、目标和载荷完全一致的待审批变更，避免后台重试重复排队。 */
+    private PendingMutation findPendingDuplicate(
+            ApprovalState state, String action, String target, String content, String oldText) {
+        for (PendingMutation pending : state.pending) {
+            if (sameText(pending.action, action)
+                    && sameText(pending.target, target)
+                    && sameText(pending.content, content)
+                    && sameText(pending.oldText, oldText)) {
+                return pending;
+            }
+        }
+        return null;
+    }
+
+    /** 对可空审批字段执行精确相等比较。 */
+    private boolean sameText(String left, String right) {
+        return left == null ? right == null : left.equals(right);
     }
 
     /** 将审批来源限制为用户可理解的前台或后台审查语义。 */
@@ -667,27 +705,9 @@ public class FileMemoryService implements MemoryService {
                 appConfig.getRuntime().getHome(), MemoryConstants.APPROVAL_STATE_FILE_NAME);
     }
 
-    /** 返回审批状态跨进程锁文件。 */
-    private File approvalLockFile() {
-        return FileUtil.file(
-                appConfig.getRuntime().getHome(), MemoryConstants.APPROVAL_LOCK_FILE_NAME);
-    }
-
     /** 在同一 Profile 的 JVM 路径锁和文件锁内执行审批状态读改写。 */
     private <T> T withApprovalStateLock(ApprovalStateAction<T> action) throws Exception {
-        Path statePath = approvalStateFile().toPath().toAbsolutePath().normalize();
-        Object processLock =
-                APPROVAL_STATE_LOCKS.computeIfAbsent(statePath.toString(), ignored -> new Object());
-        synchronized (processLock) {
-            Path lockPath = approvalLockFile().toPath().toAbsolutePath().normalize();
-            Files.createDirectories(lockPath.getParent());
-            try (FileChannel channel =
-                            FileChannel.open(
-                                    lockPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
-                    FileLock ignored = channel.lock()) {
-                return action.run();
-            }
-        }
+        return memoryFileLock.withLock(action::run);
     }
 
     /** 可在审批状态锁内抛出受检异常的动作。 */

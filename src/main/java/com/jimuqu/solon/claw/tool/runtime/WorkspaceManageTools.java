@@ -38,12 +38,12 @@ public class WorkspaceManageTools {
     @ToolMapping(
             name = "workspace_manage",
             description =
-                    "Inspect and maintain dashboard workspace files. Actions: files, file, save_file, upsert_note, remove_note, restore_file, diaries, diary.")
+                    "Inspect and maintain dashboard workspace files and recoverable daily-memory archives. Actions: files, file, save_file, upsert_note, remove_note, restore_file, diaries, diary, archive_status, archive_run, archive_restore.")
     public String workspaceManage(
             @Param(
                             name = "action",
                             description =
-                                    "files, file, save_file, upsert_note, remove_note, restore_file, diaries, diary")
+                                    "files, file, save_file, upsert_note, remove_note, restore_file, diaries, diary, archive_status, archive_run, archive_restore")
                     String action,
             @Param(name = "key", required = false, description = "Workspace file key") String key,
             @Param(
@@ -80,8 +80,8 @@ public class WorkspaceManageTools {
      * @param content 保存文件时写入的内容。
      * @return 返回 Dashboard 工作区服务结果。
      */
-    private Map<String, Object> run(
-            String action, String key, String relativePath, String content) {
+    private Map<String, Object> run(String action, String key, String relativePath, String content)
+            throws Exception {
         String normalized = action == null ? "files" : action.trim().toLowerCase(Locale.ROOT);
         if ("file".equals(normalized) || "get_file".equals(normalized)) {
             return workspaceService.getFile(key);
@@ -105,6 +105,15 @@ public class WorkspaceManageTools {
         }
         if ("diary".equals(normalized) || "get_diary".equals(normalized)) {
             return workspaceService.getDiaryFile(relativePath);
+        }
+        if ("archive_status".equals(normalized)) {
+            return workspaceService.memoryArchiveState();
+        }
+        if ("archive_run".equals(normalized)) {
+            return workspaceService.runMemoryArchive();
+        }
+        if ("archive_restore".equals(normalized)) {
+            return workspaceService.restoreMemoryArchive(relativePath);
         }
         return workspaceService.getFiles();
     }

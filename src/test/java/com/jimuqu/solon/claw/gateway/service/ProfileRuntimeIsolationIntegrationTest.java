@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.SolonClawApp;
 import com.jimuqu.solon.claw.bootstrap.DashboardConfiguration;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
+import com.jimuqu.solon.claw.context.MemoryArchiveService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
@@ -23,6 +24,7 @@ import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.web.DashboardChatController;
 import com.jimuqu.solon.claw.web.DashboardProfileController;
+import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
 import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.lang.reflect.Field;
@@ -151,8 +153,11 @@ class ProfileRuntimeIsolationIntegrationTest {
         assertDifferentBean(rootContext, child, LocalSkillService.class);
         assertDifferentBean(rootContext, child, MemoryService.class);
         assertDifferentBean(rootContext, child, MemoryManager.class);
+        assertDifferentBean(rootContext, child, MemoryArchiveService.class);
         assertDifferentBean(rootContext, child, McpRuntimeService.class);
         assertDifferentBean(rootContext, child, ChannelConnectionManager.class);
+        assertThat(child.getBean(DashboardWorkspaceService.class)).isNotNull();
+        assertThat(child.getBean(ToolRegistry.class).listToolNames()).contains("workspace_manage");
 
         AppConfig rootConfig = rootContext.getBean(AppConfig.class);
         AppConfig workerConfig = child.getBean(AppConfig.class);

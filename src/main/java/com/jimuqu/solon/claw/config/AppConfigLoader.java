@@ -315,6 +315,76 @@ final class AppConfigLoader {
                                                 "solonclaw.learning.auxiliaryTimeoutSeconds",
                                                 60)),
                                 60));
+        config.getMemory()
+                .getArchive()
+                .setEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.memory.archive.enabled",
+                                        true)));
+        config.getMemory()
+                .getArchive()
+                .setRetentionDays(
+                        Math.min(
+                                3650,
+                                positiveInt(
+                                        resolveInt(
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.memory.archive.retentionDays",
+                                                        30)),
+                                        30)));
+        config.getMemory()
+                .getArchive()
+                .setIntervalHours(
+                        Math.min(
+                                720,
+                                positiveInt(
+                                        resolveInt(
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.memory.archive.intervalHours",
+                                                        24)),
+                                        24)));
+        config.getMemory()
+                .getArchive()
+                .setMaxFilesPerRun(
+                        Math.min(
+                                100,
+                                positiveInt(
+                                        resolveInt(
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.memory.archive.maxFilesPerRun",
+                                                        7)),
+                                        7)));
+        config.getMemory()
+                .getArchive()
+                .setAiSummaryEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.memory.archive.aiSummaryEnabled",
+                                        true)));
+        config.getMemory()
+                .getArchive()
+                .setAuxiliaryTimeoutSeconds(
+                        Math.min(
+                                600,
+                                positiveInt(
+                                        resolveInt(
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.memory.archive.auxiliaryTimeoutSeconds",
+                                                        60)),
+                                        60)));
         config.getCurator()
                 .setEnabled(
                         resolveBoolean(

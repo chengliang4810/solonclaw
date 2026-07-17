@@ -2,7 +2,12 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.MemoryArchiveService;
+import com.jimuqu.solon.claw.context.MemoryArchiveState;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
+import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
+import com.jimuqu.solon.claw.gateway.service.ProfileRuntimeBundle;
+import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -10,6 +15,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /** Dashboard 人格工作区文件服务。 */
 public class DashboardWorkspaceService {
@@ -19,13 +25,17 @@ public class DashboardWorkspaceService {
     /** 解析 Dashboard 请求的目标 Profile。 */
     private final DashboardProfileScope profileScope;
 
+    /** 按已校验 Profile 作用域返回对应归档服务的延迟解析器。 */
+    private final Function<DashboardProfileScope.Resolved, MemoryArchiveService>
+            memoryArchiveServiceResolver;
+
     /**
      * 创建控制台工作区服务实例，并注入运行所需依赖。
      *
      * @param personaWorkspaceService persona工作区服务依赖。
      */
     public DashboardWorkspaceService(PersonaWorkspaceService personaWorkspaceService) {
-        this(personaWorkspaceService, new DashboardProfileScope());
+        this(personaWorkspaceService, new DashboardProfileScope(), (MemoryArchiveService) null);
     }
 
     /**
@@ -36,8 +46,29 @@ public class DashboardWorkspaceService {
      */
     public DashboardWorkspaceService(
             PersonaWorkspaceService personaWorkspaceService, DashboardProfileScope profileScope) {
+        this(personaWorkspaceService, profileScope, (MemoryArchiveService) null);
+    }
+
+    /** 创建同时暴露每日记忆归档管理能力的工作区服务。 */
+    public DashboardWorkspaceService(
+            PersonaWorkspaceService personaWorkspaceService,
+            DashboardProfileScope profileScope,
+            MemoryArchiveService memoryArchiveService) {
+        this(
+                personaWorkspaceService,
+                profileScope,
+                resolved -> resolveProfileArchiveService(resolved, memoryArchiveService));
+    }
+
+    /** 创建可注入 Profile 归档服务解析器的工作区服务，供隔离测试复用。 */
+    DashboardWorkspaceService(
+            PersonaWorkspaceService personaWorkspaceService,
+            DashboardProfileScope profileScope,
+            Function<DashboardProfileScope.Resolved, MemoryArchiveService>
+                    memoryArchiveServiceResolver) {
         this.personaWorkspaceService = personaWorkspaceService;
         this.profileScope = profileScope;
+        this.memoryArchiveServiceResolver = memoryArchiveServiceResolver;
     }
 
     /**
@@ -141,12 +172,107 @@ public class DashboardWorkspaceService {
             item.put("name", FileUtil.file(relativePath).getName());
             item.put("relativePath", relativePath);
             item.put("path", diaryReference(relativePath));
+            item.put("kind", diaryKind(relativePath));
             files.add(item);
         }
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("files", files);
         return result;
+    }
+
+    /** 返回当前 Profile 的每日记忆归档诊断状态。 */
+    public Map<String, Object> memoryArchiveState() {
+        return memoryArchiveState(null);
+    }
+
+    /** 返回指定 Profile 的每日记忆归档诊断状态。 */
+    public Map<String, Object> memoryArchiveState(String profile) {
+        return describeArchiveState(requireMemoryArchiveService(profile).state());
+    }
+
+    /** 立即执行一轮旧每日记忆归档，并返回持久化诊断状态。 */
+    public Map<String, Object> runMemoryArchive() throws Exception {
+        return runMemoryArchive(null);
+    }
+
+    /** 立即执行指定 Profile 的旧每日记忆归档。 */
+    public Map<String, Object> runMemoryArchive(String profile) throws Exception {
+        return describeArchiveState(requireMemoryArchiveService(profile).runOnce());
+    }
+
+    /** 从不可变原文恢复活动每日记忆，拒绝覆盖不同内容。 */
+    public Map<String, Object> restoreMemoryArchive(String relativePath) throws Exception {
+        return restoreMemoryArchive(null, relativePath);
+    }
+
+    /** 从指定 Profile 的不可变原文恢复活动每日记忆。 */
+    public Map<String, Object> restoreMemoryArchive(String profile, String relativePath)
+            throws Exception {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", Boolean.TRUE);
+        result.put("message", requireMemoryArchiveService(profile).restore(relativePath));
+        result.put("relativePath", relativePath);
+        return result;
+    }
+
+    /** 将归档状态转换为 Dashboard 和 Agent 工具共用的稳定字段集合。 */
+    private Map<String, Object> describeArchiveState(MemoryArchiveState state) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("lastStartedAt", Long.valueOf(state.getLastStartedAt()));
+        result.put("lastCompletedAt", Long.valueOf(state.getLastCompletedAt()));
+        result.put("lastOutcome", state.getLastOutcome());
+        result.put("selectedCount", Integer.valueOf(state.getSelectedCount()));
+        result.put("archivedCount", Integer.valueOf(state.getArchivedCount()));
+        result.put("summarizedByAiCount", Integer.valueOf(state.getSummarizedByAiCount()));
+        result.put(
+                "summarizedByFallbackCount", Integer.valueOf(state.getSummarizedByFallbackCount()));
+        result.put("memoryCandidateCount", Integer.valueOf(state.getMemoryCandidateCount()));
+        result.put("failedCount", Integer.valueOf(state.getFailedCount()));
+        result.put("lastError", state.getLastError());
+        result.put("lastFallbackReason", state.getLastFallbackReason());
+        result.put("durationMs", Long.valueOf(state.getDurationMs()));
+        return result;
+    }
+
+    /** 返回已配置的记忆归档服务，否则拒绝生产入口调用。 */
+    private MemoryArchiveService requireMemoryArchiveService(String profile) {
+        DashboardProfileScope.Resolved resolved = profileScope.resolve(profile);
+        MemoryArchiveService service =
+                memoryArchiveServiceResolver == null
+                        ? null
+                        : memoryArchiveServiceResolver.apply(resolved);
+        if (service == null) {
+            throw new IllegalStateException("每日记忆归档服务不可用。");
+        }
+        return service;
+    }
+
+    /** 当前 Profile 直接复用注入服务；命名 Profile 只从其独立子容器解析，禁止回退 default。 */
+    private static MemoryArchiveService resolveProfileArchiveService(
+            DashboardProfileScope.Resolved resolved, MemoryArchiveService currentService) {
+        if (resolved.isCurrent()) {
+            return currentService;
+        }
+        ProfileMultiplexRuntimeManager manager =
+                ProfileBeanResolver.getBean(ProfileMultiplexRuntimeManager.class);
+        if (manager == null) {
+            throw new IllegalStateException("目标 Profile 运行时不可用。");
+        }
+        ProfileRuntimeBundle runtime = manager.requireRuntime(resolved.getName());
+        MemoryArchiveService service = runtime.appContext().getBean(MemoryArchiveService.class);
+        if (service == null) {
+            throw new IllegalStateException("目标 Profile 的每日记忆归档服务不可用。");
+        }
+        return service;
+    }
+
+    /** 标记日记列表项属于活动日记、不可变归档原文或派生摘要。 */
+    private String diaryKind(String relativePath) {
+        if (!relativePath.startsWith("memory/archive/")) {
+            return "active";
+        }
+        return relativePath.endsWith(".summary.md") ? "summary" : "archive";
     }
 
     /**
