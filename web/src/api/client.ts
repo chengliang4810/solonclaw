@@ -27,8 +27,13 @@ export function profiledApiPath(path: string): string {
 
 export function redirectToLogin() {
   clearApiKey()
-  if (router.currentRoute.value.name !== 'login') {
-    router.replace({ name: 'login' })
+  const currentRoute = router.currentRoute.value
+  if (currentRoute.name !== 'login') {
+    const redirect = currentRoute.fullPath
+    router.replace({
+      name: 'login',
+      query: redirect.startsWith('/') && !redirect.startsWith('//') ? { redirect } : undefined,
+    })
   }
 }
 

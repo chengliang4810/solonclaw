@@ -19,11 +19,19 @@ assert.ok(
   'dashboardFetch should route 401 and dashboard origin 403 failures through shared login redirect handling',
 )
 assert.ok(
-  chatApi.includes('dashboardFetch(`${getBaseUrlValue()}/api/chat/uploads`'),
+  client.includes('const redirect = currentRoute.fullPath'),
+  'auth failure should preserve the current dashboard target before redirecting to login',
+)
+assert.ok(
+  client.includes("redirect.startsWith('/') && !redirect.startsWith('//') ? { redirect } : undefined"),
+  'auth failure should only pass an internal redirect target to login',
+)
+assert.ok(
+  chatApi.includes("dashboardFetch(`${getBaseUrlValue()}${withProfile('/api/chat/uploads', profile)}`"),
   'chat uploads should use dashboardFetch so auth failures redirect to login',
 )
 assert.ok(
-  chatApi.includes('dashboardFetch(`${getBaseUrlValue()}/api/chat/runs/${encodeURIComponent(runId)}/events`'),
+  chatApi.includes('dashboardFetch(`${getBaseUrlValue()}${eventsPath}`'),
   'chat event streams should use dashboardFetch so auth failures redirect to login',
 )
 assert.ok(
