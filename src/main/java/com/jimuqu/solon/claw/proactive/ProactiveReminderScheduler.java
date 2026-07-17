@@ -30,9 +30,6 @@ import org.slf4j.LoggerFactory;
 
 /** 按工作区规则和主会话记忆生成主动提醒，不维护独立候选或决策流水线。 */
 public class ProactiveReminderScheduler {
-    /** 主动提醒运行状态在全局设置表中的键。 */
-    private static final String STATE_KEY = "proactive.reminder.state";
-
     /** 主动提醒调度日志。 */
     private static final Logger log = LoggerFactory.getLogger(ProactiveReminderScheduler.class);
 
@@ -57,8 +54,8 @@ public class ProactiveReminderScheduler {
     /** 工作区 MD 文件服务。 */
     private final PersonaWorkspaceService personaWorkspaceService;
 
-    /** 轻量运行状态仓储。 */
-    private final GlobalSettingRepository globalSettingRepository;
+    /** 主动提醒轻量状态仓储。 */
+    private final ProactiveReminderStateStore stateStore;
 
     /** 单线程定时执行器。 */
     private ScheduledExecutorService executorService;
@@ -80,13 +77,13 @@ public class ProactiveReminderScheduler {
         this.llmGateway = llmGateway;
         this.deliveryService = deliveryService;
         this.personaWorkspaceService = personaWorkspaceService;
-        this.globalSettingRepository = globalSettingRepository;
+        this.stateStore = new ProactiveReminderStateStore(globalSettingRepository);
     }
 
-    /** 按配置启动固定间隔检查。 */
-    public void start() {
+    /** 按配置启动固定间隔检查；暂停状态仍保留调度线程，以便运行时恢复立即生效。 */
+    public synchronized void start() {
         AppConfig.ProactiveConfig config = appConfig.getProactive();
-        if (config == null || !config.isEnabled() || config.getIntervalHours() <= 0D) {
+        if (config == null || config.getIntervalHours() <= 0D || isRunning()) {
             return;
         }
         long intervalSeconds = Math.max(60L, Math.round(config.getIntervalHours() * 3600D));
@@ -96,11 +93,16 @@ public class ProactiveReminderScheduler {
     }
 
     /** 停止主动提醒调度器。 */
-    public void shutdown() {
+    public synchronized void shutdown() {
         if (executorService != null) {
             executorService.shutdownNow();
             executorService = null;
         }
+    }
+
+    /** 返回固定间隔检查线程是否已经启动。 */
+    public synchronized boolean isRunning() {
+        return executorService != null && !executorService.isShutdown();
     }
 
     /** 执行一次主动提醒检查并隔离异常，避免定时线程退出。 */
@@ -108,91 +110,142 @@ public class ProactiveReminderScheduler {
         try {
             tick();
         } catch (Exception e) {
+            recordUnexpectedFailure(e);
             log.warn("Proactive reminder tick failed: error={}", safeError(e));
         }
     }
 
     /** 读取主对话和记忆，根据两个工作区 MD 生成并投递一次提醒。 */
     public void tick() throws Exception {
+        ProactiveReminderState state = stateStore.load();
+        state.setLastTickAt(System.currentTimeMillis());
         AppConfig.ProactiveConfig config = appConfig.getProactive();
-        if (config == null || !config.isEnabled() || inQuietHours(config)) {
+        if (config == null || !config.isEnabled()) {
+            finish(
+                    state,
+                    ProactiveReminderState.OUTCOME_DISABLED,
+                    "主动提醒当前已暂停。使用 /proactive resume 后会在下一次调度检查生效。");
+            return;
+        }
+        if (inQuietHours(config)) {
+            finish(state, ProactiveReminderState.OUTCOME_QUIET_HOURS, "当前处于免打扰时段，本次未发送。");
             return;
         }
         if (!"main".equalsIgnoreCase(StrUtil.nullToEmpty(config.getDeliveryTarget()))) {
+            finish(state, ProactiveReminderState.OUTCOME_CONFIG_INVALID, "发送目标配置无效；当前仅支持 main。");
             throw new IllegalStateException("主动提醒发送目标只支持 main。");
         }
         SessionRecord session = mainSession();
         if (session == null) {
+            finish(
+                    state,
+                    ProactiveReminderState.OUTCOME_NO_MAIN_CONVERSATION,
+                    "没有找到与主渠道绑定完全匹配的可用会话。");
             log.info(
                     "Notification skipped: component=proactive, strategy=PRIMARY_CHANNEL, reason=CHANNEL_MISSING_OR_ADMIN_UNBOUND");
             return;
         }
-        ReminderState state = loadState();
-        if (session.getUpdatedAt() > state.lastSentAt) {
-            state.unansweredCount = 0;
+        if (session.getUpdatedAt() > state.getLastSentAt()) {
+            state.setUnansweredCount(0);
+            state.setLastUserActivityAt(session.getUpdatedAt());
+        } else if (state.getLastUserActivityAt() <= 0L) {
+            state.setLastUserActivityAt(session.getUpdatedAt());
         }
         MemorySnapshot memory = memoryService.loadSnapshot();
-        state.activityLevel = analyzeActivity(session, memory, state);
-        state.activityCredit = Math.min(1D, state.activityCredit + state.activityLevel);
-        if (state.activityCredit < 1D) {
-            saveState(state);
+        analyzeActivity(session, memory, state);
+        state.setActivityCredit(Math.min(1D, state.getActivityCredit() + state.getActivityLevel()));
+        if (state.getActivityCredit() < 1D) {
+            finish(
+                    state,
+                    ProactiveReminderState.OUTCOME_ACTIVITY_CREDIT_LOW,
+                    "当前活跃度累计额度不足，已保留额度供后续检查继续累计。");
             return;
         }
         String message = generateMessage(session, memory, state);
         if (StrUtil.isBlank(message) || MessageSupport.isSilentResponse(message)) {
-            saveState(state);
+            finish(state, ProactiveReminderState.OUTCOME_MODEL_SILENT, "模型判断本次没有适合发送的内容。");
             return;
         }
         if (isSameTopicTooSoon(message, state, config)) {
-            saveState(state);
+            finish(
+                    state,
+                    ProactiveReminderState.OUTCOME_TOPIC_COOLDOWN,
+                    "生成内容与最近提醒话题重复，仍处于同话题冷却期。");
             return;
         }
         DeliveryRequest request =
                 SourceKeySupport.toDeliveryRequest(session.getSourceKey(), message);
         request.setRecordInConversation(true);
-        deliveryService.deliver(request);
-        state.lastSentAt = System.currentTimeMillis();
-        state.lastMessage = SecretRedactor.redact(message, 500);
-        state.unansweredCount++;
-        state.activityCredit = Math.max(0D, state.activityCredit - 1D);
-        saveState(state);
+        try {
+            deliveryService.deliver(request);
+        } catch (Exception e) {
+            finish(state, ProactiveReminderState.OUTCOME_DELIVERY_FAILED, "渠道投递失败：" + safeError(e));
+            return;
+        }
+        state.setLastSentAt(System.currentTimeMillis());
+        state.setLastMessage(SecretRedactor.redact(message, 500));
+        state.setUnansweredCount(state.getUnansweredCount() + 1);
+        state.setActivityCredit(Math.max(0D, state.getActivityCredit() - 1D));
+        finish(state, ProactiveReminderState.OUTCOME_DELIVERED, "主动提醒已成功投递到主对话。");
     }
 
-    /** 使用活跃度分析 MD 调整后续检查的发送概率额度。 */
-    private double analyzeActivity(
-            SessionRecord session, MemorySnapshot memory, ReminderState state) throws Exception {
+    /** 使用活跃度分析 MD 调整后续检查的发送概率额度，并保存模型给出的审计理由。 */
+    private void analyzeActivity(
+            SessionRecord session, MemorySnapshot memory, ProactiveReminderState state)
+            throws Exception {
         String template =
                 personaWorkspaceService.readPromptBody(
                         ContextFileConstants.KEY_PROACTIVITY_ANALYSIS);
         String prompt =
                 StrUtil.nullToEmpty(template)
-                        .replace("{current_level}", String.valueOf(state.activityLevel))
-                        .replace("{unanswered_count}", String.valueOf(state.unansweredCount))
+                        .replace("{current_level}", String.valueOf(state.getActivityLevel()))
+                        .replace("{unanswered_count}", String.valueOf(state.getUnansweredCount()))
+                        .replace("{current_time}", timestamp(System.currentTimeMillis()))
+                        .replace(
+                                "{last_user_activity_at}", timestamp(state.getLastUserActivityAt()))
+                        .replace("{last_sent_at}", timestamp(state.getLastSentAt()))
                         .replace("{memory_content}", memoryText(memory));
         LlmResult result =
                 llmGateway.chat(session, "只输出要求的 JSON，不执行工具。", prompt, Collections.emptyList());
         String text =
                 MessageSupport.assistantText(result == null ? null : result.getAssistantMessage());
         try {
-            AnalysisResult analysis = ONode.deserialize(stripCodeFence(text), AnalysisResult.class);
-            double value = analysis.newLevel;
-            return Math.max(0D, Math.min(1D, value));
+            ONode analysis = ONode.ofJson(stripCodeFence(text));
+            ONode levelNode = analysis.get("new_level");
+            if (levelNode == null || !levelNode.isValue()) {
+                levelNode = analysis.get("newLevel");
+            }
+            if (levelNode == null || !levelNode.isValue()) {
+                throw new IllegalArgumentException("missing new_level");
+            }
+            double newLevel = levelNode.getDouble();
+            if (Double.isNaN(newLevel) || Double.isInfinite(newLevel)) {
+                throw new IllegalArgumentException("invalid new_level");
+            }
+            state.setActivityLevel(Math.max(0D, Math.min(1D, newLevel)));
+            state.setAnalysisReason(
+                    SecretRedactor.redact(
+                            StrUtil.blankToDefault(
+                                    analysis.get("reason").getString(), "模型未提供分析理由。"),
+                            500));
         } catch (Exception e) {
             log.debug("Proactive activity analysis invalid; keeping previous level");
-            return state.activityLevel;
+            state.setAnalysisReason("活跃度分析输出无效，已保留上一次活跃度。");
         }
+        state.setLastAnalysisAt(System.currentTimeMillis());
     }
 
     /** 使用主动消息 MD 和主会话历史生成最终提醒。 */
     private String generateMessage(
-            SessionRecord session, MemorySnapshot memory, ReminderState state) throws Exception {
+            SessionRecord session, MemorySnapshot memory, ProactiveReminderState state)
+            throws Exception {
         String systemPrompt =
                 personaWorkspaceService.readPromptBody(ContextFileConstants.KEY_PROACTIVE);
         String userPrompt =
                 "请结合当前主对话历史和以下记忆生成主动提醒。\n"
                         + "记忆内容已经直接提供，不要调用任何工具。\n"
                         + "最近一次主动提醒："
-                        + StrUtil.blankToDefault(state.lastMessage, "无")
+                        + StrUtil.blankToDefault(state.getLastMessage(), "无")
                         + "\n记忆摘要：\n"
                         + memoryText(memory);
         LlmResult result =
@@ -256,16 +309,16 @@ public class ProactiveReminderScheduler {
 
     /** 在同话题冷却期内拦截完全相同或高度重合的提醒。 */
     private boolean isSameTopicTooSoon(
-            String message, ReminderState state, AppConfig.ProactiveConfig config) {
-        if (StrUtil.isBlank(state.lastMessage) || state.lastSentAt <= 0L) {
+            String message, ProactiveReminderState state, AppConfig.ProactiveConfig config) {
+        if (StrUtil.isBlank(state.getLastMessage()) || state.getLastSentAt() <= 0L) {
             return false;
         }
         long cooldownMillis = Math.round(Math.max(0D, config.getTopicCooldownHours()) * 3600000D);
-        if (System.currentTimeMillis() - state.lastSentAt >= cooldownMillis) {
+        if (System.currentTimeMillis() - state.getLastSentAt() >= cooldownMillis) {
             return false;
         }
         String current = normalizeTopic(message);
-        String previous = normalizeTopic(state.lastMessage);
+        String previous = normalizeTopic(state.getLastMessage());
         return current.equals(previous) || current.contains(previous) || previous.contains(current);
     }
 
@@ -288,20 +341,39 @@ public class ProactiveReminderScheduler {
         return SecretRedactor.redact(text, 12000);
     }
 
-    /** 读取轻量主动提醒状态，缺失或损坏时返回默认状态。 */
-    private ReminderState loadState() {
+    /** 保存本次调度的稳定结果代码和人类可读原因。 */
+    private void finish(ProactiveReminderState state, String outcome, String reason)
+            throws Exception {
+        state.setLastOutcome(outcome);
+        state.setLastReason(SecretRedactor.redact(reason, 500));
+        stateStore.save(state);
+    }
+
+    /** 调度线程捕获未分类异常时记录失败原因，且不覆盖已分类的配置错误。 */
+    private void recordUnexpectedFailure(Exception error) {
         try {
-            String value = globalSettingRepository.get(STATE_KEY);
-            ReminderState state = ONode.deserialize(value, ReminderState.class);
-            return state == null ? new ReminderState() : state;
-        } catch (Exception e) {
-            return new ReminderState();
+            ProactiveReminderState state = stateStore.load();
+            if (ProactiveReminderState.OUTCOME_CONFIG_INVALID.equals(state.getLastOutcome())) {
+                return;
+            }
+            state.setLastTickAt(System.currentTimeMillis());
+            finish(state, ProactiveReminderState.OUTCOME_TICK_FAILED, "调度检查失败：" + safeError(error));
+        } catch (Exception persistenceError) {
+            log.warn(
+                    "Proactive reminder failure state could not be persisted: error={}",
+                    safeError(persistenceError));
         }
     }
 
-    /** 保存轻量主动提醒状态。 */
-    private void saveState(ReminderState state) throws Exception {
-        globalSettingRepository.set(STATE_KEY, ONode.serialize(state));
+    /** 将毫秒时间戳转为带本地时区的 ISO 时间；未设置时返回“无”。 */
+    private String timestamp(long millis) {
+        if (millis <= 0L) {
+            return "无";
+        }
+        return java.time.Instant.ofEpochMilli(millis)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toOffsetDateTime()
+                .toString();
     }
 
     /** 去掉模型可能附加的 Markdown JSON 代码围栏。 */
@@ -314,30 +386,13 @@ public class ProactiveReminderScheduler {
 
     /** 返回脱敏且限长的异常摘要。 */
     private String safeError(Exception error) {
-        return SecretRedactor.redact(error == null ? "unknown" : error.getMessage(), 300);
-    }
-
-    /** 活跃度分析模型的最小响应结构。 */
-    public static class AnalysisResult {
-        /** 新活跃度。 */
-        public double newLevel;
-    }
-
-    /** 主动提醒持久化状态。 */
-    public static class ReminderState {
-        /** 当前活跃度。 */
-        public double activityLevel = 1D;
-
-        /** 跨 tick 累计的发送额度。 */
-        public double activityCredit;
-
-        /** 连续未回应次数。 */
-        public int unansweredCount;
-
-        /** 最近一次成功发送时间。 */
-        public long lastSentAt;
-
-        /** 最近一次主动提醒，用于避免重复话题。 */
-        public String lastMessage;
+        if (error == null) {
+            return "unknown";
+        }
+        String message =
+                error.getMessage() == null
+                        ? error.getClass().getSimpleName()
+                        : error.getClass().getSimpleName() + ": " + error.getMessage();
+        return SecretRedactor.redact(message, 300);
     }
 }

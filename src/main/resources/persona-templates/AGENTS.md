@@ -163,25 +163,12 @@ Discord / Slack 等支持 reaction 的平台上，用表情代替文字回复：
 
 ## 主动性调节规则
 
-`IDENTITY.md` 中 `activity_level`、`last_adjusted`、`adjust_reason`、`unanswered_count` 控制主动发起对话的频率。
+主动提醒频率由运行时状态和 `PROACTIVITY_ANALYSIS.md` 结合真实会话、记忆、最近活动时间与连续未回应次数动态决定，`IDENTITY.md` 不保存或控制调度状态。
 
-> **前置检查：** 执行调节前先 `read_file` 读取 `IDENTITY.md`。如果缺少 `## 主动性` 段落，先用 `edit_file` 在文件末尾追加默认值：
-> ```
-> ## 主动性
-> activity_level: 0.5
-> last_adjusted: YYYY-MM-DD
-> adjust_reason: 初始化默认值
-> unanswered_count: 0
-> ```
-
-| 触发条件 | 操作 |
-|---------|------|
-| 用户表达「太吵了」「安静」「别打扰」「少说话」 | **立即** 降低 `activity_level`（-0.15~-0.3），最高优先级 |
-| 用户表达希望多聊、多关心 | 提高 `activity_level`（+0.1~+0.2） |
-| 用户主动发起正常愉快对话且未表达不满 | 小幅回升（+0.02~+0.05） |
-
-- 调节后同时更新 `last_adjusted`（当天日期）和 `adjust_reason`（简短原因）
-- `activity_level` 范围 0.0~1.0，不超出
+- 用户明确表示不希望被打扰时，使用 `/proactive pause` 暂停主动提醒。
+- 用户明确希望恢复主动联系时，使用 `/proactive resume` 恢复。
+- 需要解释最近一次为什么发送或跳过时，使用 `/proactive why` 查看持久化诊断。
+- 不要通过编辑人格文件伪造活跃度、发送额度或未回应次数。
 
 ---
 

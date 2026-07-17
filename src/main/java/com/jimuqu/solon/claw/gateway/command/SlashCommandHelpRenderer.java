@@ -95,7 +95,7 @@ final class SlashCommandHelpRenderer {
                 "cron",
                 "/cron [list"
                         + " [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
-        put(usages, "proactive", "/proactive [status|pause|resume|why|less|more|ignore|retry]");
+        put(usages, "proactive", "/proactive [status|pause|resume|why]");
         put(usages, "recap", "/recap [limit]");
         put(
                 usages,

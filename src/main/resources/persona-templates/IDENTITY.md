@@ -32,10 +32,3 @@
 说明：
 - 将此文件保存在工作区根目录，命名为 `IDENTITY.md`。
 - 头像建议使用工作区相对路径，如 `avatars/solonclaw.png`。
-
-## 主动性
-
-activity_level: 0.5
-last_adjusted: 2026-01-01
-adjust_reason: 初始化默认值
-unanswered_count: 0

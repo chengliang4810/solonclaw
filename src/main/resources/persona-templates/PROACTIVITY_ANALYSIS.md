@@ -5,6 +5,9 @@
 **当前状态**：
 - activity_level: {current_level}
 - unanswered_count: {unanswered_count}
+- current_time: {current_time}
+- last_user_activity_at: {last_user_activity_at}
+- last_sent_at: {last_sent_at}
 
 **最近的记忆摘要**：
 {memory_content}
@@ -13,7 +16,7 @@
 请分析用户最近的情绪和互动模式，判断是否需要调整主动联系的频率。
 
 **分析指南**：
-1. 如果用户连续多天未对话，请考虑适当降低活跃度（用户可能忙碌或不希望被打扰）
+1. 根据 current_time 和 last_user_activity_at 判断用户多久没有对话；连续多天未对话时考虑适当降低活跃度
 2. 如果 unanswered_count >= 3，说明用户多次未回应主动搭讪，应显著降低活跃度
 3. 如果 activity_level 为 0.0 且用户已多天未表达不满，可以考虑恢复到较低水平（如 0.1），保留联系通道
 4. 如果记忆中反映用户近期情绪积极、互动频繁，可以适当提高

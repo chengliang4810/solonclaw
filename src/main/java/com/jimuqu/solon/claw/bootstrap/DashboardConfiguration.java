@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
+import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.ProfileTaskRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
@@ -236,15 +237,17 @@ public class DashboardConfiguration {
      *
      * @param appConfig 应用运行配置。
      * @param gatewayPolicyRepository 网关策略仓储依赖。
+     * @param globalSettingRepository 全局设置仓储依赖。
      * @return 返回主动协作诊断服务结果。
      */
     @Bean
     public ProactiveDiagnosticsService proactiveDiagnosticsService(
             AppConfig appConfig,
             SessionRepository sessionRepository,
-            GatewayPolicyRepository gatewayPolicyRepository) {
+            GatewayPolicyRepository gatewayPolicyRepository,
+            GlobalSettingRepository globalSettingRepository) {
         return new ProactiveDiagnosticsService(
-                appConfig, sessionRepository, gatewayPolicyRepository);
+                appConfig, sessionRepository, gatewayPolicyRepository, globalSettingRepository);
     }
 
     /**

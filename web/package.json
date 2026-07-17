@@ -34,6 +34,7 @@
     "test:platform-qr-panel-reuse": "node --experimental-strip-types tests/platformQrPanelReuseStatic.test.ts",
     "test:channel-qr-polling-reuse": "node --experimental-strip-types tests/channelQrPollingReuseStatic.test.ts",
     "test:pairing-personal-binding": "node --experimental-strip-types tests/pairingPersonalBindingStatic.test.ts",
+    "test:proactive-diagnostics": "node --experimental-strip-types tests/proactiveDiagnosticsUiStatic.test.ts",
     "test:platform-catalog-metadata": "node --experimental-strip-types tests/platformCatalogMetadataStatic.test.ts && node --experimental-strip-types tests/platformCatalogMetadata.test.ts",
     "test:platform-primary-setting-rows-reuse": "node --experimental-strip-types tests/platformPrimarySettingRowsReuseStatic.test.ts",
     "test:platform-optional-setting-rows-reuse": "node --experimental-strip-types tests/platformOptionalSettingRowsReuseStatic.test.ts",

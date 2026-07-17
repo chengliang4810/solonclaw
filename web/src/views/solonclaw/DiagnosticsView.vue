@@ -510,7 +510,12 @@ const alwaysCount = computed(() => alwaysApprovals.value.length)
 const slashConfirmCount = computed(() => pendingSlashConfirms.value.length)
 const proactiveDiagnostics = computed<Record<string, unknown>>(() => objectValue(diagnostics.value?.proactive))
 const hasProactiveDiagnostics = computed(() => Object.keys(proactiveDiagnostics.value).length > 0)
-const proactiveBlocked = computed(() => !proactiveDiagnostics.value.main_conversation_ready)
+const proactiveBlocked = computed(() => {
+  if (!proactiveDiagnostics.value.enabled) return false
+  const outcome = String(proactiveDiagnostics.value.last_outcome || '')
+  return !proactiveDiagnostics.value.main_conversation_ready
+    || ['CONFIG_INVALID', 'NO_MAIN_CONVERSATION', 'DELIVERY_FAILED', 'TICK_FAILED'].includes(outcome)
+})
 const proactiveStatusItems = computed<SecurityMetric[]>(() => [
   { label: d('proactiveEnabled'), value: proactiveDiagnostics.value.enabled },
   { label: d('proactiveInterval'), value: proactiveDiagnostics.value.interval_hours },
@@ -520,6 +525,14 @@ const proactiveStatusItems = computed<SecurityMetric[]>(() => [
   { label: d('proactiveQuietStart'), value: proactiveDiagnostics.value.quiet_start },
   { label: d('proactiveQuietEnd'), value: proactiveDiagnostics.value.quiet_end },
   { label: d('proactiveMainReady'), value: proactiveDiagnostics.value.main_conversation_ready },
+  { label: d('proactiveLastTick'), value: proactiveDiagnostics.value.last_tick_at },
+  { label: d('proactiveLastOutcome'), value: proactiveDiagnostics.value.last_outcome },
+  { label: d('proactiveLastReason'), value: proactiveDiagnostics.value.last_reason },
+  { label: d('proactiveActivityLevel'), value: proactiveDiagnostics.value.last_activity_level },
+  { label: d('proactiveActivityCredit'), value: proactiveDiagnostics.value.activity_credit },
+  { label: d('proactiveAnalysisReason'), value: proactiveDiagnostics.value.analysis_reason },
+  { label: d('proactiveLastSent'), value: proactiveDiagnostics.value.last_sent_at },
+  { label: d('proactiveUnanswered'), value: proactiveDiagnostics.value.unanswered_count },
 ])
 const approvalStatItems = computed(() => [
   { label: d('approvalStatTotal'), value: approvalStats.value?.totalEvents ?? 0 },
@@ -1895,6 +1908,13 @@ onMounted(load)
   align-items: center;
   font-size: 12px;
   color: $text-secondary;
+}
+
+.metric-item :deep(.ant-tag) {
+  max-width: 68%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .insight-stats {
