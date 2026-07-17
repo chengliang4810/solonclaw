@@ -1566,7 +1566,7 @@ public class AppConfig {
         private boolean subagentAutoApprove = false;
 
         /** 所有审批（包括消息渠道待审批）的统一超时秒数。 */
-        private int timeoutSeconds = 60;
+        private int timeoutSeconds = 180;
 
         /** /reload-mcp 是否需要确认，默认开启。 */
         private boolean mcpReloadConfirm = true;

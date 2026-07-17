@@ -107,7 +107,7 @@ approvals:
   # 子 Agent 遇到可审批危险命令时是否自动批准一次；默认拒绝。
   subagentAutoApprove: false
   # 所有审批（包括消息渠道）的统一超时秒数；超时后 /approve 不再放行过期命令。
-  timeoutSeconds: 60
+  timeoutSeconds: 180
   # /reload-mcp 会让下一轮模型请求重新发送完整工具 schema，默认需要确认。
   # 设为 false 后，/reload-mcp 将直接执行。
   mcpReloadConfirm: true

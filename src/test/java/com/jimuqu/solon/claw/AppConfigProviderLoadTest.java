@@ -30,7 +30,7 @@ public class AppConfigProviderLoadTest {
         assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("strict");
         assertThat(config.getSecurity().getGuardrailCronScope()).isEqualTo("job");
         assertThat(config.getDashboard().getAccessToken()).isEmpty();
-        assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(60);
+        assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(180);
         assertThat(config.getTerminal().getMaxForegroundTimeoutSeconds()).isEqualTo(600);
         assertThat(config.getTask().getMediaCacheTtlHours()).isEqualTo(168);
         assertThat(config.getMcp().isEnabled()).isFalse();

@@ -2795,9 +2795,9 @@ public class DangerousCommandApprovalService {
     public int approvalTimeoutSeconds() {
         int value =
                 appConfig == null || appConfig.getApprovals() == null
-                        ? 60
+                        ? 180
                         : appConfig.getApprovals().getTimeoutSeconds();
-        return value > 0 ? value : 60;
+        return value > 0 ? value : 180;
     }
 
     /** 返回所有待审批项共享的超时毫秒数，避免渠道等待与直接审批产生不同期限。 */
