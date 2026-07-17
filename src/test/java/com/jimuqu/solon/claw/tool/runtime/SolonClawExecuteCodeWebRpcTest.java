@@ -267,7 +267,8 @@ public class SolonClawExecuteCodeWebRpcTest {
 
         assertThat(result.get("status").getString()).isEqualTo("success");
         assertThat(result.get("output").getString())
-                .contains("path escapes workspace")
+                .contains("文件安全策略阻止访问")
+                .contains("路径遍历被阻断")
                 .doesNotContain(workspaceHome.getParent())
                 .doesNotContain("ghp_rpcpath12345")
                 .doesNotContain("ghp_rpcescape12345");

@@ -61,7 +61,8 @@ public class CronjobToolsSchedulerTest {
         assertThat(created.get("no_agent")).isEqualTo(Boolean.FALSE);
         assertThat(created.get("next_run_at")).isInstanceOf(Number.class);
         assertThat(String.valueOf(created.get("next_run_at_iso"))).contains("T");
-        assertThat(String.valueOf(created.get("next_run_at_iso"))).contains("+");
+        assertThat(String.valueOf(created.get("next_run_at_iso")))
+                .matches(".*(?:Z|[+-]\\d{2}:\\d{2})$");
         assertThat(((Map<?, ?>) created.get("job")).get("wrap_response")).isEqualTo(Boolean.FALSE);
         assertThat(((Map<?, ?>) created.get("job")).get("no_agent")).isEqualTo(Boolean.FALSE);
         assertThat(((Map<?, ?>) created.get("job")).get("schedule")).isEqualTo("30m");

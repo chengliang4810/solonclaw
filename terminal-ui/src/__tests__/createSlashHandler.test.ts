@@ -148,9 +148,11 @@ describe('createSlashHandler', () => {
   it('starts a session after /model set fixes setup-required provider state', async () => {
     patchUiState({ sid: null, status: 'setup required' })
     const request = vi.fn(() => Promise.resolve({ output: '模型配置已写入 workspace/config.yml' }))
+
     const rpc = vi.fn((method: string) =>
       method === 'setup.status' ? Promise.resolve({ provider_configured: true }) : Promise.resolve({})
     )
+
     const ctx = buildCtx({ gateway: { ...buildGateway(), gw: { request }, rpc } })
 
     expect(

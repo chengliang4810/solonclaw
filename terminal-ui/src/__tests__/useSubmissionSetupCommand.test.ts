@@ -1,7 +1,7 @@
 import { PassThrough } from 'stream'
 
 import { renderSync } from '@solonclaw/ink'
-import React, { useLayoutEffect } from 'react'
+import React, { useImperativeHandle } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { resetUiState } from '../app/uiStore.js'
@@ -26,9 +26,7 @@ const makeStreams = () => {
 function Harness({ expose, opts }: { expose: React.MutableRefObject<SubmissionApi | null>; opts: UseSubmissionOptions }) {
   const submission = useSubmission(opts)
 
-  useLayoutEffect(() => {
-    expose.current = submission
-  })
+  useImperativeHandle(expose, () => submission)
 
   return null
 }
@@ -42,6 +40,7 @@ describe('useSubmission local setup commands', () => {
     const expose = { current: null as SubmissionApi | null }
     const opts = buildOpts()
     const streams = makeStreams()
+
     const instance = renderSync(React.createElement(Harness, { expose, opts }), {
       patchConsole: false,
       stderr: streams.stderr as NodeJS.WriteStream,
@@ -65,6 +64,7 @@ describe('useSubmission local setup commands', () => {
     const expose = { current: null as SubmissionApi | null }
     const opts = buildOpts()
     const streams = makeStreams()
+
     const instance = renderSync(React.createElement(Harness, { expose, opts }), {
       patchConsole: false,
       stderr: streams.stderr as NodeJS.WriteStream,

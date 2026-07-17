@@ -61,6 +61,7 @@ export function createSlashHandler(ctx: SlashHandlerContext): (cmd: string) => b
             renderSlashExecOutput(ctx.transcript, r, `/${parsed.name}: no output`, parsed.name[0]!.toUpperCase() + parsed.name.slice(1))
 
             const normalized = backendCommand.trim().toLowerCase()
+
             const isModelSetup =
               normalized === 'model set'
               || normalized.startsWith('model set ')

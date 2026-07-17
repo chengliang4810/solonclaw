@@ -350,7 +350,6 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         handleReady(ev.payload?.skin)
 
         return
-
       case 'session.info': {
         const info = ev.payload
 
@@ -576,7 +575,6 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         }
 
         return
-
       case 'progress.update': {
         const text = String(ev.payload?.text ?? '').trim()
 
