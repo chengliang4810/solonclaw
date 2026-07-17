@@ -71,10 +71,11 @@ public class DefaultContextBudgetService implements ContextBudgetService {
                         : Math.max(1024, resolved.getContextWindowTokens());
         int threshold = effectiveThresholdTokens(contextWindow, resolved);
         int estimated =
-                estimate(systemPrompt)
-                        + estimate(userMessage)
-                        + estimate(session == null ? null : session.getNdjson())
-                        + estimateToolSchemas(tools, userMessage);
+                saturatingTokenSum(
+                        estimate(systemPrompt),
+                        estimate(userMessage),
+                        estimate(session == null ? null : session.getNdjson()),
+                        estimateToolSchemas(tools, userMessage));
 
         ContextBudgetDecision decision = new ContextBudgetDecision();
         decision.setContextWindowTokens(contextWindow);
@@ -173,5 +174,25 @@ public class DefaultContextBudgetService implements ContextBudgetService {
         }
         String normalized = text.replace('\r', ' ').replace('\n', ' ').trim();
         return ContextTokenEstimator.estimateForBudget(normalized);
+    }
+
+    /**
+     * 饱和累计多个 token 估值，达到 int 上限后保持上限而不是溢出为负数。
+     *
+     * @param estimates 各上下文部分的独立 token 估值。
+     * @return 不超过 Integer.MAX_VALUE 的累计值。
+     */
+    static int saturatingTokenSum(int... estimates) {
+        long total = 0L;
+        if (estimates == null) {
+            return 0;
+        }
+        for (int estimate : estimates) {
+            total += Math.max(0, estimate);
+            if (total >= Integer.MAX_VALUE) {
+                return Integer.MAX_VALUE;
+            }
+        }
+        return (int) total;
     }
 }

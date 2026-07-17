@@ -448,6 +448,10 @@ solonclaw:
     toolOutputInlineLimit: 50000
     # 同一轮工具输出累计超过该字节数时，后续工具输出也会落盘，避免上下文被工具结果挤满。
     toolOutputTurnBudget: 200000
+    # 单个静态上下文块的最大字符数；超出后在完整 Unicode 边界截断并保留可见标记。
+    bootstrapPromptFileCharLimit: 12000
+    # 静态系统提示词总字符预算；规则、人格、长期记忆、近期记忆按优先级动态使用剩余额度。
+    bootstrapPromptTotalCharBudget: 48000
     # 供文件读取/分页输出限制使用。
     toolOutputMaxLines: 2000
     # 供单行输出截断使用。

@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.MemoryPromptSection;
 import com.jimuqu.solon.claw.core.model.MemoryTurnContext;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
@@ -456,6 +457,45 @@ public class MemoryAndSkillsTest {
         assertThat(prompt).contains("NOT new user input");
         assertThat(prompt).contains("亮哥偏好中文回复");
         assertThat(prompt).contains(MemoryContextBoundary.CLOSE_TAG);
+    }
+
+    /** 内建 provider 必须把说明、长期记忆和当天记忆拆成稳定的独立预算段。 */
+    @Test
+    void shouldExposeStructuredBuiltinMemorySections() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.memoryService.add("memory", "长期预算内容");
+        env.memoryService.add("today", "当天预算内容");
+        BuiltinMemoryProvider provider = new BuiltinMemoryProvider(env.memoryService);
+
+        List<MemoryPromptSection> sections =
+                provider.systemPromptSections("MEMORY:structured-memory:user");
+
+        assertThat(sections)
+                .extracting(MemoryPromptSection::getType)
+                .containsExactly(
+                        MemoryPromptSection.Type.GUIDANCE,
+                        MemoryPromptSection.Type.LONG_TERM,
+                        MemoryPromptSection.Type.RECENT);
+        assertThat(sections)
+                .extracting(MemoryPromptSection::getLabel)
+                .containsExactly("Memory Guidance", "Memory", "Today Memory");
+    }
+
+    /** 未实现结构化方法的旧 provider 必须继续作为一个 OTHER 记忆段工作。 */
+    @Test
+    void shouldWrapLegacyMemoryProviderAsOtherSection() throws Exception {
+        CapturingMemoryProvider provider = new CapturingMemoryProvider("legacy-memory");
+        provider.systemPromptBlock = "旧 provider 记忆";
+        DefaultMemoryManager manager =
+                new DefaultMemoryManager(java.util.Collections.singletonList(provider));
+
+        List<MemoryPromptSection> sections =
+                manager.buildSystemPromptSections("MEMORY:legacy-memory:user");
+
+        assertThat(sections).hasSize(1);
+        assertThat(sections.get(0).getType()).isEqualTo(MemoryPromptSection.Type.OTHER);
+        assertThat(sections.get(0).getLabel()).isEqualTo("legacy-memory");
+        assertThat(sections.get(0).getContent()).isEqualTo("旧 provider 记忆");
     }
 
     @Test

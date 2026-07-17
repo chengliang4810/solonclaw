@@ -66,7 +66,7 @@ final class ContextTokenEstimator {
         long estimated =
                 nonAsciiCount
                         + (minimumAsciiToken ? Math.max(1L, asciiTokens) : asciiTokens)
-                        + imageEstimate.imageCount
+                        + (long) imageEstimate.imageCount
                                 * CompressionConstants.IMAGE_ATTACHMENT_ESTIMATED_TOKENS;
         return estimated > Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.max(1, (int) estimated);
     }

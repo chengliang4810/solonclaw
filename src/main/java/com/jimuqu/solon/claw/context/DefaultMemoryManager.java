@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.context;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.model.MemoryPromptSection;
 import com.jimuqu.solon.claw.core.model.MemoryTurnContext;
 import com.jimuqu.solon.claw.core.service.MemoryManager;
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
@@ -82,17 +83,44 @@ public class DefaultMemoryManager implements MemoryManager {
     @Override
     public String buildSystemPrompt(String sourceKey) throws Exception {
         StringBuilder buffer = new StringBuilder();
-        for (MemoryProvider provider : providers) {
-            String block = provider.systemPromptBlock(sourceKey);
-            if (StrUtil.isBlank(block)) {
-                continue;
-            }
+        for (MemoryPromptSection section : buildSystemPromptSections(sourceKey)) {
             if (buffer.length() > 0) {
                 buffer.append("\n\n");
             }
-            buffer.append(MemoryContextBoundary.ensureContextBlock(block));
+            buffer.append(
+                    MemoryContextBoundary.ensureContextBlock(
+                            "[" + section.getLabel() + "]\n" + section.getContent()));
         }
         return buffer.toString();
+    }
+
+    /**
+     * 按 provider 稳定顺序汇总结构化记忆段，并移除 provider 自带的旧 fence。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 可独立参与预算分配的记忆内容段。
+     */
+    @Override
+    public List<MemoryPromptSection> buildSystemPromptSections(String sourceKey) throws Exception {
+        List<MemoryPromptSection> sections = new ArrayList<MemoryPromptSection>();
+        for (MemoryProvider provider : providers) {
+            List<MemoryPromptSection> providerSections = provider.systemPromptSections(sourceKey);
+            if (providerSections == null) {
+                continue;
+            }
+            for (MemoryPromptSection section : providerSections) {
+                if (section == null) {
+                    continue;
+                }
+                String content = MemoryContextBoundary.sanitizeContext(section.getContent());
+                if (StrUtil.isBlank(content)) {
+                    continue;
+                }
+                sections.add(
+                        new MemoryPromptSection(section.getType(), section.getLabel(), content));
+            }
+        }
+        return sections;
     }
 
     /**

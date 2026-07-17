@@ -2,9 +2,13 @@ package com.jimuqu.solon.claw.context;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.MemoryPromptSection;
 import com.jimuqu.solon.claw.core.model.MemorySnapshot;
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
 import com.jimuqu.solon.claw.core.service.MemoryService;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /** 基于本地文件的内建长期记忆提供方。 */
 public class BuiltinMemoryProvider implements MemoryProvider {
@@ -45,16 +49,37 @@ public class BuiltinMemoryProvider implements MemoryProvider {
      */
     @Override
     public String systemPromptBlock(String sourceKey) throws Exception {
-        if (GatewayMessage.isGroupGuestSourceKey(sourceKey)) {
-            return "";
-        }
         StringBuilder buffer = new StringBuilder();
-        buffer.append("[Memory Guidance]\n").append(MEMORY_GUIDANCE);
-
-        MemorySnapshot snapshot = memoryService.loadSnapshot();
-        appendBlock(buffer, "Memory", snapshot.getMemoryText());
-        appendBlock(buffer, "Today Memory", snapshot.getDailyMemoryText());
+        for (MemoryPromptSection section : systemPromptSections(sourceKey)) {
+            appendBlock(buffer, section.getLabel(), section.getContent());
+        }
         return buffer.toString().trim();
+    }
+
+    /**
+     * 将内建记忆拆分为使用边界、长期记忆和当天记忆，供系统提示词按内容类型分配预算。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 按稳定语义顺序排列的记忆内容段。
+     */
+    @Override
+    public List<MemoryPromptSection> systemPromptSections(String sourceKey) throws Exception {
+        if (GatewayMessage.isGroupGuestSourceKey(sourceKey)) {
+            return Collections.emptyList();
+        }
+        List<MemoryPromptSection> sections = new ArrayList<MemoryPromptSection>();
+        sections.add(
+                new MemoryPromptSection(
+                        MemoryPromptSection.Type.GUIDANCE, "Memory Guidance", MEMORY_GUIDANCE));
+        MemorySnapshot snapshot = memoryService.loadSnapshot();
+        addSection(
+                sections, MemoryPromptSection.Type.LONG_TERM, "Memory", snapshot.getMemoryText());
+        addSection(
+                sections,
+                MemoryPromptSection.Type.RECENT,
+                "Today Memory",
+                snapshot.getDailyMemoryText());
+        return sections;
     }
 
     /**
@@ -92,5 +117,24 @@ public class BuiltinMemoryProvider implements MemoryProvider {
             return;
         }
         buffer.append("\n\n[").append(label).append("]\n").append(content.trim());
+    }
+
+    /**
+     * 仅添加非空记忆段，避免空标题消耗系统提示词预算。
+     *
+     * @param sections 目标内容段列表。
+     * @param type 内容类型。
+     * @param label 展示标题。
+     * @param content 原始正文。
+     */
+    private void addSection(
+            List<MemoryPromptSection> sections,
+            MemoryPromptSection.Type type,
+            String label,
+            String content) {
+        if (StrUtil.isBlank(content)) {
+            return;
+        }
+        sections.add(new MemoryPromptSection(type, label, content));
     }
 }

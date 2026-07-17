@@ -5,12 +5,17 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.MemoryPromptSection;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.service.ContextService;
 import com.jimuqu.solon.claw.core.service.MemoryManager;
 import com.jimuqu.solon.claw.support.BootstrapPromptBudgetSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 /** 基于文件系统拼装系统提示词的上下文服务。 */
 public class FileContextService implements ContextService {
@@ -37,6 +42,9 @@ public class FileContextService implements ContextService {
 
     /** 单文件截断时写入的可见标记。 */
     private static final String FILE_TRUNCATION_MARKER = "\n[TRUNCATED: per-file character limit]";
+
+    /** 内容类型预算不足时写入的可见标记。 */
+    private static final String BLOCK_TRUNCATION_MARKER = "\n[TRUNCATED: content-type budget]";
 
     /** 总预算耗尽时写入的可见标记。 */
     private static final String TOTAL_TRUNCATION_MARKER =
@@ -95,18 +103,29 @@ public class FileContextService implements ContextService {
         if (GatewayMessage.isGroupGuestSourceKey(sourceKey)) {
             return buildGroupGuestPrompt();
         }
-        StringBuilder buffer = new StringBuilder();
-        appendBlock(buffer, "Workspace Maintenance", WORKSPACE_MAINTENANCE_PROMPT);
+        List<PromptBlock> blocks = new ArrayList<PromptBlock>();
+        appendBlock(
+                blocks,
+                "Workspace Maintenance",
+                WORKSPACE_MAINTENANCE_PROMPT,
+                PromptPriority.RULES);
         // AGENTS 先于可变记忆注入，确保当前工作区规则在预算不足时仍被优先保留。
-        appendWorkspaceFile(buffer, ContextFileConstants.KEY_AGENTS, "Workspace Rules");
-        appendProjectContextFiles(buffer, agentScope);
-        appendAgentBlock(buffer, agentScope);
-        appendMemoryBlock(buffer, sourceKey);
-        appendWorkspaceFile(buffer, ContextFileConstants.KEY_BOOTSTRAP, "First Run Bootstrap");
-        appendWorkspaceFile(buffer, ContextFileConstants.KEY_SOUL, "Soul");
-        appendWorkspaceFile(buffer, ContextFileConstants.KEY_TOOLS, "Tools");
-        appendWorkspaceFile(buffer, ContextFileConstants.KEY_IDENTITY, "Identity");
-        appendWorkspaceFile(buffer, ContextFileConstants.KEY_USER, "User");
+        appendWorkspaceFile(
+                blocks, ContextFileConstants.KEY_AGENTS, "Workspace Rules", PromptPriority.RULES);
+        appendProjectContextFiles(blocks, agentScope);
+        appendAgentBlock(blocks, agentScope);
+        appendMemoryBlocks(blocks, sourceKey);
+        appendWorkspaceFile(
+                blocks,
+                ContextFileConstants.KEY_BOOTSTRAP,
+                "First Run Bootstrap",
+                PromptPriority.RECENT);
+        appendWorkspaceFile(blocks, ContextFileConstants.KEY_SOUL, "Soul", PromptPriority.PERSONA);
+        appendWorkspaceFile(
+                blocks, ContextFileConstants.KEY_TOOLS, "Tools", PromptPriority.PERSONA);
+        appendWorkspaceFile(
+                blocks, ContextFileConstants.KEY_IDENTITY, "Identity", PromptPriority.PERSONA);
+        appendWorkspaceFile(blocks, ContextFileConstants.KEY_USER, "User", PromptPriority.PERSONA);
 
         try {
             String skillPrompt =
@@ -114,14 +133,18 @@ public class FileContextService implements ContextService {
                             ? localSkillService.renderSkillIndexPrompt(sourceKey)
                             : localSkillService.renderSkillIndexPrompt(sourceKey, agentScope);
             if (StrUtil.isNotBlank(skillPrompt)) {
-                appendBlock(buffer, "Enabled Skills", skillPrompt);
+                appendBlock(blocks, "Enabled Skills", skillPrompt, PromptPriority.PERSONA);
             }
         } catch (Exception e) {
-            appendBlock(buffer, "Enabled Skills", "Failed to load local skills: " + safeError(e));
+            appendBlock(
+                    blocks,
+                    "Enabled Skills",
+                    "Failed to load local skills: " + safeError(e),
+                    PromptPriority.PERSONA);
         }
-        appendReflectionBlock(buffer);
+        appendReflectionBlock(blocks);
 
-        return truncateToTotalBudget(buffer.toString());
+        return renderPrompt(blocks);
     }
 
     /**
@@ -130,45 +153,53 @@ public class FileContextService implements ContextService {
      * @return 仅包含隐私边界、SOUL 与 IDENTITY 的提示词
      */
     private String buildGroupGuestPrompt() {
-        StringBuilder buffer = new StringBuilder();
-        appendBlock(buffer, "Group Guest Privacy", GROUP_GUEST_PRIVACY_PROMPT);
-        appendWorkspaceFile(buffer, ContextFileConstants.KEY_SOUL, "Soul");
-        appendWorkspaceFile(buffer, ContextFileConstants.KEY_IDENTITY, "Identity");
-        return truncateToTotalBudget(buffer.toString());
+        List<PromptBlock> blocks = new ArrayList<PromptBlock>();
+        appendBlock(
+                blocks, "Group Guest Privacy", GROUP_GUEST_PRIVACY_PROMPT, PromptPriority.RULES);
+        appendWorkspaceFile(blocks, ContextFileConstants.KEY_SOUL, "Soul", PromptPriority.PERSONA);
+        appendWorkspaceFile(
+                blocks, ContextFileConstants.KEY_IDENTITY, "Identity", PromptPriority.PERSONA);
+        return renderPrompt(blocks);
     }
 
     /**
      * 追加Agent 块。
      *
-     * @param buffer 系统提示词缓冲区。
+     * @param blocks 待渲染的系统提示词块。
      * @param agentScope 当前运行冻结后的 Agent 范围。
      */
-    private void appendAgentBlock(StringBuilder buffer, AgentRuntimeScope agentScope) {
+    private void appendAgentBlock(List<PromptBlock> blocks, AgentRuntimeScope agentScope) {
         if (agentScope == null || agentScope.isDefaultAgentName()) {
             return;
         }
         appendBlock(
-                buffer,
+                blocks,
                 "Agent",
                 "name="
                         + agentScope.getEffectiveName()
                         + "\nworkspace="
-                        + StrUtil.nullToEmpty(agentScope.getWorkspaceDir()));
-        appendBlock(buffer, "Agent Role", agentScope.getRolePrompt());
-        appendBlock(buffer, "Agent File", readIfExists(agentScope.getAgentFilePath()));
+                        + StrUtil.nullToEmpty(agentScope.getWorkspaceDir()),
+                PromptPriority.PERSONA);
+        appendBlock(blocks, "Agent Role", agentScope.getRolePrompt(), PromptPriority.PERSONA);
         appendBlock(
-                buffer,
+                blocks,
+                "Agent File",
+                readIfExists(agentScope.getAgentFilePath()),
+                PromptPriority.PERSONA);
+        appendBlock(
+                blocks,
                 "Agent Memory",
-                joinNonBlank(agentScope.getMemory(), readIfExists(agentScope.getMemoryFilePath())));
+                joinNonBlank(agentScope.getMemory(), readIfExists(agentScope.getMemoryFilePath())),
+                PromptPriority.PERSONA);
     }
 
     /**
      * 追加Project上下文Files。
      *
-     * @param buffer 系统提示词缓冲区。
+     * @param blocks 待渲染的系统提示词块。
      * @param agentScope 当前运行冻结后的 Agent 范围。
      */
-    private void appendProjectContextFiles(StringBuilder buffer, AgentRuntimeScope agentScope) {
+    private void appendProjectContextFiles(List<PromptBlock> blocks, AgentRuntimeScope agentScope) {
         if (agentScope == null || !agentScope.isWorkspaceDirOverride()) {
             return;
         }
@@ -176,26 +207,26 @@ public class FileContextService implements ContextService {
         if (StrUtil.isBlank(workspaceDir)) {
             return;
         }
-        appendProjectFile(buffer, workspaceDir, "AGENTS.md", "Project AGENTS.md");
-        appendProjectFile(buffer, workspaceDir, "CLAUDE.md", "Project CLAUDE.md");
-        appendProjectFile(buffer, workspaceDir, ".cursorrules", "Project .cursorrules");
+        appendProjectFile(blocks, workspaceDir, "AGENTS.md", "Project AGENTS.md");
+        appendProjectFile(blocks, workspaceDir, "CLAUDE.md", "Project CLAUDE.md");
+        appendProjectFile(blocks, workspaceDir, ".cursorrules", "Project .cursorrules");
     }
 
     /**
      * 追加Project文件。
      *
-     * @param buffer 系统提示词缓冲区。
+     * @param blocks 待渲染的系统提示词块。
      * @param workspaceDir 文件或目录路径参数。
      * @param fileName 文件或目录路径参数。
      * @param label label 参数。
      */
     private void appendProjectFile(
-            StringBuilder buffer, String workspaceDir, String fileName, String label) {
+            List<PromptBlock> blocks, String workspaceDir, String fileName, String label) {
         java.io.File file = FileUtil.file(workspaceDir, fileName);
         if (!file.exists() || !file.isFile()) {
             return;
         }
-        appendBlock(buffer, label, readIfExists(file.getAbsolutePath()));
+        appendBlock(blocks, label, readIfExists(file.getAbsolutePath()), PromptPriority.RULES);
     }
 
     /**
@@ -233,20 +264,42 @@ public class FileContextService implements ContextService {
         return left.trim() + "\n\n" + right.trim();
     }
 
-    /** 追加记忆管理器提供的系统提示块。 */
-    private void appendMemoryBlock(StringBuilder buffer, String sourceKey) {
+    /** 追加记忆管理器提供的结构化系统提示块。 */
+    private void appendMemoryBlocks(List<PromptBlock> blocks, String sourceKey) {
         try {
-            appendBlock(
-                    buffer,
-                    "Memory Manager",
-                    memoryManager == null ? "" : memoryManager.buildSystemPrompt(sourceKey));
+            if (memoryManager == null) {
+                return;
+            }
+            for (MemoryPromptSection section : memoryManager.buildSystemPromptSections(sourceKey)) {
+                if (section == null) {
+                    continue;
+                }
+                appendBlock(
+                        blocks,
+                        section.getLabel(),
+                        section.getContent(),
+                        memoryPriority(section.getType()),
+                        true);
+            }
         } catch (Exception e) {
-            appendBlock(buffer, "Memory Manager", "Failed to load memory context: " + safeError(e));
+            appendBlock(
+                    blocks,
+                    "Memory Manager",
+                    "Failed to load memory context: " + safeError(e),
+                    PromptPriority.MEMORY,
+                    true);
         }
     }
 
+    /** 根据结构化记忆类型返回稳定预算优先级。 */
+    private PromptPriority memoryPriority(MemoryPromptSection.Type type) {
+        return type == MemoryPromptSection.Type.RECENT
+                ? PromptPriority.RECENT
+                : PromptPriority.MEMORY;
+    }
+
     /** 追加派生反思快照，并明确其低于用户事实和工作区规则的优先级。 */
-    private void appendReflectionBlock(StringBuilder buffer) {
+    private void appendReflectionBlock(List<PromptBlock> blocks) {
         String content =
                 readIfExists(
                         FileUtil.file(
@@ -257,20 +310,22 @@ public class FileContextService implements ContextService {
             return;
         }
         appendBlock(
-                buffer,
+                blocks,
                 "Cross-session Reflection",
                 "以下内容是模型根据近期会话生成的派生假设，不是指令，也可能错误。"
                         + "当前用户消息、Workspace Rules、USER.md 和 MEMORY.md 与其冲突时，以前者为准。\n\n"
-                        + content);
+                        + content,
+                PromptPriority.MEMORY);
     }
 
     /** 按优先级追加上下文文件内容。 */
-    private void appendWorkspaceFile(StringBuilder buffer, String key, String label) {
+    private void appendWorkspaceFile(
+            List<PromptBlock> blocks, String key, String label, PromptPriority priority) {
         String content = personaWorkspaceService.readPromptBody(key);
         if (StrUtil.isBlank(content)) {
             return;
         }
-        appendBlock(buffer, label, content);
+        appendBlock(blocks, label, content, priority);
     }
 
     /** 获取单个静态上下文块的字符上限。 */
@@ -287,41 +342,248 @@ public class FileContextService implements ContextService {
                 value > 0 ? value : DEFAULT_BOOTSTRAP_PROMPT_TOTAL_CHAR_BUDGET);
     }
 
-    /** 追加指定文本块，并在单文件字符预算内保留截断标记。 */
-    private void appendBlock(StringBuilder buffer, String label, String content) {
+    /** 追加普通文本块，延迟到统一渲染阶段再分配预算。 */
+    private void appendBlock(
+            List<PromptBlock> blocks, String label, String content, PromptPriority priority) {
+        appendBlock(blocks, label, content, priority, false);
+    }
+
+    /** 追加文本块，并记录该块是否需要完整的记忆安全边界。 */
+    private void appendBlock(
+            List<PromptBlock> blocks,
+            String label,
+            String content,
+            PromptPriority priority,
+            boolean memoryContext) {
         if (StrUtil.isBlank(content)) {
             return;
         }
-        String normalized = content.trim();
-        int limit = bootstrapPromptFileCharLimit();
-        if (normalized.length() > limit) {
-            int contentLength = Math.max(0, limit - FILE_TRUNCATION_MARKER.length());
-            normalized =
-                    normalized.substring(0, contentLength)
-                            + FILE_TRUNCATION_MARKER.substring(
-                                    0, Math.min(limit, FILE_TRUNCATION_MARKER.length()));
-        }
-        if (buffer.length() > 0) {
-            buffer.append("\n\n");
-        }
-        buffer.append("[").append(label).append("]\n").append(normalized);
+        blocks.add(
+                new PromptBlock(
+                        StrUtil.blankToDefault(label, "Context"),
+                        content.trim(),
+                        priority == null ? PromptPriority.RECENT : priority,
+                        memoryContext));
     }
 
-    /** 对完整 bootstrap 提示词应用独立总字符预算，并保留截断标记。 */
-    private String truncateToTotalBudget(String prompt) {
-        String normalized = StrUtil.nullToEmpty(prompt).trim();
+    /** 按内容类型优先级稳定分配总预算，并自动把未使用额度借给后续块。 */
+    private String renderPrompt(List<PromptBlock> blocks) {
+        if (blocks == null || blocks.isEmpty()) {
+            return "";
+        }
+        List<PromptBlock> ordered = new ArrayList<PromptBlock>(blocks);
+        Collections.sort(
+                ordered,
+                new Comparator<PromptBlock>() {
+                    @Override
+                    public int compare(PromptBlock left, PromptBlock right) {
+                        return Integer.compare(left.priority.rank, right.priority.rank);
+                    }
+                });
+        List<RenderedPromptBlock> rendered = new ArrayList<RenderedPromptBlock>();
+        long required = 0L;
+        int fileLimit = bootstrapPromptFileCharLimit();
+        for (PromptBlock block : ordered) {
+            String content = truncateContent(block.content, fileLimit, FILE_TRUNCATION_MARKER);
+            String text = renderBlock(block, content);
+            if (StrUtil.isBlank(text)) {
+                continue;
+            }
+            required = saturatingLengthAdd(required, rendered.isEmpty() ? 0 : 2);
+            required = saturatingLengthAdd(required, text.length());
+            rendered.add(new RenderedPromptBlock(block, content, text));
+        }
+
         int limit = bootstrapPromptTotalCharBudget();
+        if (required <= limit) {
+            return joinRenderedBlocks(rendered);
+        }
+
+        int blockBudget = Math.max(0, limit - TOTAL_TRUNCATION_MARKER.length());
+        StringBuilder output = new StringBuilder(limit);
+        for (RenderedPromptBlock candidate : rendered) {
+            int separatorLength = output.length() == 0 ? 0 : 2;
+            int remaining = blockBudget - output.length() - separatorLength;
+            if (remaining <= 0) {
+                break;
+            }
+            if (candidate.rendered.length() <= remaining) {
+                appendRenderedBlock(output, candidate.rendered);
+                continue;
+            }
+            int overhead = renderedOverhead(candidate.block);
+            int contentBudget = remaining - overhead;
+            if (contentBudget > BLOCK_TRUNCATION_MARKER.length()) {
+                String truncated =
+                        truncateContent(candidate.content, contentBudget, BLOCK_TRUNCATION_MARKER);
+                String partial = renderBlock(candidate.block, truncated);
+                if (partial.length() <= remaining) {
+                    appendRenderedBlock(output, partial);
+                }
+            }
+            break;
+        }
+        output.append(TOTAL_TRUNCATION_MARKER);
+        return output.length() <= limit ? output.toString() : safePrefix(output.toString(), limit);
+    }
+
+    /** 渲染一个完整块；记忆内容始终在截断后添加成对的安全边界。 */
+    private String renderBlock(PromptBlock block, String content) {
+        if (StrUtil.isBlank(content)) {
+            return "";
+        }
+        String body =
+                block.memoryContext
+                        ? MemoryContextBoundary.buildContextBlock(content)
+                        : content.trim();
+        if (StrUtil.isBlank(body)) {
+            return "";
+        }
+        return "[" + block.label + "]\n" + body;
+    }
+
+    /** 计算块标题和可选记忆 fence 的固定字符开销。 */
+    private int renderedOverhead(PromptBlock block) {
+        String placeholder = renderBlock(block, "x");
+        return Math.max(0, placeholder.length() - 1);
+    }
+
+    /** 连接已完整渲染的块。 */
+    private String joinRenderedBlocks(List<RenderedPromptBlock> blocks) {
+        StringBuilder output = new StringBuilder();
+        for (RenderedPromptBlock block : blocks) {
+            appendRenderedBlock(output, block.rendered);
+        }
+        return output.toString();
+    }
+
+    /** 向结果追加块，并统一维护块间空行。 */
+    private void appendRenderedBlock(StringBuilder output, String rendered) {
+        if (output.length() > 0) {
+            output.append("\n\n");
+        }
+        output.append(rendered);
+    }
+
+    /** 在 UTF-16 字符预算内安全截断，不拆分代理对，并尽量停在最近的换行边界。 */
+    private String truncateContent(String content, int limit, String marker) {
+        String normalized = StrUtil.nullToEmpty(content).trim();
         if (normalized.length() <= limit) {
             return normalized;
         }
-        String retainedMarker =
-                normalized.contains(FILE_TRUNCATION_MARKER) ? FILE_TRUNCATION_MARKER : "";
-        int markerLength = retainedMarker.length() + TOTAL_TRUNCATION_MARKER.length();
-        if (limit < markerLength) {
-            return TOTAL_TRUNCATION_MARKER.substring(0, limit);
+        if (limit <= marker.length()) {
+            return safePrefix(marker, limit);
         }
-        int contentLength = limit - markerLength;
-        return normalized.substring(0, contentLength) + retainedMarker + TOTAL_TRUNCATION_MARKER;
+        int contentLimit = limit - marker.length();
+        int end = safePrefixLength(normalized, contentLimit);
+        int lineBreak = normalized.lastIndexOf('\n', Math.max(0, end - 1));
+        if (lineBreak >= Math.max(1, end - 160)) {
+            end = lineBreak;
+        }
+        return normalized.substring(0, end).trim() + marker;
+    }
+
+    /** 返回不拆分 Unicode 代理对的前缀。 */
+    private String safePrefix(String value, int limit) {
+        return value.substring(0, safePrefixLength(value, limit));
+    }
+
+    /** 计算不拆分 Unicode 代理对的 UTF-16 前缀长度。 */
+    private int safePrefixLength(String value, int limit) {
+        int end = Math.max(0, Math.min(limit, value.length()));
+        if (end > 0
+                && end < value.length()
+                && Character.isHighSurrogate(value.charAt(end - 1))
+                && Character.isLowSurrogate(value.charAt(end))) {
+            end--;
+        }
+        return end;
+    }
+
+    /** 使用 long 饱和累计渲染长度，避免异常大内容产生负数。 */
+    private long saturatingLengthAdd(long current, int addition) {
+        if (current >= Long.MAX_VALUE - Math.max(0, addition)) {
+            return Long.MAX_VALUE;
+        }
+        return current + Math.max(0, addition);
+    }
+
+    /** 系统提示词块的稳定内容类型优先级。 */
+    private enum PromptPriority {
+        /** 当前规则与隐私边界。 */
+        RULES(0),
+        /** 人格、用户资料、工具和技能。 */
+        PERSONA(1),
+        /** 长期记忆、记忆说明和派生反思。 */
+        MEMORY(2),
+        /** 当天记忆与首次启动资料。 */
+        RECENT(3);
+
+        /** 排序等级，数值越小越优先。 */
+        private final int rank;
+
+        /**
+         * @param rank 排序等级。
+         */
+        PromptPriority(int rank) {
+            this.rank = rank;
+        }
+    }
+
+    /** 尚未渲染的结构化系统提示词块。 */
+    private static final class PromptBlock {
+        /** 展示标题。 */
+        private final String label;
+
+        /** 原始正文。 */
+        private final String content;
+
+        /** 内容类型优先级。 */
+        private final PromptPriority priority;
+
+        /** 是否需要记忆安全边界。 */
+        private final boolean memoryContext;
+
+        /**
+         * 创建结构化提示词块。
+         *
+         * @param label 展示标题。
+         * @param content 原始正文。
+         * @param priority 内容类型优先级。
+         * @param memoryContext 是否需要记忆安全边界。
+         */
+        private PromptBlock(
+                String label, String content, PromptPriority priority, boolean memoryContext) {
+            this.label = label;
+            this.content = content;
+            this.priority = priority;
+            this.memoryContext = memoryContext;
+        }
+    }
+
+    /** 已完成单块预算处理的提示词块。 */
+    private static final class RenderedPromptBlock {
+        /** 原始结构化块。 */
+        private final PromptBlock block;
+
+        /** 单块预算处理后的正文。 */
+        private final String content;
+
+        /** 带标题和安全边界的完整文本。 */
+        private final String rendered;
+
+        /**
+         * 创建已渲染块。
+         *
+         * @param block 原始结构化块。
+         * @param content 单块预算处理后的正文。
+         * @param rendered 完整渲染文本。
+         */
+        private RenderedPromptBlock(PromptBlock block, String content, String rendered) {
+            this.block = block;
+            this.content = content;
+            this.rendered = rendered;
+        }
     }
 
     /**
