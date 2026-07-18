@@ -331,6 +331,10 @@ public class RuntimeSettingsService {
         StringBuilder buffer = new StringBuilder();
         LlmProviderService.ResolvedProvider globalResolved =
                 llmProviderService.resolveEffectiveProvider(null);
+        String agentWorkspace =
+                agentScope == null
+                        ? StrUtil.nullToEmpty(appConfig.getWorkspace().getDir())
+                        : StrUtil.nullToEmpty(agentScope.getWorkspaceDir());
         buffer.append("[Agent Runtime]\n");
         buffer.append("agent_name=")
                 .append(agentScope == null ? "default" : agentScope.getEffectiveName())
@@ -340,12 +344,6 @@ public class RuntimeSettingsService {
                         agentScope == null
                                 ? AgentDefaultMetadata.displayName()
                                 : StrUtil.nullToEmpty(agentScope.getDisplayName()))
-                .append('\n');
-        buffer.append("agent_workspace=")
-                .append(
-                        agentScope == null
-                                ? StrUtil.nullToEmpty(appConfig.getWorkspace().getDir())
-                                : StrUtil.nullToEmpty(agentScope.getWorkspaceDir()))
                 .append('\n');
         buffer.append("source_key=").append(StrUtil.nullToEmpty(sourceKey)).append('\n');
         buffer.append("platform=").append(StrUtil.nullToEmpty(parts[0])).append('\n');
@@ -400,11 +398,11 @@ public class RuntimeSettingsService {
         buffer.append("has_session_model_override=").append(resolved.sessionOverride).append('\n');
         buffer.append("enabled_tools=").append(join(enabledToolNames)).append('\n');
         buffer.append("channels=").append(join(channelStates)).append('\n');
-        buffer.append("workspace_home=")
-                .append(StrUtil.nullToEmpty(appConfig.getRuntime().getHome()))
-                .append('\n');
+        buffer.append("\n[Workspace]\n");
+        buffer.append("Working directory: ").append(agentWorkspace).append('\n');
+        buffer.append("Single global file workspace unless explicitly told otherwise.\n");
         buffer.append(
-                "workspace_policy=workspace_free: 工作区内读写和普通命令自由；工作区外读取自由，写入与网络等外部操作需要审批，可按本次、当前会话或永久同类操作放行；密钥始终脱敏。\n");
+                "File reads are allowed subject to security guardrails. File writes inside the workspace are free; writes outside it require approval. Command and network operations follow their own security and approval policies regardless of working directory. Secrets are always redacted.\n");
         appendShellGuidance(buffer, enabledToolNames);
         buffer.append(
                 "Only change your own configuration through /model, config_set, or config_set_secret. Secret keys must use config_set_secret and must never be copied from redacted read_file output. If you edit workspace/config.yml directly for non-secret keys, call config_refresh afterward; it validates YAML first and refuses invalid config. Global changes take effect on the next message.");

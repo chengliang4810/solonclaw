@@ -2723,7 +2723,7 @@ public class DefaultCronSchedulerTest {
                 .contains("[Project AGENTS.md]")
                 .contains("请使用项目规则。")
                 .contains("[Project .cursorrules]")
-                .contains("agent_workspace=" + projectDir.getAbsolutePath());
+                .contains("Working directory: " + projectDir.getAbsolutePath());
         assertThat(gateway.runWorkspaceDir).isEqualTo(projectDir.getAbsolutePath());
     }
 
