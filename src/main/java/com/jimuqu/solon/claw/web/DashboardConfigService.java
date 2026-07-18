@@ -826,6 +826,12 @@ public class DashboardConfigService {
                         "messaging",
                         "钉钉长任务进度卡模板 ID"));
         addField(
+                new FieldDefinition(
+                        "channels.dingtalk.approvalCardTemplateId",
+                        "string",
+                        "messaging",
+                        "钉钉危险命令审批卡模板 ID（按钮交互数据依次绑定 approveOnce、approveSession、approveAlways、deny）"));
+        addField(
                 new FieldDefinition("channels.dingtalk.dmPolicy", "select", "messaging", "钉钉私聊策略")
                         .options("open", "allowlist", "disabled", "pairing"));
         addField(
@@ -847,6 +853,9 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "channels.dingtalk.freeResponseChats", "list", "messaging", "钉钉免提及响应群聊列表"));
+        addField(
+                new FieldDefinition(
+                        "channels.dingtalk.mentionPatterns", "list", "messaging", "钉钉群聊正则唤醒词"));
         addField(
                 new FieldDefinition(
                         "channels.dingtalk.aiCardStreaming.enabled",

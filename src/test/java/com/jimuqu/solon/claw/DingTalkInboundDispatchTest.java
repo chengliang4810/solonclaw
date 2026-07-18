@@ -88,15 +88,90 @@ public class DingTalkInboundDispatchTest {
         assertThat(dispatched.getText()).contains("Card action:").contains("approve");
     }
 
-    /** 验证默认配置下未 @ 的钉钉群消息不会进入统一入站处理链。 */
+    /** 验证默认配置与上游一致，未 @ 的钉钉群消息也会进入统一入站处理链。 */
     @Test
-    void shouldDropGroupMessageWithoutMentionByDefault() throws Throwable {
+    void shouldDispatchGroupMessageWithoutMentionByDefault() throws Throwable {
         TestDingTalkFixture fixture = TestDingTalkFixture.create();
         fixture.adapter.setInboundMessageHandler(fixture::record);
         ChatbotMessage message = groupTextMessage();
         message.setInAtList(Boolean.FALSE);
 
         fixture.invokeHandleInbound(message);
+
+        assertThat(fixture.messages).hasSize(1);
+    }
+
+    /** 验证显式开启强制提及后，未 @ 的群消息会被忽略。 */
+    @Test
+    void shouldDropGroupMessageWithoutMentionWhenRequired() throws Throwable {
+        TestDingTalkFixture fixture = TestDingTalkFixture.create();
+        fixture.config.setRequireMention(true);
+        fixture.adapter.setInboundMessageHandler(fixture::record);
+        ChatbotMessage message = groupTextMessage();
+        message.setInAtList(Boolean.FALSE);
+
+        fixture.invokeHandleInbound(message);
+
+        assertThat(fixture.messages).isEmpty();
+    }
+
+    /** 验证钉钉发送者硬允许名单同时约束普通消息和卡片控制动作。 */
+    @Test
+    void shouldRejectUnauthorizedMessageAndCardAction() throws Throwable {
+        TestDingTalkFixture fixture = TestDingTalkFixture.create();
+        fixture.config.setAllowedUsers(List.of("staff-admin"));
+        fixture.adapter.setInboundMessageHandler(fixture::record);
+
+        fixture.invokeHandleInbound(groupTextMessage());
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("openConversationId", "open-cid-1");
+        payload.put("userId", "staff-001");
+        payload.put("actionValue", "/stop");
+        fixture.invokeHandleCardCallback(payload);
+
+        assertThat(fixture.messages).isEmpty();
+    }
+
+    /** 验证允许名单同时匹配 unionId、staffId、大小写和通配符。 */
+    @Test
+    void shouldAllowConfiguredDingtalkSenderIdentifiers() throws Throwable {
+        TestDingTalkFixture fixture = TestDingTalkFixture.create();
+        fixture.config.setAllowedUsers(List.of("UNION-001"));
+        fixture.adapter.setInboundMessageHandler(fixture::record);
+
+        fixture.invokeHandleInbound(groupTextMessage());
+
+        assertThat(fixture.messages).hasSize(1);
+    }
+
+    /** 验证私聊 allowlist 在同时存在 staffId 时仍可通过 unionId 命中。 */
+    @Test
+    void shouldAllowDmByUnionIdWhenStaffIdAlsoExists() throws Throwable {
+        TestDingTalkFixture fixture = TestDingTalkFixture.create();
+        fixture.config.setDmPolicy(GatewayBehaviorConstants.DM_POLICY_ALLOWLIST);
+        fixture.config.setAllowedUsers(List.of("UNION-001"));
+        fixture.adapter.setInboundMessageHandler(fixture::record);
+        ChatbotMessage message = groupTextMessage();
+        message.setConversationType("1");
+
+        fixture.invokeHandleInbound(message);
+
+        assertThat(fixture.messages).hasSize(1);
+    }
+
+    /** 验证重启后可从持久化类型恢复群卡片回调，并执行群会话白名单。 */
+    @Test
+    void shouldApplyAllowedChatsToPersistedGroupCardCallback() throws Throwable {
+        TestDingTalkFixture fixture = TestDingTalkFixture.create();
+        fixture.config.setAllowedChats(List.of("other-chat"));
+        fixture.state.put(PlatformType.DINGTALK, "open-cid-1", "chat_type", "group");
+        fixture.adapter.setInboundMessageHandler(fixture::record);
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("openConversationId", "open-cid-1");
+        payload.put("userId", "staff-001");
+        payload.put("actionValue", "approve");
+
+        fixture.invokeHandleCardCallback(payload);
 
         assertThat(fixture.messages).isEmpty();
     }
@@ -131,6 +206,20 @@ public class DingTalkInboundDispatchTest {
         assertThat(fixture.messages).hasSize(1);
         assertThat(fixture.messages.get(0).getChatId()).isEqualTo("open-cid-1");
         assertThat(fixture.messages.get(0).getText()).isEqualTo("请检查 solonclaw 状态");
+    }
+
+    /** 验证上游风格的正则唤醒词可替代结构化 @，非法表达式不会阻断消息处理。 */
+    @Test
+    void shouldDispatchGroupMessageWhenWakeWordMatches() throws Throwable {
+        TestDingTalkFixture fixture = TestDingTalkFixture.create();
+        fixture.config.setMentionPatterns(List.of("[", "^请检查"));
+        fixture.adapter.setInboundMessageHandler(fixture::record);
+        ChatbotMessage message = groupTextMessage();
+        message.setInAtList(Boolean.FALSE);
+
+        fixture.invokeHandleInbound(message);
+
+        assertThat(fixture.messages).hasSize(1);
     }
 
     /** 构造钉钉群聊文本消息，覆盖入站分发需要读取的平台字段。 */

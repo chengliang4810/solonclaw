@@ -1046,7 +1046,9 @@ public class DangerousCommandApprovalService {
      * @return 返回创建好的投递Extras。
      */
     public Map<String, Object> buildDeliveryExtras(PlatformType platform, PendingApproval pending) {
-        if ((platform != PlatformType.FEISHU && platform != PlatformType.QQBOT)
+        if ((platform != PlatformType.FEISHU
+                        && platform != PlatformType.QQBOT
+                        && platform != PlatformType.DINGTALK)
                 || pending == null) {
             return Collections.emptyMap();
         }

@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
 import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
@@ -54,6 +55,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -119,6 +124,14 @@ public class SolonAiLlmGateway implements LlmGateway {
 
     /** 相邻语义阶段说明的最小间隔，避免配置过低时刷屏。 */
     private static final long MIN_PROGRESS_UPDATE_INTERVAL_MS = 5000L;
+
+    /** 延迟发送长工具进度的守护线程，避免短工具产生无意义提示。 */
+    private static final ScheduledExecutorService PROGRESS_UPDATE_EXECUTOR =
+            BoundedExecutorFactory.scheduled("solonclaw-progress-timer", 1);
+
+    /** 隔离渠道网络投递的受限执行器，避免一个渠道阻塞其他会话的进度定时器。 */
+    private static final ExecutorService PROGRESS_DELIVERY_EXECUTOR =
+            BoundedExecutorFactory.fixed("solonclaw-progress-delivery", 4, 64);
 
     /** 长度截断后的内部续写提示，只要求返回尚未输出的正文。 */
     private static final String LENGTH_CONTINUATION_PROMPT = "请从刚才被截断的位置继续，不要重复已经输出的内容，只输出续写部分。";
@@ -1000,7 +1013,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                             feedbackSink,
                             eventSink,
                             runContext,
-                            interceptors);
+                            interceptors,
+                            progressUpdateEmitter);
                     if (agentSession.isPending() || isTraceEnded(trace)) {
                         assistantMessage =
                                 ChatMessage.ofAssistant(
@@ -2089,6 +2103,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param eventSink 事件Sink参数。
      * @param runContext 运行上下文。
      * @param interceptors 拦截器集合。
+     * @param progressUpdateEmitter 阶段进度发送器。
      */
     private void executeOwnedToolCall(
             OwnedReActTrace trace,
@@ -2097,13 +2112,24 @@ public class SolonAiLlmGateway implements LlmGateway {
             ConversationFeedbackSink feedbackSink,
             ConversationEventSink eventSink,
             AgentRunContext runContext,
-            List<ReActInterceptor> interceptors)
+            List<ReActInterceptor> interceptors,
+            ProgressUpdateEmitter progressUpdateEmitter)
             throws Exception {
         clearCurrentThreadToolApprovals();
         try {
             executeOwnedToolCallWithinApprovalScope(
-                    trace, options, call, feedbackSink, eventSink, runContext, interceptors);
+                    trace,
+                    options,
+                    call,
+                    feedbackSink,
+                    eventSink,
+                    runContext,
+                    interceptors,
+                    progressUpdateEmitter);
         } finally {
+            if (progressUpdateEmitter != null) {
+                progressUpdateEmitter.onToolFinished();
+            }
             clearCurrentThreadToolApprovals();
             if (dangerousCommandApprovalService != null
                     && trace != null
@@ -2130,6 +2156,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param eventSink 事件输出。
      * @param runContext 运行上下文。
      * @param interceptors 工具拦截器。
+     * @param progressUpdateEmitter 阶段进度发送器。
      */
     private void executeOwnedToolCallWithinApprovalScope(
             OwnedReActTrace trace,
@@ -2138,7 +2165,8 @@ public class SolonAiLlmGateway implements LlmGateway {
             ConversationFeedbackSink feedbackSink,
             ConversationEventSink eventSink,
             AgentRunContext runContext,
-            List<ReActInterceptor> interceptors)
+            List<ReActInterceptor> interceptors,
+            ProgressUpdateEmitter progressUpdateEmitter)
             throws Exception {
         String toolName = call.getName();
         String argumentsError = validateToolCallArguments(call);
@@ -2193,6 +2221,9 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         if (eventSink != null) {
             eventSink.onToolStarted(toolName, args);
+        }
+        if (progressUpdateEmitter != null) {
+            progressUpdateEmitter.onToolStarted(toolName);
         }
 
         ToolResult toolResult;
@@ -3853,6 +3884,15 @@ public class SolonAiLlmGateway implements LlmGateway {
         /** 当前模型运行已经发送的阶段说明数量。 */
         private int emittedCount;
 
+        /** 当前运行已观察到的真实工具事件数量。 */
+        private int toolEventCount;
+
+        /** 等待工具达到长任务阈值后发送的进度任务。 */
+        private ScheduledFuture<?> pendingToolProgress;
+
+        /** 当前活动工具的递增代次，用于阻止完成边界后的迟到进度。 */
+        private long activeToolGeneration;
+
         /**
          * 创建阶段说明发送器。
          *
@@ -3875,7 +3915,7 @@ public class SolonAiLlmGateway implements LlmGateway {
          *
          * @param rawText 模型工具调用轮中的原始可见文本。
          */
-        private String emit(String rawText) {
+        private synchronized String emit(String rawText) {
             if ((feedbackSink == ConversationFeedbackSink.noop()
                     && eventSink == ConversationEventSink.noop())) {
                 return "";
@@ -3918,6 +3958,103 @@ public class SolonAiLlmGateway implements LlmGateway {
             }
             return text;
         }
+
+        /**
+         * 根据真实工具生命周期生成阶段进度；第二个工具立即显示，首个长工具延迟显示。
+         *
+         * @param toolName 已开始执行的工具名称。
+         */
+        private synchronized void onToolStarted(String toolName) {
+            cancelPendingToolProgress();
+            toolEventCount++;
+            final long generation = ++activeToolGeneration;
+            final String text = deterministicToolProgress(toolName, toolEventCount);
+            if (toolEventCount > 1 && StrUtil.isNotBlank(emit(text))) {
+                return;
+            }
+            pendingToolProgress =
+                    PROGRESS_UPDATE_EXECUTOR.schedule(
+                            () -> dispatchDelayedToolProgress(generation, text),
+                            MIN_PROGRESS_UPDATE_INTERVAL_MS,
+                            TimeUnit.MILLISECONDS);
+        }
+
+        /** 工具结束时取消尚未达到长任务阈值的延迟进度。 */
+        private synchronized void onToolFinished() {
+            activeToolGeneration++;
+            cancelPendingToolProgress();
+        }
+
+        /**
+         * 把到期任务交给独立投递线程，并在实际发送前再次确认工具仍处于活动状态。
+         *
+         * @param generation 工具启动时的代次。
+         * @param text 已完成安全分类的阶段说明。
+         */
+        private void dispatchDelayedToolProgress(long generation, String text) {
+            try {
+                PROGRESS_DELIVERY_EXECUTOR.execute(() -> emitDelayedToolProgress(generation, text));
+            } catch (RuntimeException e) {
+                log.warn(
+                        "Progress delivery scheduling failed: error={}",
+                        ErrorTextSupport.safeError(e));
+            }
+        }
+
+        /**
+         * 仅在对应工具仍活动时发送延迟进度，避免完成或失败后的迟到消息。
+         *
+         * @param generation 工具启动时的代次。
+         * @param text 已完成安全分类的阶段说明。
+         */
+        private synchronized void emitDelayedToolProgress(long generation, String text) {
+            if (generation == activeToolGeneration) {
+                emit(text);
+            }
+        }
+
+        /** 取消当前工具尚未发送的延迟进度任务。 */
+        private void cancelPendingToolProgress() {
+            if (pendingToolProgress != null) {
+                pendingToolProgress.cancel(false);
+                pendingToolProgress = null;
+            }
+        }
+    }
+
+    /**
+     * 把工具类型转换为不含参数、凭据和内部实现细节的用户可见阶段说明。
+     *
+     * @param toolName 工具名称。
+     * @param step 当前真实工具步骤序号。
+     * @return 带展示协议前缀的简短中文阶段说明。
+     */
+    private static String deterministicToolProgress(String toolName, int step) {
+        String normalized = StrUtil.nullToEmpty(toolName).trim().toLowerCase(Locale.ROOT);
+        String suffix = step > 1 ? "（第 " + step + " 步）" : "";
+        if (normalized.contains("search") || normalized.contains("fetch")) {
+            return "【阶段说明】正在检索并核对信息" + suffix;
+        }
+        if (normalized.contains("read") || normalized.contains("list")) {
+            return "【阶段说明】正在读取并核对资料" + suffix;
+        }
+        if (normalized.contains("write")
+                || normalized.contains("patch")
+                || normalized.contains("edit")) {
+            return "【阶段说明】正在更新并检查内容" + suffix;
+        }
+        if (normalized.contains("shell")
+                || normalized.contains("terminal")
+                || normalized.contains("execute")) {
+            return "【阶段说明】正在执行并验证操作" + suffix;
+        }
+        if (normalized.contains("delegate") || normalized.contains("profile")) {
+            return "【阶段说明】正在分派并汇总任务" + suffix;
+        }
+        if (normalized.contains("approval")) {
+            return "【阶段说明】正在等待操作确认" + suffix;
+        }
+        return "【阶段说明】正在继续处理任务" + suffix;
     }
 
     /** 续写请求的 assistant 增量缓冲器，确认无重复后再交给真实展示层。 */

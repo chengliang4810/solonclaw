@@ -221,7 +221,7 @@ solonclaw:
 | 渠道 | 配置前缀 | 入站方式 | 状态 |
 | --- | --- | --- | --- |
 | 飞书 | `solonclaw.channels.feishu.*` | websocket / 平台能力 | 建设中 |
-| 钉钉 | `solonclaw.channels.dingtalk.*` | stream mode | 建设中 |
+| 钉钉 | `solonclaw.channels.dingtalk.*` | stream mode | 已支持 |
 | 企业微信 | `solonclaw.channels.wecom.*` | websocket / 平台能力 | 建设中 |
 | 微信 | `solonclaw.channels.weixin.*` | iLink long-poll | 建设中 |
 | QQBot | `solonclaw.channels.qqbot.*` | websocket / REST | 建设中 |

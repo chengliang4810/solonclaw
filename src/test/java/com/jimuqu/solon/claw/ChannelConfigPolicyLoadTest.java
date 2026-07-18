@@ -33,6 +33,7 @@ public class ChannelConfigPolicyLoadTest {
                         + "      requireMention: false\n"
                         + "      allowedChats: cidAlpha,cidBeta\n"
                         + "      freeResponseChats: cidFreeA,cidFreeB\n"
+                        + "      mentionPatterns: ^小马,^solonclaw\n"
                         + "    wecom:\n"
                         + "      groups:\n"
                         + "        room-a:\n"
@@ -63,6 +64,8 @@ public class ChannelConfigPolicyLoadTest {
                 .containsExactly("cidAlpha", "cidBeta");
         assertThat(config.getChannels().getDingtalk().getFreeResponseChats())
                 .containsExactly("cidFreeA", "cidFreeB");
+        assertThat(config.getChannels().getDingtalk().getMentionPatterns())
+                .containsExactly("^小马", "^solonclaw");
         assertThat(config.getChannels().getFeishu().getBotName()).isEqualTo("solonclaw Bot");
         assertThat(config.getChannels().getWecom().getGroupMemberAllowedUsers().get("room-a"))
                 .containsExactly("alice", "bob");

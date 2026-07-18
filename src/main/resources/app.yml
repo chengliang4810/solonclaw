@@ -205,6 +205,8 @@ solonclaw.channels.dingtalk.allowedUsers:
 solonclaw.channels.dingtalk.dmPolicy: open
 solonclaw.channels.dingtalk.groupPolicy: open
 solonclaw.channels.dingtalk.groupAllowedUsers:
+solonclaw.channels.dingtalk.requireMention: false
+solonclaw.channels.dingtalk.mentionPatterns:
 solonclaw.channels.dingtalk.allowAllUsers: false
 solonclaw.channels.dingtalk.unauthorizedDmBehavior: pair
 solonclaw.channels.dingtalk.robotCode:
@@ -212,6 +214,9 @@ solonclaw.channels.dingtalk.coolAppCode:
 solonclaw.channels.dingtalk.streamUrl:
 solonclaw.channels.dingtalk.toolProgress: off
 solonclaw.channels.dingtalk.progressCardTemplateId:
+# 钉钉卡片平台审批模板 ID；模板变量为 title、command、description、allowAlways、approveOnce、approveSession、approveAlways、deny
+# 四个按钮的交互数据依次绑定 approveOnce、approveSession、approveAlways、deny；留空时回退为文本命令审批
+solonclaw.channels.dingtalk.approvalCardTemplateId:
 
 # 企微渠道
 solonclaw.channels.wecom.enabled: false

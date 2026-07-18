@@ -730,6 +730,7 @@ public class AppConfig {
         target.setAllowedChats(new ArrayList<String>(source.getAllowedChats()));
         target.setRequireMention(source.isRequireMention());
         target.setFreeResponseChats(new ArrayList<String>(source.getFreeResponseChats()));
+        target.setMentionPatterns(new ArrayList<String>(source.getMentionPatterns()));
         target.setGroupMemberAllowedUsers(cloneGroupAllowMap(source.getGroupMemberAllowedUsers()));
         target.setBotOpenId(source.getBotOpenId());
         target.setBotUserId(source.getBotUserId());
@@ -744,6 +745,7 @@ public class AppConfig {
         target.setSendChunkRetryDelaySeconds(source.getSendChunkRetryDelaySeconds());
         target.setToolProgress(source.getToolProgress());
         target.setProgressCardTemplateId(source.getProgressCardTemplateId());
+        target.setApprovalCardTemplateId(source.getApprovalCardTemplateId());
         target.setRuntimeFooterEnabled(source.getRuntimeFooterEnabled());
         target.setCommentEnabled(source.isCommentEnabled());
         target.setCommentPairingFile(source.getCommentPairingFile());
@@ -1729,7 +1731,7 @@ public class AppConfig {
         private ChannelConfig feishu = new ChannelConfig();
 
         /** 钉钉渠道配置。 */
-        private ChannelConfig dingtalk = new ChannelConfig();
+        private ChannelConfig dingtalk = newDingTalkConfig();
 
         /** 企微渠道配置。 */
         private ChannelConfig wecom = new ChannelConfig();
@@ -1742,6 +1744,13 @@ public class AppConfig {
 
         /** 腾讯元宝渠道配置。 */
         private ChannelConfig yuanbao = new ChannelConfig();
+
+        /** 创建采用钉钉上游默认群聊触发策略的渠道配置。 */
+        private static ChannelConfig newDingTalkConfig() {
+            ChannelConfig config = new ChannelConfig();
+            config.setRequireMention(false);
+            return config;
+        }
     }
 
     /** 单个渠道配置。 */
@@ -1821,6 +1830,9 @@ public class AppConfig {
         /** 群聊免提及响应会话列表，命中后可不 @ 机器人直接响应。 */
         private List<String> freeResponseChats = new ArrayList<String>();
 
+        /** 群聊中可替代结构化 @ 的正则唤醒词列表。 */
+        private List<String> mentionPatterns = new ArrayList<String>();
+
         /** 企微按群发送者 allowlist。 */
         private Map<String, List<String>> groupMemberAllowedUsers =
                 new LinkedHashMap<String, List<String>>();
@@ -1864,6 +1876,9 @@ public class AppConfig {
 
         /** 钉钉长任务进度卡模板 ID。 */
         private String progressCardTemplateId;
+
+        /** 钉钉危险命令审批卡模板 ID。 */
+        private String approvalCardTemplateId;
 
         /** 渠道级 metadata footer 开关，null 表示继承全局。 */
         private Boolean runtimeFooterEnabled;

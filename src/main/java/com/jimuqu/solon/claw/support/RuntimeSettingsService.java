@@ -162,6 +162,7 @@ public class RuntimeSettingsService {
                     ".allowedChats",
                     ".requireMention",
                     ".freeResponseChats",
+                    ".mentionPatterns",
                     ".websocketUrl",
                     ".streamUrl",
                     ".coolAppCode",
@@ -176,6 +177,7 @@ public class RuntimeSettingsService {
                     ".sendChunkRetryDelaySeconds",
                     ".toolProgress",
                     ".progressCardTemplateId",
+                    ".approvalCardTemplateId",
                     ".metadataFooter.enabled",
                     ".comment.enabled",
                     ".comment.pairingFile",
@@ -644,6 +646,7 @@ public class RuntimeSettingsService {
                 || key.endsWith("groupAllowedUsers")
                 || key.endsWith("allowedChats")
                 || key.endsWith("freeResponseChats")
+                || key.endsWith("mentionPatterns")
                 || "display.metadataFooter.fields".equals(key)
                 || "gateway.allowedUsers".equals(key)
                 || "security.websiteBlocklist.domains".equals(key)

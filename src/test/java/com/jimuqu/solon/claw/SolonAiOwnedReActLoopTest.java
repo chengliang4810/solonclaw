@@ -34,6 +34,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
@@ -1411,6 +1414,113 @@ public class SolonAiOwnedReActLoopTest {
                                         && ((AssistantMessage) message).isToolCalls());
     }
 
+    /** 模型不给工具前正文时，第二个真实工具事件也必须生成确定性阶段进度。 */
+    @Test
+    void shouldEmitDeterministicProgressForEmptyMultiStepToolCalls() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(false);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.NON_STREAM_EMPTY_MULTI_STEP_TOOLS);
+        RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
+        FunctionToolDesc readFile = new FunctionToolDesc("read_file");
+        readFile.description("Read file content.");
+        readFile.doHandle(args -> "authoritative content");
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        new TestGateway(config, repository, model),
+                        session("owned-loop-deterministic-progress-session"),
+                        "system",
+                        "请分两步读取并核对文件",
+                        Collections.singletonList(readFile),
+                        feedbackSink,
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(feedbackSink.progressUpdates).containsExactly("正在读取并核对资料（第 2 步）");
+        assertThat(result.getAssistantMessage().getContent()).isEqualTo("非流式完成");
+    }
+
+    /** 单个工具持续超过五秒时，必须在工具结束前发送确定性进度。 */
+    @Test
+    void shouldEmitProgressWhileSingleLongToolIsRunning() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(false);
+        AtomicBoolean toolFinished = new AtomicBoolean(false);
+        AtomicBoolean progressBeforeFinish = new AtomicBoolean(false);
+        CountDownLatch progressReceived = new CountDownLatch(1);
+        ConversationFeedbackSink feedbackSink =
+                new ConversationFeedbackSink() {
+                    /** 记录进度是否在工具完成前到达。 */
+                    @Override
+                    public void onProgressUpdate(String text) {
+                        progressBeforeFinish.set(!toolFinished.get());
+                        progressReceived.countDown();
+                    }
+                };
+        FunctionToolDesc readFile = new FunctionToolDesc("read_file");
+        readFile.description("Read file content slowly.");
+        readFile.doHandle(
+                args -> {
+                    Thread.sleep(5300L);
+                    toolFinished.set(true);
+                    return "authoritative content";
+                });
+
+        invokeExecuteSingle(
+                new TestGateway(
+                        config,
+                        new RecordingSessionRepository(),
+                        new FakeChatModel(
+                                config.getLlm().getModel(), FakeMode.NON_STREAM_EMPTY_SINGLE_TOOL)),
+                session("owned-loop-long-tool-progress-session"),
+                "system",
+                "请读取并核对大型文件",
+                Collections.singletonList(readFile),
+                feedbackSink,
+                ConversationEventSink.noop(),
+                false,
+                config.getLlm(),
+                null);
+
+        assertThat(progressReceived.await(1, TimeUnit.SECONDS)).isTrue();
+        assertThat(progressBeforeFinish.get()).isTrue();
+    }
+
+    /** 快速单工具结束后不得出现越过完成边界的迟到进度。 */
+    @Test
+    void shouldNotEmitDelayedProgressAfterFastToolFinishes() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(false);
+        RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
+        FunctionToolDesc readFile = new FunctionToolDesc("read_file");
+        readFile.description("Read file content.");
+        readFile.doHandle(args -> "authoritative content");
+
+        invokeExecuteSingle(
+                new TestGateway(
+                        config,
+                        new RecordingSessionRepository(),
+                        new FakeChatModel(
+                                config.getLlm().getModel(), FakeMode.NON_STREAM_EMPTY_SINGLE_TOOL)),
+                session("owned-loop-fast-tool-progress-session"),
+                "system",
+                "请读取文件",
+                Collections.singletonList(readFile),
+                feedbackSink,
+                ConversationEventSink.noop(),
+                false,
+                config.getLlm(),
+                null);
+
+        Thread.sleep(5200L);
+        assertThat(feedbackSink.progressUpdates).isEmpty();
+    }
+
     /** 简单单工具请求即使模型返回可见前置文本，也不能发送或持久化阶段说明。 */
     @Test
     void shouldSuppressProgressForSimpleSingleToolCall() throws Exception {
@@ -2049,7 +2159,8 @@ public class SolonAiOwnedReActLoopTest {
 
     private static class RecordingEventSink implements ConversationEventSink {
         private final List<String> assistantDeltas = new ArrayList<String>();
-        private final List<String> progressUpdates = new ArrayList<String>();
+        private final List<String> progressUpdates =
+                Collections.synchronizedList(new ArrayList<String>());
         private final List<String> reasoningDeltas = new ArrayList<String>();
         private final List<Map<String, Object>> toolStartedArgs =
                 new ArrayList<Map<String, Object>>();
@@ -2078,7 +2189,8 @@ public class SolonAiOwnedReActLoopTest {
     /** 记录消息渠道收到的独立阶段说明，用于同步模型调用路径测试。 */
     private static class RecordingFeedbackSink implements ConversationFeedbackSink {
         /** 收到的安全阶段说明。 */
-        private final List<String> progressUpdates = new ArrayList<String>();
+        private final List<String> progressUpdates =
+                Collections.synchronizedList(new ArrayList<String>());
 
         /** 记录独立阶段说明，不模拟真实渠道发送副作用。 */
         @Override
@@ -2159,6 +2271,8 @@ public class SolonAiOwnedReActLoopTest {
         STREAM_VISIBLE_TOOL_PREAMBLE,
         NON_STREAM_VISIBLE_TOOL_PREAMBLE,
         NON_STREAM_MULTI_STEP_TOOL_PREAMBLE,
+        NON_STREAM_EMPTY_MULTI_STEP_TOOLS,
+        NON_STREAM_EMPTY_SINGLE_TOOL,
         NON_STREAM_UNSAFE_TOOL_PREAMBLE
     }
 
@@ -2292,25 +2406,39 @@ public class SolonAiOwnedReActLoopTest {
             }
             ToolMessage toolMessage = lastToolMessage(session.getMessages());
             AssistantMessage assistant;
-            if (model.mode == FakeMode.NON_STREAM_MULTI_STEP_TOOL_PREAMBLE) {
+            if (model.mode == FakeMode.NON_STREAM_MULTI_STEP_TOOL_PREAMBLE
+                    || model.mode == FakeMode.NON_STREAM_EMPTY_MULTI_STEP_TOOLS) {
                 int toolMessages = toolMessageCount(session.getMessages());
                 if (toolMessages == 0) {
                     assistant =
                             assistantWithToolCall(
-                                    "【阶段说明】正在读取第一部分",
+                                    model.mode == FakeMode.NON_STREAM_EMPTY_MULTI_STEP_TOOLS
+                                            ? ""
+                                            : "【阶段说明】正在读取第一部分",
                                     "call_non_stream_read_first",
                                     "read_file",
                                     "{\"path\":\"workspace/config-1.yml\"}");
                 } else if (toolMessages == 1) {
                     assistant =
                             assistantWithToolCall(
-                                    "【阶段说明】正在核对第二部分",
+                                    model.mode == FakeMode.NON_STREAM_EMPTY_MULTI_STEP_TOOLS
+                                            ? ""
+                                            : "【阶段说明】正在核对第二部分",
                                     "call_non_stream_read_second",
                                     "read_file",
                                     "{\"path\":\"workspace/config-2.yml\"}");
                 } else {
                     assistant = ChatMessage.ofAssistant("非流式完成");
                 }
+            } else if (model.mode == FakeMode.NON_STREAM_EMPTY_SINGLE_TOOL) {
+                assistant =
+                        toolMessage == null
+                                ? assistantWithToolCall(
+                                        "",
+                                        "call_non_stream_single_read",
+                                        "read_file",
+                                        "{\"path\":\"workspace/config.yml\"}")
+                                : ChatMessage.ofAssistant("非流式完成");
             } else if (model.mode == FakeMode.NON_STREAM_VISIBLE_TOOL_PREAMBLE
                     || model.mode == FakeMode.NON_STREAM_UNSAFE_TOOL_PREAMBLE) {
                 if (toolMessage == null) {

@@ -379,10 +379,13 @@ public class DangerousCommandGatewayApprovalTest {
         DangerousCommandApprovalService.PendingApproval pending =
                 service.getPendingApproval(trace.session);
         Map<String, Object> extras = service.buildDeliveryExtras(PlatformType.FEISHU, pending);
+        Map<String, Object> dingtalkExtras =
+                service.buildDeliveryExtras(PlatformType.DINGTALK, pending);
 
         assertThat(pending).isNotNull();
         assertThat(pending.isPermanentApprovalAllowed()).isFalse();
         assertThat(extras.get("approvalAllowAlways")).isEqualTo(Boolean.FALSE);
+        assertThat(dingtalkExtras).containsAllEntriesOf(extras);
         assertThat(trace.getFinalAnswer()).contains("不能永久记住");
         assertThat(trace.getFinalAnswer()).contains("/approve session");
         assertThat(trace.getFinalAnswer()).doesNotContain("/approve always");

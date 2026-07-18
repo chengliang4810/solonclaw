@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
+import com.jimuqu.solon.claw.gateway.feedback.DingTalkProgressCardSupport;
 import com.jimuqu.solon.claw.gateway.platform.dingtalk.DingTalkChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.feishu.FeishuChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.qqbot.QQBotChannelAdapter;
@@ -578,6 +579,113 @@ public class DomesticChannelEnhancementTest {
                                 .get(DangerousCommandApprovalService.CARD_ACTION_KEY)
                                 .getString())
                 .isEqualTo(DangerousCommandApprovalService.CARD_ACTION_DENY);
+    }
+
+    @Test
+    void shouldBuildSanitizedDingtalkApprovalCardData() {
+        AppConfig config = new AppConfig();
+        TestDingTalkAdapter adapter = new TestDingTalkAdapter(config);
+        DeliveryRequest request = new DeliveryRequest();
+        request.setPlatform(PlatformType.DINGTALK);
+        request.setChatId("chat-a");
+        Map<String, Object> extras = new LinkedHashMap<String, Object>();
+        extras.put("approvalId", "approval-123");
+        extras.put(
+                "approvalCommand",
+                "OPENAI_API_KEY=sk-proj-abcdefghijklmnop rm -rf cache\u001b[31m");
+        extras.put("approvalDescription", "Authorization: Bearer ghp_dingtalkapproval12345");
+        extras.put("approvalAllowAlways", Boolean.TRUE);
+        request.setChannelExtras(extras);
+
+        ONode data = ONode.ofJson(adapter.buildApprovalData(request));
+        ONode params = data.get("cardParamMap");
+        ONode always = ONode.ofJson(params.get("approveAlways").getString());
+
+        assertThat(params.get("command").getString())
+                .contains("OPENAI_API_KEY=***")
+                .doesNotContain("sk-proj-abcdefghijklmnop")
+                .doesNotContain("\u001b");
+        assertThat(params.get("description").getString())
+                .contains("Bearer ***")
+                .doesNotContain("ghp_dingtalkapproval12345");
+        assertThat((Object) data.get("cardMediaIdParamMap").toData()).isInstanceOf(Map.class);
+        assertThat(ONode.ofJson(adapter.singleChatReceiver("staff-a")).get("userId").getString())
+                .isEqualTo("staff-a");
+        assertThat(always.get(DangerousCommandApprovalService.CARD_ACTION_KEY).getString())
+                .isEqualTo(DangerousCommandApprovalService.CARD_ACTION_APPROVE);
+        assertThat(always.get(DangerousCommandApprovalService.CARD_SCOPE_KEY).getString())
+                .isEqualTo("always");
+        assertThat(always.get(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY).getString())
+                .isEqualTo("approval-123");
+    }
+
+    @Test
+    void shouldWrapDingtalkProgressCardParametersForOfficialApi() {
+        ONode data =
+                ONode.ofJson(
+                        DingTalkProgressCardSupport.buildCardData(
+                                "任务", "运行中", "读取资料", "第 1 步", "12:00"));
+
+        assertThat(data.get("cardParamMap").get("status").getString()).isEqualTo("运行中");
+        assertThat((Object) data.get("cardMediaIdParamMap").toData()).isInstanceOf(Map.class);
+    }
+
+    @Test
+    void shouldMatchUpstreamDingtalkWebhookAndMarkdownRules() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getDingtalk().setClientId("client-a");
+        TestDingTalkAdapter adapter = new TestDingTalkAdapter(config);
+        StringBuilder longText = new StringBuilder();
+        for (int i = 0; i < 20001; i++) {
+            longText.append("😀");
+        }
+
+        assertThat(adapter.robotCode()).isEqualTo("client-a");
+        assertThat(adapter.trustedWebhook("https://oapi.dingtalk.com/robot/send?access_token=x"))
+                .isTrue();
+        assertThat(adapter.trustedWebhook("https://oapi.dingtalk.com.attacker.test/robot/send"))
+                .isFalse();
+        assertThat(adapter.trustedWebhook("http://oapi.dingtalk.com/robot/send")).isFalse();
+        assertThat(adapter.trustedWebhook("https://oapi.dingtalk.com:8443/robot/send")).isFalse();
+        assertThat(adapter.limit(longText.toString()).codePointCount(0, 40000)).isEqualTo(20000);
+        assertThat(adapter.normalize("说明\n1. 第一项\n2. 第二项\n  ```java"))
+                .isEqualTo("说明\n\n1. 第一项\n2. 第二项\n```java");
+    }
+
+    @Test
+    void shouldParseDingtalkNestedApprovalCardCallbackAsControlCommand() {
+        TestDingTalkAdapter adapter = new TestDingTalkAdapter(new AppConfig());
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("openConversationId", "chat-a");
+        payload.put("userId", "user-a");
+        payload.put("processQueryKey", "card-a");
+        payload.put(
+                "content",
+                new ONode()
+                        .set(
+                                "cardPrivateData",
+                                new ONode()
+                                        .set(
+                                                DangerousCommandApprovalService.CARD_ACTION_KEY,
+                                                DangerousCommandApprovalService.CARD_ACTION_APPROVE)
+                                        .set(
+                                                DangerousCommandApprovalService
+                                                        .CARD_APPROVAL_ID_KEY,
+                                                "approval-123")
+                                        .set(
+                                                DangerousCommandApprovalService.CARD_SCOPE_KEY,
+                                                "session")
+                                        .toData())
+                        .toJson());
+
+        GatewayMessage message = adapter.parseCardCallback(payload);
+
+        assertThat(message.getText()).isEqualTo("/approve approval-123 session");
+        assertThat(message.getPlatform()).isEqualTo(PlatformType.DINGTALK);
+        assertThat(message.getChatId()).isEqualTo("chat-a");
+        assertThat(message.getUserId()).isEqualTo("user-a");
+        assertThat(message.getThreadId()).isEqualTo("card-a");
+        assertThat(message.sourceKey()).isEqualTo("DINGTALK:chat-a:user-a");
     }
 
     @Test
@@ -1242,6 +1350,52 @@ public class DomesticChannelEnhancementTest {
 
         private ONode buildApprovalCard(DeliveryRequest request) {
             return buildDangerousApprovalCard(request);
+        }
+    }
+
+    /** 暴露钉钉审批卡片纯数据转换，避免测试触发真实网络请求。 */
+    private static class TestDingTalkAdapter extends DingTalkChannelAdapter {
+        /** 创建仅用于纯转换测试的钉钉适配器。 */
+        private TestDingTalkAdapter(AppConfig config) {
+            super(
+                    config.getChannels().getDingtalk(),
+                    new InMemoryChannelStateRepository(),
+                    new AttachmentCacheService(config));
+        }
+
+        /** 返回审批卡片模板数据。 */
+        private String buildApprovalData(DeliveryRequest request) {
+            return buildDangerousApprovalCardData(request);
+        }
+
+        /** 将钉钉卡片回调转换为统一消息。 */
+        private GatewayMessage parseCardCallback(Map<String, Object> payload) {
+            return toCardCallbackMessage(payload);
+        }
+
+        /** 返回钉钉单聊互动卡接收人 JSON。 */
+        private String singleChatReceiver(String userId) {
+            return buildSingleChatReceiver(userId);
+        }
+
+        /** 返回适配器实际使用的机器人编码。 */
+        private String robotCode() {
+            return effectiveRobotCode();
+        }
+
+        /** 判断候选地址是否为钉钉官方 session webhook。 */
+        private boolean trustedWebhook(String webhook) {
+            return isTrustedSessionWebhook(webhook);
+        }
+
+        /** 返回钉钉消息长度限制后的文本。 */
+        private String limit(String text) {
+            return limitMessage(text);
+        }
+
+        /** 返回钉钉 Markdown 规范化结果。 */
+        private String normalize(String text) {
+            return normalizeMarkdown(text);
         }
     }
 

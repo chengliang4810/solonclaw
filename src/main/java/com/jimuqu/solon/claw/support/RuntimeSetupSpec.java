@@ -181,7 +181,9 @@ public final class RuntimeSetupSpec {
                                 "streamUrl",
                                 "requireMention",
                                 "freeResponseChats",
+                                "mentionPatterns",
                                 "progressCardTemplateId",
+                                "approvalCardTemplateId",
                                 "aiCardStreaming.enabled")));
         result.put("wecom", mergeKeys(common, Arrays.asList("botId", "secret", "websocketUrl")));
         result.put(
@@ -263,6 +265,7 @@ public final class RuntimeSetupSpec {
         registerFlag(result, "coolAppCode", "cool-app-code");
         registerFlag(result, "streamUrl", "stream-url");
         registerFlag(result, "progressCardTemplateId", "progress-card-template-id");
+        registerFlag(result, "approvalCardTemplateId", "approval-card-template-id");
         registerFlag(result, "aiCardStreaming.enabled", "ai-card-streaming-enabled");
         registerFlag(result, "botId", "bot-id");
         registerFlag(result, "secret");

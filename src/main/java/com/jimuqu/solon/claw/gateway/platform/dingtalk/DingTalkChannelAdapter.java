@@ -58,13 +58,17 @@ import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAd
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedMessageDeduplicator;
+import com.jimuqu.solon.claw.support.GatewayApprovalCardSupport;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.ThreadInterruptSupport;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
 import java.io.File;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -74,6 +78,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import org.noear.snack4.ONode;
 
 /** DingTalkChannelAdapter 实现。 */
@@ -100,6 +106,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 状态会话WEBHOOKEXPIRES时间的统一常量值。 */
     private static final String STATE_SESSION_WEBHOOK_EXPIRES_AT = "session_webhook_expires_at";
 
+    /** 状态会话类型标识，用于进程重启后恢复卡片回调的群聊策略。 */
+    private static final String STATE_CHAT_TYPE = "chat_type";
+
     /** PROCESSINGEMOTION思考的统一常量值。 */
     private static final String PROCESSING_EMOTION_THINKING = "🤔Thinking";
 
@@ -117,6 +126,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     /** PROCESSINGEMOTION缓存大小的统一常量值。 */
     private static final int PROCESSING_EMOTION_CACHE_SIZE = 1024;
+
+    /** 钉钉 Markdown 单条消息最大字符数。 */
+    private static final int MAX_MESSAGE_LENGTH = 20000;
+
+    /** session webhook 到期前停止使用的安全余量。 */
+    private static final long SESSION_WEBHOOK_EXPIRY_MARGIN_MILLIS = 5L * 60L * 1000L;
 
     /** 记录DingTalk渠道中的配置。 */
     private final AppConfig.ChannelConfig config;
@@ -260,18 +275,13 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (isBlank(config.getClientSecret())) {
             missing.add("solonclaw.channels.dingtalk.clientSecret");
         }
-        if (isBlank(config.getRobotCode())) {
-            missing.add("solonclaw.channels.dingtalk.robotCode");
-        }
         if (!missing.isEmpty()) {
             setSetupState("missing_config");
             setMissingConfig(missing);
-            setLastError("dingtalk_missing_credentials", "missing clientId/clientSecret/robotCode");
+            setLastError("dingtalk_missing_credentials", "missing clientId/clientSecret");
         }
-        if (isBlank(config.getClientId())
-                || isBlank(config.getClientSecret())
-                || isBlank(config.getRobotCode())) {
-            setDetail("missing clientId/clientSecret/robotCode");
+        if (isBlank(config.getClientId()) || isBlank(config.getClientSecret())) {
+            setDetail("missing clientId/clientSecret");
             log.warn("[DINGTALK] connect aborted: {}", detail());
             return false;
         }
@@ -380,7 +390,23 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (isBlank(request.getChatId())) {
             throw new IllegalArgumentException("DingTalk openConversationId is required");
         }
+        if (isPlainTextRequest(request) && sendBySessionWebhook(request)) {
+            return;
+        }
         refreshAccessTokenIfNecessary();
+        if (GatewayApprovalCardSupport.isApprovalCardRequest(request)
+                && StrUtil.isNotBlank(config.getApprovalCardTemplateId())) {
+            try {
+                sendDangerousApprovalCard(request);
+            } catch (Exception e) {
+                log.warn(
+                        "[DINGTALK] approval card delivery failed; falling back to text: errorType={}, error={}",
+                        errorType(e),
+                        safeError(e));
+                sendText(request);
+            }
+            return;
+        }
         if (isAiCardRequest(request)) {
             sendAiCard(request);
             return;
@@ -474,6 +500,22 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (inboundMessageDeduplicator.isDuplicate(message.getMsgId())) {
             return;
         }
+        if (!isDingTalkUserAllowed(message.getSenderId(), message.getSenderStaffId())) {
+            return;
+        }
+        String inboundConversationId =
+                notBlank(message.getConversationId())
+                        ? message.getConversationId()
+                        : message.getSenderId();
+        String inboundChatType =
+                "2".equals(String.valueOf(message.getConversationType())) ? "group" : "dm";
+        String inboundUserId =
+                notBlank(message.getSenderStaffId())
+                        ? message.getSenderStaffId()
+                        : message.getSenderId();
+        if (!allowInbound(message, inboundConversationId, inboundChatType, inboundUserId)) {
+            return;
+        }
         // 控制命令（/stop、/cancel）走并发执行器，避免被串行回调队列中运行中的任务阻塞而错过取消时机
         if (isControlCommand(extractText(message))) {
             // 复用现有转换逻辑构造网关消息后再投递到控制执行器
@@ -544,6 +586,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                                         conversationId,
                                         STATE_LAST_UNION_ID,
                                         StrUtil.nullToEmpty(message.getSenderId()));
+                                channelStateRepository.put(
+                                        PlatformType.DINGTALK,
+                                        conversationId,
+                                        STATE_CHAT_TYPE,
+                                        chatType);
                             } catch (Exception e) {
                                 logRecoverableChannelFailure("remember_inbound_sender", e);
                             }
@@ -591,6 +638,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         // 先解析卡片回调消息，便于识别控制命令；控制命令走并发执行器避免被运行中的任务阻塞
         final GatewayMessage message = toCardCallbackMessage(payload);
         if (message == null) {
+            return;
+        }
+        if (!isDingTalkUserAllowed(message.getUserId(), message.getUserId())) {
+            return;
+        }
+        if (!allowCardCallback(message)) {
             return;
         }
         if (isControlCommand(message.getText())) {
@@ -641,7 +694,117 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     /** 返回钉钉 SDK 调用实际使用的当前机器人编码。 */
     protected String effectiveRobotCode() {
-        return StrUtil.nullToEmpty(config.getRobotCode()).trim();
+        return StrUtil.blankToDefault(config.getRobotCode(), config.getClientId()).trim();
+    }
+
+    /** 判断当前请求是否可直接使用上游同款 session webhook 回复。 */
+    private boolean isPlainTextRequest(DeliveryRequest request) {
+        return (request.getAttachments() == null || request.getAttachments().isEmpty())
+                && !GatewayApprovalCardSupport.isApprovalCardRequest(request)
+                && !isAiCardRequest(request);
+    }
+
+    /** 使用入站消息携带的有效 session webhook 发送 Markdown 回复。 */
+    private boolean sendBySessionWebhook(DeliveryRequest request) throws Exception {
+        String webhook =
+                channelStateRepository.get(
+                        PlatformType.DINGTALK, request.getChatId(), STATE_SESSION_WEBHOOK);
+        String expiresAtText =
+                channelStateRepository.get(
+                        PlatformType.DINGTALK,
+                        request.getChatId(),
+                        STATE_SESSION_WEBHOOK_EXPIRES_AT);
+        if (!isTrustedSessionWebhook(webhook)
+                || isSessionWebhookExpired(expiresAtText, System.currentTimeMillis())) {
+            return false;
+        }
+        String text = normalizeMarkdown(limitMessage(request.getText()));
+        ONode payload =
+                new ONode()
+                        .set("msgtype", "markdown")
+                        .getOrNew("markdown")
+                        .set("title", resolveMarkdownTitle(text))
+                        .set("text", text)
+                        .parent()
+                        .asObject();
+        HttpResponse response =
+                HttpRequest.post(webhook)
+                        .timeout(15000)
+                        .setFollowRedirects(false)
+                        .header("Content-Type", "application/json")
+                        .body(payload.toJson())
+                        .execute();
+        try {
+            guardedResponseBody(response, "DingTalk session webhook");
+        } finally {
+            response.close();
+        }
+        return true;
+    }
+
+    /** 仅接受钉钉官方 HTTPS session webhook，阻止持久化 URL 被用于 SSRF。 */
+    protected boolean isTrustedSessionWebhook(String webhook) {
+        if (isBlank(webhook)) {
+            return false;
+        }
+        try {
+            URI uri = URI.create(webhook.trim());
+            String host = uri.getHost();
+            return "https".equalsIgnoreCase(uri.getScheme())
+                    && uri.getUserInfo() == null
+                    && (uri.getPort() == -1 || uri.getPort() == 443)
+                    && ("api.dingtalk.com".equalsIgnoreCase(host)
+                            || "oapi.dingtalk.com".equalsIgnoreCase(host));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /** 判断 session webhook 是否已进入到期安全窗口。 */
+    private boolean isSessionWebhookExpired(String expiresAtText, long now) {
+        if (isBlank(expiresAtText)) {
+            return false;
+        }
+        try {
+            long expiresAt = Long.parseLong(expiresAtText.trim());
+            return expiresAt > 0L && now + SESSION_WEBHOOK_EXPIRY_MARGIN_MILLIS >= expiresAt;
+        } catch (NumberFormatException e) {
+            return true;
+        }
+    }
+
+    /** 按 Unicode 码点限制钉钉单条消息长度。 */
+    protected String limitMessage(String text) {
+        String value = StrUtil.nullToEmpty(text);
+        int count = value.codePointCount(0, value.length());
+        return count <= MAX_MESSAGE_LENGTH
+                ? value
+                : value.substring(0, value.offsetByCodePoints(0, MAX_MESSAGE_LENGTH));
+    }
+
+    /** 对齐上游实现的钉钉 Markdown 列表与围栏代码格式修正。 */
+    protected String normalizeMarkdown(String text) {
+        String[] lines = StrUtil.nullToEmpty(text).split("\\n", -1);
+        StringBuilder normalized = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            String trimmed = line.trim();
+            boolean numbered = trimmed.matches("^\\d+\\.\\s.*");
+            if (numbered
+                    && i > 0
+                    && !lines[i - 1].trim().isEmpty()
+                    && !lines[i - 1].trim().matches("^\\d+\\.\\s.*")) {
+                normalized.append('\n');
+            }
+            if (trimmed.startsWith("```") && !line.equals(line.trim())) {
+                line = line.substring(line.indexOf(trimmed));
+            }
+            if (normalized.length() > 0) {
+                normalized.append('\n');
+            }
+            normalized.append(line);
+        }
+        return normalized.toString();
     }
 
     /** 发送或撤回钉钉处理状态自定义表情，失败只记录日志，不阻断主消息回复。 */
@@ -720,7 +883,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回创建好的Markdown Param。
      */
     private String buildMarkdownParam(String text) {
-        return new ONode().set("title", resolveMarkdownTitle(text)).set("text", text).toJson();
+        String normalized = normalizeMarkdown(limitMessage(text));
+        return new ONode()
+                .set("title", resolveMarkdownTitle(normalized))
+                .set("text", normalized)
+                .toJson();
     }
 
     /**
@@ -1120,7 +1287,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 throw new IllegalStateException(
                         "DingTalk AI card send requires userId from inbound context for private chat");
             }
-            sendRequest.setSingleChatReceiver(receiver);
+            sendRequest.setSingleChatReceiver(buildSingleChatReceiver(receiver));
         }
 
         if (extras.containsKey("callbackUrl")) {
@@ -1135,14 +1302,108 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 || isBlank(response.getBody().getProcessQueryKey())) {
             throw new IllegalStateException("DingTalk AI card send failed");
         }
-        if (StrUtil.isNotBlank(request.getThreadId())) {
-            cardInstanceBindings.put(
-                    response.getBody().getProcessQueryKey(), request.getThreadId().trim());
+        cardInstanceBindings.put(response.getBody().getProcessQueryKey(), request.getChatId());
+        String cardBizId = stringValue(extras.get("cardBizId"));
+        if (StrUtil.isNotBlank(cardBizId)) {
+            cardInstanceBindings.put(cardBizId, request.getChatId());
         }
         log.info(
                 "[DINGTALK:{}] ai card sent processKey={}",
                 request.getChatId(),
                 response.getBody().getProcessQueryKey());
+    }
+
+    /**
+     * 按钉钉互动卡片接口要求构建单聊接收人 JSON。
+     *
+     * @param userId 钉钉员工 userId。
+     * @return 可直接传入 singleChatReceiver 的 JSON。
+     */
+    protected String buildSingleChatReceiver(String userId) {
+        return new ONode().set("userId", StrUtil.nullToEmpty(userId).trim()).toJson();
+    }
+
+    /**
+     * 使用已配置的钉钉互动卡模板发送危险命令审批请求。
+     *
+     * @param request 当前审批投递请求。
+     */
+    private void sendDangerousApprovalCard(DeliveryRequest request) throws Exception {
+        Map<String, Object> extras = request.getChannelExtras();
+        extras.put("cardTemplateId", config.getApprovalCardTemplateId());
+        extras.put("cardBizId", "solonclaw-approval-" + System.currentTimeMillis());
+        extras.put("cardData", buildDangerousApprovalCardData(request));
+        sendAiCard(request);
+    }
+
+    /**
+     * 构建钉钉危险命令审批模板数据，按钮交互数据应绑定对应动作字段。
+     *
+     * @param request 当前审批投递请求。
+     * @return 可直接传给钉钉互动卡片接口的模板数据 JSON。
+     */
+    protected String buildDangerousApprovalCardData(DeliveryRequest request) {
+        Map<String, Object> extras = request.getChannelExtras();
+        String approvalId =
+                DangerousCommandApprovalService.safeApprovalSelectorToken(extras.get("approvalId"));
+        if (approvalId == null) {
+            approvalId = "";
+        }
+        String command = approvalCardText(extras.get("approvalCommand"), 3000);
+        String description = approvalCardText(extras.get("approvalDescription"), 1000);
+        boolean allowAlways = GatewayApprovalCardSupport.approvalCardAllowAlways(extras);
+        ONode cardParams =
+                new ONode()
+                        .set("title", "危险命令审批")
+                        .set("command", command)
+                        .set("description", StrUtil.blankToDefault(description, "危险命令"))
+                        .set("allowAlways", String.valueOf(allowAlways))
+                        .set(
+                                "approveOnce",
+                                approvalActionPayload(
+                                        DangerousCommandApprovalService.CARD_ACTION_APPROVE,
+                                        approvalId,
+                                        "once"))
+                        .set(
+                                "approveSession",
+                                approvalActionPayload(
+                                        DangerousCommandApprovalService.CARD_ACTION_APPROVE,
+                                        approvalId,
+                                        "session"))
+                        .set(
+                                "approveAlways",
+                                allowAlways
+                                        ? approvalActionPayload(
+                                                DangerousCommandApprovalService.CARD_ACTION_APPROVE,
+                                                approvalId,
+                                                "always")
+                                        : "")
+                        .set(
+                                "deny",
+                                approvalActionPayload(
+                                        DangerousCommandApprovalService.CARD_ACTION_DENY,
+                                        approvalId,
+                                        "deny"));
+        return new ONode()
+                .set("cardParamMap", cardParams.toData())
+                .set("cardMediaIdParamMap", new LinkedHashMap<String, Object>())
+                .toJson();
+    }
+
+    /** 构建供钉钉模板按钮原样回传的审批动作 JSON。 */
+    private String approvalActionPayload(String action, String approvalId, String scope) {
+        return new ONode()
+                .set(DangerousCommandApprovalService.CARD_ACTION_KEY, action)
+                .set(DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY, approvalId)
+                .set(DangerousCommandApprovalService.CARD_SCOPE_KEY, scope)
+                .toJson();
+    }
+
+    /** 返回经过控制字符清理和凭据脱敏的审批卡片文本。 */
+    private String approvalCardText(Object value, int maxLength) {
+        return SecretRedactor.redact(
+                TerminalAnsiSanitizer.stripAnsi(StrUtil.nullToEmpty(stringValue(value))),
+                maxLength);
     }
 
     /**
@@ -1284,7 +1545,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param expiredTime expired时间参数。
      */
     private void rememberSessionWebhook(String chatId, String sessionWebhook, Long expiredTime) {
-        if (isBlank(chatId) || isBlank(sessionWebhook)) {
+        if (isBlank(chatId) || !isTrustedSessionWebhook(sessionWebhook)) {
             return;
         }
         long expiresAt = expiredTime == null ? 0L : expiredTime.longValue();
@@ -1349,7 +1610,8 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             return !config.isRequireMention()
                     || ChannelAllowListSupport.contains(
                             config.getFreeResponseChats(), conversationId)
-                    || Boolean.TRUE.equals(message.getInAtList());
+                    || Boolean.TRUE.equals(message.getInAtList())
+                    || matchesMentionPattern(extractText(message));
         }
         String dmPolicy =
                 StrUtil.blankToDefault(
@@ -1359,9 +1621,74 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             return false;
         }
         if (GatewayBehaviorConstants.DM_POLICY_ALLOWLIST.equals(dmPolicy)) {
-            return ChannelAllowListSupport.contains(config.getAllowedUsers(), userId);
+            return matchesDingTalkUserAllowList(message.getSenderId(), message.getSenderStaffId());
         }
         return true;
+    }
+
+    /**
+     * 按钉钉发送者 unionId 或 staffId 执行渠道硬允许名单校验。
+     *
+     * @param senderId 钉钉发送者 unionId。
+     * @param senderStaffId 钉钉发送者 staffId。
+     * @return 未配置名单、允许全部或任一标识命中时返回 true。
+     */
+    private boolean isDingTalkUserAllowed(String senderId, String senderStaffId) {
+        return config.isAllowAllUsers()
+                || config.getAllowedUsers() == null
+                || config.getAllowedUsers().isEmpty()
+                || matchesDingTalkUserAllowList(senderId, senderStaffId);
+    }
+
+    /** 判断发送者任一钉钉身份是否命中非空允许名单。 */
+    private boolean matchesDingTalkUserAllowList(String senderId, String senderStaffId) {
+        return ChannelAllowListSupport.contains(config.getAllowedUsers(), senderId)
+                || ChannelAllowListSupport.contains(config.getAllowedUsers(), senderStaffId);
+    }
+
+    /** 按卡片回调恢复的会话类型执行私聊或群聊策略校验。 */
+    private boolean allowCardCallback(GatewayMessage message) {
+        if (GatewayBehaviorConstants.CHAT_TYPE_GROUP.equals(message.getChatType())) {
+            String policy =
+                    StrUtil.blankToDefault(
+                                    config.getGroupPolicy(),
+                                    GatewayBehaviorConstants.GROUP_POLICY_OPEN)
+                            .toLowerCase();
+            return (config.getAllowedChats().isEmpty()
+                            || ChannelAllowListSupport.contains(
+                                    config.getAllowedChats(), message.getChatId()))
+                    && !GatewayBehaviorConstants.GROUP_POLICY_DISABLED.equals(policy)
+                    && (!GatewayBehaviorConstants.GROUP_POLICY_ALLOWLIST.equals(policy)
+                            || ChannelAllowListSupport.contains(
+                                    config.getGroupAllowedUsers(), message.getChatId()));
+        }
+        String policy =
+                StrUtil.blankToDefault(
+                                config.getDmPolicy(), GatewayBehaviorConstants.DM_POLICY_OPEN)
+                        .toLowerCase();
+        return !GatewayBehaviorConstants.DM_POLICY_DISABLED.equals(policy)
+                && (!GatewayBehaviorConstants.DM_POLICY_ALLOWLIST.equals(policy)
+                        || ChannelAllowListSupport.contains(
+                                config.getAllowedUsers(), message.getUserId()));
+    }
+
+    /** 判断文本是否命中任一配置的钉钉正则唤醒词；非法正则只忽略并记录。 */
+    private boolean matchesMentionPattern(String text) {
+        for (String expression : config.getMentionPatterns()) {
+            if (isBlank(expression)) {
+                continue;
+            }
+            try {
+                if (Pattern.compile(expression, Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE)
+                        .matcher(StrUtil.nullToEmpty(text))
+                        .find()) {
+                    return true;
+                }
+            } catch (PatternSyntaxException e) {
+                log.warn("[DINGTALK] invalid mention pattern ignored: errorType={}", errorType(e));
+            }
+        }
+        return false;
     }
 
     /**
@@ -1370,7 +1697,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param payload 待签名或解析的载荷内容。
      * @return 返回转换后的Card Callback消息。
      */
-    private GatewayMessage toCardCallbackMessage(Map<String, Object> payload) {
+    protected GatewayMessage toCardCallbackMessage(Map<String, Object> payload) {
         ONode node = ONode.ofJson(ONode.serialize(payload));
         String processKey =
                 StrUtil.firstNonBlank(
@@ -1385,7 +1712,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         node.get("openConversationId").getString(),
                         node.get("open_conversation_id").getString(),
                         findNested(node, "conversation", "openConversationId"),
-                        cardInstanceBindings.get(processKey));
+                        isBlank(processKey) ? null : cardInstanceBindings.get(processKey));
         String userId =
                 StrUtil.firstNonBlank(
                         node.get("userId").getString(),
@@ -1396,18 +1723,111 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (isBlank(chatId)) {
             chatId = "dingtalk-card";
         }
-        String text = "Card action: " + node.toJson();
+        String command = commandFromCardCallback(payload, 0);
+        String text = StrUtil.blankToDefault(command, "Card action: " + node.toJson());
         GatewayMessage message = new GatewayMessage(PlatformType.DINGTALK, chatId, userId, text);
-        message.setChatType(
-                conversationGroupFlags.containsKey(chatId)
-                                && Boolean.TRUE.equals(conversationGroupFlags.get(chatId))
-                        ? GatewayBehaviorConstants.CHAT_TYPE_GROUP
-                        : GatewayBehaviorConstants.CHAT_TYPE_DM);
+        message.setChatType(resolveCardCallbackChatType(node, chatId));
         message.setChatName(chatId);
         message.setUserName(StrUtil.blankToDefault(userId, "dingtalk-card"));
         message.setThreadId(
                 StrUtil.blankToDefault(processKey, "card-callback-" + System.currentTimeMillis()));
+        if (StrUtil.isNotBlank(command)) {
+            message.setSourceKeyOverride(
+                    GatewayMessage.directSourceKey(PlatformType.DINGTALK, chatId, userId));
+        }
         return message;
+    }
+
+    /** 从回调载荷、运行缓存或持久化状态恢复卡片所属会话类型。 */
+    private String resolveCardCallbackChatType(ONode node, String chatId) {
+        String payloadType =
+                StrUtil.firstNonBlank(
+                        node.get("conversationType").getString(),
+                        node.get("conversation_type").getString(),
+                        findNested(node, "conversation", "conversationType"));
+        if ("2".equals(payloadType) || "group".equalsIgnoreCase(payloadType)) {
+            return GatewayBehaviorConstants.CHAT_TYPE_GROUP;
+        }
+        if ("1".equals(payloadType) || "dm".equalsIgnoreCase(payloadType)) {
+            return GatewayBehaviorConstants.CHAT_TYPE_DM;
+        }
+        Boolean cached = conversationGroupFlags.get(chatId);
+        if (cached != null) {
+            return cached.booleanValue()
+                    ? GatewayBehaviorConstants.CHAT_TYPE_GROUP
+                    : GatewayBehaviorConstants.CHAT_TYPE_DM;
+        }
+        try {
+            return StrUtil.blankToDefault(
+                    channelStateRepository.get(PlatformType.DINGTALK, chatId, STATE_CHAT_TYPE),
+                    GatewayBehaviorConstants.CHAT_TYPE_DM);
+        } catch (Exception e) {
+            logRecoverableChannelFailure("restore_card_chat_type", e);
+            return GatewayBehaviorConstants.CHAT_TYPE_DM;
+        }
+    }
+
+    /**
+     * 从钉钉卡片回调的顶层、content 或 cardPrivateData 中提取统一审批动作。
+     *
+     * @param value 当前待解析节点。
+     * @param depth 当前递归深度。
+     * @return 可直接进入现有控制命令链的审批命令；未命中时返回 null。
+     */
+    private String commandFromCardCallback(Object value, int depth) {
+        if (value == null || depth > 6) {
+            return null;
+        }
+        if (value instanceof Map) {
+            String command = DangerousCommandApprovalService.commandFromCardActionPayload(value);
+            if (StrUtil.isNotBlank(command)) {
+                return command;
+            }
+            Map<?, ?> map = (Map<?, ?>) value;
+            String[] nestedKeys =
+                    new String[] {
+                        "content",
+                        "cardPrivateData",
+                        "value",
+                        "params",
+                        "action",
+                        "callbackData",
+                        "approveOnce",
+                        "approveSession",
+                        "approveAlways",
+                        "deny"
+                    };
+            for (String nestedKey : nestedKeys) {
+                Object nested = map.get(nestedKey);
+                command = commandFromCardCallback(nested, depth + 1);
+                if (StrUtil.isNotBlank(command)) {
+                    return command;
+                }
+            }
+            return null;
+        }
+        if (value instanceof Iterable) {
+            String command;
+            for (Object nested : (Iterable<?>) value) {
+                command = commandFromCardCallback(nested, depth + 1);
+                if (StrUtil.isNotBlank(command)) {
+                    return command;
+                }
+            }
+            return null;
+        }
+        if (!(value instanceof String)) {
+            return null;
+        }
+        String text = ((String) value).trim();
+        if (!text.startsWith("{") && !text.startsWith("[")) {
+            return null;
+        }
+        try {
+            return commandFromCardCallback(ONode.ofJson(text).toData(), depth + 1);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     /**

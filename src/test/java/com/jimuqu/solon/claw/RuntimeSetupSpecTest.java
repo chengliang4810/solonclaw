@@ -21,5 +21,6 @@ class RuntimeSetupSpecTest {
                 .containsEntry("iconKey", "feishu")
                 .containsEntry("order", 10)
                 .containsEntry("enabled", true);
+        assertThat(RuntimeSetupSpec.allowedChannelKeys("dingtalk")).contains("mentionPatterns");
     }
 }

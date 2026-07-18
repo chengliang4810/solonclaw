@@ -112,6 +112,7 @@ const primarySettingConfigs: Record<ChannelQrPlatform, PrimarySetting[]> = {
     { type: 'text', field: 'robot_code', source: 'credentials', label: '机器人编码', hint: '钉钉机器人编码', placeholder: '请输入机器人编码' },
     { type: 'switch', field: 'requireMention', labelKey: 'platform.requireMention', hintKey: 'platform.requireMentionGroup' },
     { type: 'text', field: 'freeResponseChats', source: 'channelList', labelKey: 'platform.freeResponseChats', hintKey: 'platform.freeResponseChatsHint', placeholder: 'chat_id1,chat_id2' },
+    { type: 'text', field: 'mentionPatterns', source: 'channelList', labelKey: 'platform.mentionPatterns', hintKey: 'platform.mentionPatternsHint', placeholder: '^小马,^solonclaw' },
   ],
   wecom: [],
   qqbot: [

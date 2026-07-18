@@ -256,6 +256,8 @@ public class RuntimeSetupService {
             config.setToolProgress(value);
         } else if ("progressCardTemplateId".equals(key)) {
             config.setProgressCardTemplateId(value);
+        } else if ("approvalCardTemplateId".equals(key)) {
+            config.setApprovalCardTemplateId(value);
         } else if ("allowedUsers".equals(key)) {
             config.setAllowedUsers(splitList(value));
         } else if ("groupAllowedUsers".equals(key)) {
@@ -264,6 +266,8 @@ public class RuntimeSetupService {
             config.setAllowedChats(splitList(value));
         } else if ("freeResponseChats".equals(key)) {
             config.setFreeResponseChats(splitList(value));
+        } else if ("mentionPatterns".equals(key)) {
+            config.setMentionPatterns(splitList(value));
         } else if ("allowAllUsers".equals(key)) {
             config.setAllowAllUsers(parseBoolean(value));
         } else if ("requireMention".equals(key)) {

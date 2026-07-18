@@ -17,9 +17,9 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class DingTalkAiCardRoutingTest {
-    /** 验证当前钉钉 AI Card 只使用显式 robotCode 配置。 */
+    /** 验证钉钉 AI Card 未显式配置 robotCode 时按上游行为复用 clientId。 */
     @Test
-    void shouldRequireExplicitRobotCodeForAiCardRouting() throws Exception {
+    void shouldFallbackToClientIdForAiCardRouting() throws Exception {
         AppConfig config = new AppConfig();
         File workspaceHome = Files.createTempDirectory("solonclaw-dingtalk-robot-code").toFile();
         config.getRuntime().setHome(workspaceHome.getAbsolutePath());
@@ -41,7 +41,7 @@ public class DingTalkAiCardRoutingTest {
                         stateRepository,
                         new AttachmentCacheService(config));
 
-        assertThat(adapter.exposeEffectiveRobotCode()).isEmpty();
+        assertThat(adapter.exposeEffectiveRobotCode()).isEqualTo("ding-client");
     }
 
     @Test

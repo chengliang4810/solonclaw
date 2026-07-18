@@ -19,12 +19,16 @@ public final class DingTalkProgressCardSupport {
      */
     public static String buildCardData(
             String title, String status, String summary, String detail, String updatedAt) {
+        ONode cardParams =
+                new ONode()
+                        .set("title", title)
+                        .set("status", status)
+                        .set("summary", summary)
+                        .set("detail", detail)
+                        .set("updatedAt", updatedAt);
         return new ONode()
-                .set("title", title)
-                .set("status", status)
-                .set("summary", summary)
-                .set("detail", detail)
-                .set("updatedAt", updatedAt)
+                .set("cardParamMap", cardParams.toData())
+                .set("cardMediaIdParamMap", new java.util.LinkedHashMap<String, Object>())
                 .toJson();
     }
 }

@@ -740,6 +740,15 @@ final class AppConfigLoader {
                 GatewayBehaviorConstants.GROUP_POLICY_OPEN);
         config.getChannels()
                 .getDingtalk()
+                .setRequireMention(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.channels.dingtalk.requireMention",
+                                        false)));
+        config.getChannels()
+                .getDingtalk()
                 .setEnabled(
                         resolveBoolean(
                                 readBoolean(
@@ -809,6 +818,15 @@ final class AppConfigLoader {
                                         props,
                                         overrides,
                                         "solonclaw.channels.dingtalk.progressCardTemplateId",
+                                        "")));
+        config.getChannels()
+                .getDingtalk()
+                .setApprovalCardTemplateId(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.channels.dingtalk.approvalCardTemplateId",
                                         "")));
         config.getChannels()
                 .getDingtalk()
@@ -2032,6 +2050,13 @@ final class AppConfigLoader {
                                 props,
                                 overrides,
                                 "solonclaw.channels." + channelName + ".freeResponseChats",
+                                "")));
+        channelConfig.setMentionPatterns(
+                resolveList(
+                        readRaw(
+                                props,
+                                overrides,
+                                "solonclaw.channels." + channelName + ".mentionPatterns",
                                 "")));
     }
 

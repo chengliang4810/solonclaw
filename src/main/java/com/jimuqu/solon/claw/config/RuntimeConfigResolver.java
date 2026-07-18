@@ -1116,7 +1116,8 @@ public class RuntimeConfigResolver {
                 "coolAppCode",
                 "streamUrl",
                 "toolProgress",
-                "progressCardTemplateId");
+                "progressCardTemplateId",
+                "approvalCardTemplateId");
         addAll(
                 mappings,
                 "solonclaw.channels.dingtalk.aiCardStreaming.enabled",
@@ -1184,7 +1185,8 @@ public class RuntimeConfigResolver {
                 base + "groupAllowedUsers",
                 base + "allowedChats",
                 base + "requireMention",
-                base + "freeResponseChats");
+                base + "freeResponseChats",
+                base + "mentionPatterns");
         for (String field : extraFields) {
             add(mappings, base + field);
         }
