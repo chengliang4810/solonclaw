@@ -249,12 +249,7 @@ public class DashboardControllerHttpTest {
         assertThat(index.status).isEqualTo(200);
         assertThat(index.cacheControl).contains("no-store").contains("max-age=0");
 
-        File[] assets =
-                new File(System.getProperty("user.dir"), "web/dist/assets")
-                        .listFiles((dir, name) -> name.endsWith(".js"));
-        assertThat(assets).isNotEmpty();
-
-        HttpResult asset = request("GET", "/assets/" + assets[0].getName(), null, null);
+        HttpResult asset = request("GET", "/assets/cache-header-test.abc123.js", null, null);
         assertThat(asset.status).isEqualTo(200);
         assertThat(asset.cacheControl).contains("max-age=31536000").contains("immutable");
 

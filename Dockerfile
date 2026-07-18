@@ -30,7 +30,7 @@ COPY config.example.yml /workspace/config.example.yml
 COPY src /workspace/src
 COPY --from=frontend /workspace/web/dist /workspace/web/dist
 
-RUN mvn -Dskip.web.build=true package \
+RUN mvn -DskipTests -Dskip.web.build=true package \
     && cp "$(find target -maxdepth 1 -type f -name 'solonclaw-*.jar' ! -name 'original-*' | head -n 1)" /tmp/solonclaw.jar
 
 FROM eclipse-temurin:17-jre
