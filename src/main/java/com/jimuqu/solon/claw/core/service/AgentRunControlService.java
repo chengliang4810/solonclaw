@@ -7,6 +7,13 @@ import java.util.Map;
 
 /** 定义Agent运行Control的抽象契约，供不同运行时实现保持一致行为。 */
 public interface AgentRunControlService {
+    /** 可释放的入站运行占位，用于把空闲判断与后续运行注册原子衔接。 */
+    interface IncomingReservation extends AutoCloseable {
+        /** 释放尚未升级为真实 run 的占位；已经升级时调用无副作用。 */
+        @Override
+        void close();
+    }
+
     /**
      * 停止当前组件并释放运行状态。
      *
@@ -33,6 +40,28 @@ public interface AgentRunControlService {
      * @return 如果Running满足条件则返回 true，否则返回 false。
      */
     boolean isRunning(String sourceKey);
+
+    /**
+     * 仅在来源键当前空闲时原子领取入站运行占位。
+     *
+     * <p>默认实现表示当前运行控制器不支持原子交接；调用方不得把 {@code null} 当作空闲证明。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @return 成功领取时返回可释放占位；繁忙或不支持时返回 null。
+     */
+    default IncomingReservation tryReserveIncoming(String sourceKey, String sessionId) {
+        return null;
+    }
+
+    /**
+     * 返回当前实现是否支持原子入站占位。
+     *
+     * @return 支持 {@link #tryReserveIncoming(String, String)} 时返回 true。
+     */
+    default boolean supportsIncomingReservation() {
+        return false;
+    }
 
     /**
      * 判断是否存在Running运行。

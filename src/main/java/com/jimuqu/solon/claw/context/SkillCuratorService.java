@@ -119,7 +119,8 @@ public class SkillCuratorService {
         Map<String, Object> skillsState = ensureMap(state, "skills");
         int aiCandidates = 0;
         for (SkillDescriptor descriptor : localSkillService.listSkills(null)) {
-            if (!"agent-created".equals(descriptor.getTrustLevel())) {
+            if (!"agent-created".equals(descriptor.getTrustLevel())
+                    || !isAgentCreated(skillsState, descriptor.canonicalName())) {
                 continue;
             }
             boolean allowAi =
@@ -153,6 +154,16 @@ public class SkillCuratorService {
         return report(state, now, "ok", items);
     }
 
+    /** 仅允许整理器维护明确标记为后台 Agent 创建的技能。 */
+    @SuppressWarnings("unchecked")
+    private boolean isAgentCreated(Map<String, Object> skillsState, String canonicalName) {
+        Object raw = skillsState == null ? null : skillsState.get(canonicalName);
+        if (!(raw instanceof Map)) {
+            return false;
+        }
+        return "agent".equals(String.valueOf(((Map<String, Object>) raw).get("createdBy")));
+    }
+
     /** 把评估字段合并回最新状态，同时保留评估期间新增的次数、会话引用和暂停状态。 */
     @SuppressWarnings("unchecked")
     private void mergeEvaluatedState(
@@ -168,14 +179,50 @@ public class SkillCuratorService {
             if (!(entry.getValue() instanceof Map)) {
                 continue;
             }
+            if (!currentSkills.containsKey(entry.getKey())
+                    || !(currentSkills.get(entry.getKey()) instanceof Map)) {
+                continue;
+            }
             Map<String, Object> evaluated = (Map<String, Object>) entry.getValue();
-            Map<String, Object> latest =
-                    currentSkills.get(entry.getKey()) instanceof Map
-                            ? (Map<String, Object>) currentSkills.get(entry.getKey())
-                            : new LinkedHashMap<String, Object>();
+            Map<String, Object> latest = (Map<String, Object>) currentSkills.get(entry.getKey());
+            if (!sameProvenanceGeneration(latest, evaluated)) {
+                continue;
+            }
             Map<String, Object> merged = new LinkedHashMap<String, Object>(evaluated);
+            preserveLatestProvenance(latest, merged);
             preserveLatestActivity(latest, merged);
             currentSkills.put(entry.getKey(), merged);
+        }
+    }
+
+    /** 来源摘要变化代表技能正文或同名实体已更新，旧快照不得覆盖新一代状态。 */
+    private boolean sameProvenanceGeneration(
+            Map<String, Object> latest, Map<String, Object> evaluated) {
+        return StrUtil.equals(
+                        String.valueOf(latest.get("createdBy")),
+                        String.valueOf(evaluated.get("createdBy")))
+                && StrUtil.equals(
+                        String.valueOf(latest.get("contentHash")),
+                        String.valueOf(evaluated.get("contentHash")))
+                && StrUtil.equals(
+                        String.valueOf(latest.get("generation")),
+                        String.valueOf(evaluated.get("generation")))
+                && StrUtil.equals(
+                        String.valueOf(latest.get("fileIdentity")),
+                        String.valueOf(evaluated.get("fileIdentity")))
+                && asLong(latest.get("createdAt")) == asLong(evaluated.get("createdAt"));
+    }
+
+    /** 合并评估结果时始终以最新来源字段为准，避免并发学习状态被旧快照回滚。 */
+    private void preserveLatestProvenance(Map<String, Object> latest, Map<String, Object> merged) {
+        for (String key :
+                java.util.Arrays.asList(
+                        "createdBy", "contentHash", "generation", "fileIdentity", "createdAt")) {
+            if (latest.containsKey(key)) {
+                merged.put(key, latest.get(key));
+            } else {
+                merged.remove(key);
+            }
         }
     }
 

@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
+import com.jimuqu.solon.claw.support.ExecutorShutdownSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
@@ -226,6 +227,6 @@ public class SkillCuratorAiEvaluator {
 
     /** 关闭辅助模型执行器。 */
     public void shutdown() {
-        executor.shutdownNow();
+        ExecutorShutdownSupport.drain(executor);
     }
 }

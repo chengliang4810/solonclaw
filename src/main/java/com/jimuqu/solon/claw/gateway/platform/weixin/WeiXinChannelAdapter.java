@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
+import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BaseUrlSupport;
@@ -300,10 +301,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         setMissingConfig(new String[0]);
         clearLastError();
         disconnecting = false;
-        setConnected(true);
-        setSetupState("connected");
-        setDetail("long-poll configured");
-        ensureInboundExecutor();
+        setConnected(false);
+        setSetupState("connecting");
+        setDetail("long-poll connecting");
+        ExecutorService currentInboundExecutor = ensureInboundExecutor();
+        queuePlatformPendingInboundRecovery(currentInboundExecutor);
         startPolling();
         return true;
     }
@@ -1331,18 +1333,21 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 if (errCode != 0 || ret != 0) {
                     log.warn("[WEIXIN] getupdates failed: {}", safeJson(response));
                     if (errCode == -14 || ret == -14) {
-                        setLastError("weixin_session_expired", safeJson(response));
-                        setDetail("session expired");
-                        sleepQuietly(10);
-                        continue;
+                        markPollingUnavailable(
+                                "weixin_session_expired", "session expired", safeJson(response));
+                    } else {
+                        markPollingUnavailable(
+                                "weixin_poll_failed", "poll failed", safeJson(response));
                     }
-                    setLastError("weixin_poll_failed", safeJson(response));
-                    setDetail("poll failed");
-                    sleepQuietly(2);
-                    continue;
+                    return;
                 }
                 clearLastError();
                 setDetail("long-poll active");
+                if (!isConnected()) {
+                    setConnected(true);
+                    setSetupState("connected");
+                    notifyConnectionReady();
+                }
                 String nextSyncBuf = response.get("get_updates_buf").getString();
                 ONode msgs = response.get("msgs");
                 for (int i = 0; i < msgs.size(); i++) {
@@ -1355,9 +1360,20 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             } catch (Exception e) {
                 log.warn(
                         "[WEIXIN] poll failed: errorType={}, error={}", errorType(e), safeError(e));
-                sleepQuietly(2);
+                markPollingUnavailable("weixin_poll_failed", "poll failed", safeError(e));
+                return;
             }
         }
+    }
+
+    /** 标记长轮询不可用并把唯一重连责任交给统一连接管理器。 */
+    private void markPollingUnavailable(String errorCode, String detail, String error) {
+        polling = false;
+        setConnected(false);
+        setSetupState("error");
+        setLastError(errorCode, error);
+        setDetail(detail);
+        requestReconnect();
     }
 
     /**
@@ -1365,7 +1381,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      *
      * @param message 平台消息或错误消息。
      */
-    private void processInboundMessage(ONode message) {
+    private void processInboundMessage(ONode message) throws Exception {
         if (disconnecting) {
             return;
         }
@@ -1421,10 +1437,22 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         gatewayMessage.setChatType(chatTarget.chatType);
         gatewayMessage.setChatName(chatTarget.chatId);
         gatewayMessage.setUserName(senderId);
+        gatewayMessage.setPlatformMessageId(StrUtil.trimToNull(messageId));
+        gatewayMessage.setReplyToMessageId(StrUtil.trimToNull(messageId));
         gatewayMessage.setAttachments(attachments);
+        try {
+            if (!admitInboundMessage(gatewayMessage)) {
+                return;
+            }
+        } catch (Exception e) {
+            if (hasMessageId) {
+                recentMessageIds.remove(messageId);
+            }
+            throw e;
+        }
         // 审批与取消命令不能经过文本去抖或普通入站队列；它们不拥有 typing 生命周期，避免影响正在运行的原任务。
         if (isControlCommand(gatewayMessage.getText())) {
-            dispatchInboundControl(gatewayMessage);
+            dispatchAdmittedInboundControl(gatewayMessage);
             return;
         }
         if (attachments.isEmpty() && StrUtil.isNotBlank(text)) {
@@ -1435,6 +1463,15 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         flushTextBatchBeforeImmediateDispatch(gatewayMessage);
         dispatchInboundMessage(
                 gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken, null);
+    }
+
+    /** 在推进微信同步游标或进入任何异步队列前同步完成中央入站准入。 */
+    private boolean admitInboundMessage(GatewayMessage message) throws Exception {
+        InboundMessageHandler handler = inboundMessageHandler();
+        if (handler == null) {
+            throw new IllegalStateException("Weixin inbound handler is not bound");
+        }
+        return handler.admit(message);
     }
 
     /**
@@ -1741,28 +1778,29 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         // 兜底处理非文本批次路径中的控制命令；常规文本命令已在入站解析后直接投递。
         if (isControlCommand(gatewayMessage.getText())) {
             stopTypingLifecycle(typingLifecycle, false);
-            dispatchInboundControl(gatewayMessage);
+            dispatchAdmittedInboundControl(gatewayMessage);
             return;
         }
         try {
-            ensureInboundExecutor()
-                    .submit(
-                            new Runnable() {
-                                /** 执行异步任务主体。 */
-                                @Override
-                                public void run() {
-                                    try {
-                                        inboundMessageHandler().handle(gatewayMessage);
-                                    } catch (Exception e) {
-                                        log.warn(
-                                                "[WEIXIN] inbound dispatch failed: errorType={}, error={}",
-                                                errorType(e),
-                                                safeError(e));
-                                    } finally {
-                                        stopTypingLifecycle(typingLifecycle, false);
-                                    }
-                                }
-                            });
+            ExecutorService currentInboundExecutor = ensureInboundExecutor();
+            submitInboundAfterPendingRecovery(
+                    currentInboundExecutor,
+                    new Runnable() {
+                        /** 执行异步任务主体。 */
+                        @Override
+                        public void run() {
+                            try {
+                                inboundMessageHandler().handleAdmitted(gatewayMessage);
+                            } catch (Exception e) {
+                                log.warn(
+                                        "[WEIXIN] inbound dispatch failed: errorType={}, error={}",
+                                        errorType(e),
+                                        safeError(e));
+                            } finally {
+                                stopTypingLifecycle(typingLifecycle, false);
+                            }
+                        }
+                    });
         } catch (Exception e) {
             stopTypingLifecycle(typingLifecycle, false);
             log.warn(
@@ -1858,65 +1896,46 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private void collectMedia(ONode item, List<MessageAttachment> attachments, boolean fromQuote) {
         int type = item.get("type").getInt();
-        try {
-            if (type == ITEM_IMAGE) {
-                MessageAttachment attachment =
-                        downloadAttachment(
-                                "image",
-                                item.get("image_item"),
-                                "image.jpg",
-                                "image/jpeg",
-                                fromQuote);
-                if (attachment != null) {
-                    attachments.add(attachment);
-                }
-            } else if (type == ITEM_VIDEO) {
-                MessageAttachment attachment =
-                        downloadAttachment(
-                                "video",
-                                item.get("video_item"),
-                                "video.mp4",
-                                "video/mp4",
-                                fromQuote);
-                if (attachment != null) {
-                    attachments.add(attachment);
-                }
-            } else if (type == ITEM_FILE) {
-                String originalName = item.get("file_item").get("file_name").getString();
-                MessageAttachment attachment =
-                        downloadAttachment(
-                                "file",
-                                item.get("file_item"),
-                                StrUtil.blankToDefault(originalName, "document.bin"),
-                                null,
-                                fromQuote);
-                if (attachment != null) {
-                    attachments.add(attachment);
-                }
-            } else if (type == 3) {
-                MessageAttachment attachment =
-                        downloadAttachment(
-                                "voice",
-                                item.get("voice_item"),
-                                "voice.silk",
-                                "audio/silk",
-                                fromQuote);
-                if (attachment != null) {
-                    String voiceText = item.get("voice_item").get("text").getString();
-                    attachment.setTranscribedText(StrUtil.nullToEmpty(voiceText).trim());
-                    attachments.add(attachment);
-                }
+        if (type == ITEM_IMAGE) {
+            MessageAttachment attachment =
+                    createAttachmentReference(
+                            "image", item.get("image_item"), "image.jpg", "image/jpeg", fromQuote);
+            if (attachment != null) {
+                attachments.add(attachment);
             }
-        } catch (Exception e) {
-            log.warn(
-                    "[WEIXIN] collect media failed: errorType={}, error={}",
-                    errorType(e),
-                    safeError(e));
+        } else if (type == ITEM_VIDEO) {
+            MessageAttachment attachment =
+                    createAttachmentReference(
+                            "video", item.get("video_item"), "video.mp4", "video/mp4", fromQuote);
+            if (attachment != null) {
+                attachments.add(attachment);
+            }
+        } else if (type == ITEM_FILE) {
+            String originalName = item.get("file_item").get("file_name").getString();
+            MessageAttachment attachment =
+                    createAttachmentReference(
+                            "file",
+                            item.get("file_item"),
+                            StrUtil.blankToDefault(originalName, "document.bin"),
+                            null,
+                            fromQuote);
+            if (attachment != null) {
+                attachments.add(attachment);
+            }
+        } else if (type == 3) {
+            MessageAttachment attachment =
+                    createAttachmentReference(
+                            "voice", item.get("voice_item"), "voice.silk", "audio/silk", fromQuote);
+            if (attachment != null) {
+                String voiceText = item.get("voice_item").get("text").getString();
+                attachment.setTranscribedText(StrUtil.nullToEmpty(voiceText).trim());
+                attachments.add(attachment);
+            }
         }
     }
 
     /**
-     * 执行download附件相关逻辑。
+     * 创建可持久化的微信原始附件引用。
      *
      * @param kind kind 参数。
      * @param payload 待签名或解析的载荷内容。
@@ -1925,7 +1944,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param fromQuote fromQuote 参数。
      * @return 返回download附件结果。
      */
-    private MessageAttachment downloadAttachment(
+    private MessageAttachment createAttachmentReference(
             String kind,
             ONode payload,
             String fallbackName,
@@ -1937,11 +1956,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         ONode media = payload.get("media");
         String encryptedQuery = media.get("encrypt_query_param").getString();
         String fullUrl = media.get("full_url").getString();
-        byte[] raw = downloadBytes(resolveInboundUrl(encryptedQuery, fullUrl));
-        byte[] key =
-                parseAesKey(payload.get("aeskey").getString(), media.get("aes_key").getString());
-        if (key != null) {
-            raw = decryptAesEcb(raw, key);
+        String sourceReference = StrUtil.firstNonBlank(encryptedQuery, fullUrl);
+        if (StrUtil.isBlank(sourceReference)) {
+            return null;
         }
         String originalName = fallbackName;
         if ("file".equals(kind)) {
@@ -1949,14 +1966,57 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     StrUtil.blankToDefault(payload.get("file_name").getString(), fallbackName);
         }
         String mimeType = AttachmentCacheService.normalizeMimeType(fallbackMime, originalName);
-        return attachmentCacheService.cacheBytes(
-                PlatformType.WEIXIN,
-                kind,
-                originalName,
-                mimeType,
-                fromQuote,
-                payload.get("text").getString(),
-                raw);
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind(kind);
+        attachment.setOriginalName(originalName);
+        attachment.setMimeType(mimeType);
+        attachment.setFromQuote(fromQuote);
+        attachment.setTranscribedText(payload.get("text").getString());
+        attachment.setSourceReference(sourceReference);
+        attachment.setSourceContext(media.get("aes_key").getString());
+        attachment.setSourceEncryptionKey(payload.get("aeskey").getString());
+        attachment.setSourceResourceType(
+                StrUtil.isNotBlank(encryptedQuery) ? "encrypted_query" : "full_url");
+        return attachment;
+    }
+
+    /** 准入完成后下载并解密微信附件；失败时让 pending receipt 留待恢复。 */
+    @Override
+    public void hydrateInboundAttachments(GatewayMessage message) throws Exception {
+        if (message == null || message.getAttachments() == null) {
+            return;
+        }
+        List<MessageAttachment> hydrated = new ArrayList<MessageAttachment>();
+        for (MessageAttachment attachment : message.getAttachments()) {
+            if (attachment == null || StrUtil.isBlank(attachment.getSourceReference())) {
+                hydrated.add(attachment);
+                continue;
+            }
+            String encryptedQuery =
+                    "encrypted_query".equals(attachment.getSourceResourceType())
+                            ? attachment.getSourceReference()
+                            : null;
+            String fullUrl =
+                    "full_url".equals(attachment.getSourceResourceType())
+                            ? attachment.getSourceReference()
+                            : null;
+            byte[] raw = downloadBytes(resolveInboundUrl(encryptedQuery, fullUrl));
+            byte[] key =
+                    parseAesKey(attachment.getSourceEncryptionKey(), attachment.getSourceContext());
+            if (key != null) {
+                raw = decryptAesEcb(raw, key);
+            }
+            hydrated.add(
+                    attachmentCacheService.cacheBytes(
+                            PlatformType.WEIXIN,
+                            attachment.getKind(),
+                            attachment.getOriginalName(),
+                            attachment.getMimeType(),
+                            attachment.isFromQuote(),
+                            attachment.getTranscribedText(),
+                            raw));
+        }
+        message.setAttachments(hydrated);
     }
 
     /**
@@ -2701,7 +2761,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 message.setText(existing + "\n" + nextText);
             }
             message.setThreadId(nextMessage.getThreadId());
+            message.setReplyToMessageId(nextMessage.getReplyToMessageId());
             message.setTimestamp(nextMessage.getTimestamp());
+            if (nextMessage.getInboundReceiptIds() != null
+                    && !nextMessage.getInboundReceiptIds().isEmpty()) {
+                message.getInboundReceiptIds().addAll(nextMessage.getInboundReceiptIds());
+            }
             this.chatType = nextChatType;
             this.chatId = nextChatId;
             this.contextToken = nextContextToken;

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.context;
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.SecureUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -17,6 +18,7 @@ import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
+import com.jimuqu.solon.claw.support.ExecutorShutdownSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -48,6 +50,12 @@ import org.slf4j.LoggerFactory;
 public class AsyncSkillLearningService implements SkillLearningService {
     /** 记录异步技能学习关键路径中的可恢复异常，便于诊断学习闭环降级原因。 */
     private static final Logger log = LoggerFactory.getLogger(AsyncSkillLearningService.class);
+
+    /** 后台学习自动创建技能时写入的来源标记。 */
+    private static final String CREATED_BY_AGENT = "agent";
+
+    /** 自动技能来源记录中的最近一次受控内容摘要字段。 */
+    private static final String CONTENT_HASH_KEY = "contentHash";
 
     /** 注入应用配置，用于异步技能Learning。 */
     private final AppConfig appConfig;
@@ -111,8 +119,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
 
     /** 关闭当前组件持有的运行资源。 */
     public void shutdown() {
-        executorService.shutdownNow();
-        auxiliaryExecutorService.shutdownNow();
+        ExecutorShutdownSupport.drain(executorService);
+        ExecutorShutdownSupport.drain(auxiliaryExecutorService);
     }
 
     /**
@@ -264,13 +272,16 @@ public class AsyncSkillLearningService implements SkillLearningService {
             }
             String result;
             boolean written;
+            Exception writeFailure = null;
             try {
                 result = memoryService.add(MemoryConstants.TARGET_MEMORY, candidate);
                 written = StrUtil.contains(result, "已写入");
             } catch (Exception e) {
                 result = "memory write failed: " + SecretRedactor.redact(e.toString(), 200);
                 written = false;
+                writeFailure = e;
             }
+            boolean accepted = written || isHandledMemoryWriteResult(result);
             writeImprovementReport(
                     session,
                     null,
@@ -282,6 +293,12 @@ public class AsyncSkillLearningService implements SkillLearningService {
                             ? Collections.singletonList(MemoryConstants.MEMORY_FILE_NAME)
                             : Collections.<String>emptyList(),
                     false);
+            if (!accepted) {
+                throw new IllegalStateException(
+                        "Long-term memory write was not accepted: "
+                                + SecretRedactor.redact(result, 200),
+                        writeFailure);
+            }
             return;
         }
         SkillDescriptor descriptor = findSkill(skillName);
@@ -290,10 +307,9 @@ public class AsyncSkillLearningService implements SkillLearningService {
             decision = "update_existing_skill";
         }
         if (descriptor == null) {
-            localSkillService.createSkill(
-                    skillName,
-                    null,
-                    buildSkillContent(skillName, session, message, hasRecentCheckpoint));
+            String createdContent =
+                    buildSkillContent(skillName, session, message, hasRecentCheckpoint);
+            localSkillService.createAgentSkill(skillName, null, createdContent);
             writeImprovementReport(
                     session,
                     skillName,
@@ -302,15 +318,42 @@ public class AsyncSkillLearningService implements SkillLearningService {
                     Collections.singletonList("SKILL.md"),
                     false);
         } else {
-            patchExistingSkill(skillName, session, message, hasRecentCheckpoint);
+            String canonicalName = descriptor.canonicalName();
+            AutonomousWriteBaseline baseline = autonomousWriteBaseline(canonicalName);
+            if (baseline == null) {
+                writeImprovementReport(
+                        session,
+                        canonicalName,
+                        "protected_manual_skill",
+                        "Skipped automatic update because the skill is not marked as agent-created.",
+                        Collections.<String>emptyList(),
+                        true);
+                return;
+            }
+            boolean updated =
+                    patchExistingSkill(skillName, session, message, hasRecentCheckpoint, baseline);
             writeImprovementReport(
                     session,
-                    skillName,
-                    "update_existing_skill",
-                    "Updated existing skill after rubric/class-first evaluation.",
-                    Collections.singletonList("SKILL.md"),
-                    false);
+                    canonicalName,
+                    updated ? "update_existing_skill" : "concurrent_manual_edit",
+                    updated
+                            ? "Updated existing skill after rubric/class-first evaluation."
+                            : "Skipped automatic update because SKILL.md changed during evaluation.",
+                    updated
+                            ? Collections.singletonList("SKILL.md")
+                            : Collections.<String>emptyList(),
+                    !updated);
         }
+    }
+
+    /** 判断记忆写入是否已落盘、进入持久审批队列或被稳定规则明确处理。 */
+    private boolean isHandledMemoryWriteResult(String result) {
+        String normalized = StrUtil.nullToEmpty(result);
+        return StrUtil.contains(normalized, "已写入")
+                || StrUtil.contains(normalized, "记忆条目已存在")
+                || StrUtil.contains(normalized, "已暂存待审批")
+                || StrUtil.contains(normalized, "已存在相同待审批")
+                || StrUtil.contains(normalized, "不会写入长期记忆");
     }
 
     /**
@@ -551,23 +594,32 @@ public class AsyncSkillLearningService implements SkillLearningService {
      * @param session 会话参数。
      * @param message 平台消息或错误消息。
      * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
+     * @param baseline 来源状态记录的受控正文摘要和唯一代次。
      */
-    private void patchExistingSkill(
+    private boolean patchExistingSkill(
             String skillName,
             SessionRecord session,
             GatewayMessage message,
-            boolean hasRecentCheckpoint)
+            boolean hasRecentCheckpoint,
+            AutonomousWriteBaseline baseline)
             throws Exception {
         SkillView view = localSkillService.viewSkill(skillName, null);
+        String originalContent = view.getContent();
+        if (!StrUtil.equals(baseline.contentHash, skillContentHash(originalContent))) {
+            return false;
+        }
         String modelContent =
                 summarizeSkillWithModel(
-                        skillName, session, message, hasRecentCheckpoint, view.getContent());
+                        skillName, session, message, hasRecentCheckpoint, originalContent);
         if (StrUtil.isNotBlank(modelContent)) {
-            localSkillService.editSkill(skillName, modelContent);
-            return;
+            return localSkillService.editAgentSkillIfUnchanged(
+                    skillName,
+                    originalContent,
+                    baseline.contentHash,
+                    baseline.generation,
+                    modelContent);
         }
 
-        String content = view.getContent();
         String progressBullet =
                 "- "
                         + StrUtil.blankToDefault(
@@ -577,57 +629,77 @@ public class AsyncSkillLearningService implements SkillLearningService {
         String verificationBullet =
                 "- 当前任务验证点："
                         + StrUtil.blankToDefault(
-                                sanitizeLearningText(message.getText()), "继续核对结果是否满足用户要求。");
+                                sanitizeLearningText(message == null ? "" : message.getText()),
+                                "继续核对结果是否满足用户要求。");
         if (hasRecentCheckpoint) {
             verificationBullet = verificationBullet + " 执行前确认 checkpoint 策略。";
         }
 
-        boolean updated = false;
-        if (!content.contains(progressBullet)) {
-            updated |= patchOrAppend(skillName, "# 已验证流程\n", "# 已验证流程\n" + progressBullet + "\n");
-        }
-        if (!content.contains(pitfallBullet)) {
-            updated |=
-                    patchOrAppend(skillName, "# Pitfalls\n", "# Pitfalls\n" + pitfallBullet + "\n");
-        }
-        if (!content.contains(verificationBullet)) {
-            updated |=
-                    patchOrAppend(
-                            skillName,
-                            "# Verification\n",
-                            "# Verification\n" + verificationBullet + "\n");
-        }
+        String updatedContent =
+                appendMissingSections(
+                        originalContent, progressBullet, pitfallBullet, verificationBullet);
+        return localSkillService.editAgentSkillIfUnchanged(
+                skillName,
+                originalContent,
+                baseline.contentHash,
+                baseline.generation,
+                updatedContent);
+    }
 
-        SkillView refreshed = localSkillService.viewSkill(skillName, null);
-        if (!updated
-                || !refreshed.getContent().contains(progressBullet)
-                || !refreshed.getContent().contains(pitfallBullet)
-                || !refreshed.getContent().contains(verificationBullet)) {
-            localSkillService.editSkill(
-                    skillName,
-                    appendMissingSections(
-                            refreshed.getContent(),
-                            progressBullet,
-                            pitfallBullet,
-                            verificationBullet));
+    /** 读取后台学习可维护的受控正文摘要和唯一来源代次；来源不完整时返回 null。 */
+    @SuppressWarnings("unchecked")
+    private AutonomousWriteBaseline autonomousWriteBaseline(String canonicalName) {
+        Map<String, Object> state = curatorStateStore().read();
+        Object rawSkills = state.get("skills");
+        if (!(rawSkills instanceof Map)) {
+            return null;
+        }
+        Map<String, Object> skills = (Map<String, Object>) rawSkills;
+        if (!skills.containsKey(canonicalName)) {
+            return null;
+        }
+        Object rawRecord = skills.get(canonicalName);
+        if (!(rawRecord instanceof Map)) {
+            return null;
+        }
+        Map<String, Object> record = (Map<String, Object>) rawRecord;
+        Object createdBy = record.get("createdBy");
+        String expectedHash = String.valueOf(record.get(CONTENT_HASH_KEY));
+        String generation = String.valueOf(record.get("generation"));
+        if (!CREATED_BY_AGENT.equals(String.valueOf(createdBy))
+                || StrUtil.isBlank(expectedHash)
+                || "null".equals(expectedHash)
+                || StrUtil.isBlank(generation)
+                || "null".equals(generation)) {
+            return null;
+        }
+        return new AutonomousWriteBaseline(expectedHash, generation);
+    }
+
+    /** 生成技能正文的稳定 SHA-256 摘要。 */
+    private String skillContentHash(String content) {
+        return SecureUtil.sha256(StrUtil.nullToEmpty(content));
+    }
+
+    /** 后台技能写入必须同时匹配的来源基线。 */
+    private static final class AutonomousWriteBaseline {
+        /** 受控正文摘要。 */
+        private final String contentHash;
+
+        /** 唯一来源代次。 */
+        private final String generation;
+
+        /** 创建来源基线。 */
+        private AutonomousWriteBaseline(String contentHash, String generation) {
+            this.contentHash = contentHash;
+            this.generation = generation;
         }
     }
 
-    /**
-     * 执行补丁OrAppend相关逻辑。
-     *
-     * @param skillName 技能名称参数。
-     * @param header header 参数。
-     * @param replacement replacement 参数。
-     * @return 返回patch Or Append结果。
-     */
-    private boolean patchOrAppend(String skillName, String header, String replacement) {
-        try {
-            localSkillService.patchSkill(skillName, header, replacement, null);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+    /** 返回异步学习与整理器共享的技能来源状态仓储。 */
+    private CuratorStateStore curatorStateStore() {
+        return new CuratorStateStore(
+                new File(appConfig.getRuntime().getSkillsDir(), ".curator_state"));
     }
 
     /**

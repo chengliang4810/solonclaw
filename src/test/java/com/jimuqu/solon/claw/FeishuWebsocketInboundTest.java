@@ -70,6 +70,7 @@ public class FeishuWebsocketInboundTest {
         assertThat(captured.get().getText()).isEqualTo("hello websocket");
         assertThat(captured.get().getThreadId()).isEqualTo("omt_ws_1");
         assertThat(captured.get().getReplyToMessageId()).isEqualTo("om_ws_1");
+        assertThat(captured.get().getPlatformMessageId()).isEqualTo("om_ws_1");
     }
 
     @Test

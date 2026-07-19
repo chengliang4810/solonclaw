@@ -178,6 +178,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         try {
             String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL).trim();
             callbackExecutor = Executors.newSingleThreadExecutor();
+            queuePlatformPendingInboundRecovery(callbackExecutor);
             CountDownLatch latch = new CountDownLatch(1);
             Request request = new Request.Builder().url(wsUrl).build();
             webSocket = client.newWebSocket(request, new Listener(latch));
@@ -201,6 +202,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
             setMissingConfig(new String[0]);
             clearLastError();
             setDetail("websocket subscribed");
+            notifyConnectionReady();
             return true;
         } catch (Exception e) {
             if (webSocket != null) {
@@ -392,9 +394,6 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (callbackExecutor == null || inboundMessageHandler() == null) {
             return;
         }
-        if (inboundMessageDeduplicator.isDuplicate(payload.get("body").get("msgid").getString())) {
-            return;
-        }
         // 先解析入站消息，便于识别控制命令；控制命令走并发执行器避免被运行中的任务阻塞而错过取消时机
         final GatewayMessage message;
         try {
@@ -409,16 +408,23 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (message == null) {
             return;
         }
-        if (isControlCommand(message.getText())) {
-            dispatchInboundControl(message);
+        if (!admitInboundBeforeAsync(message)) {
             return;
         }
-        callbackExecutor.submit(
+        if (inboundMessageDeduplicator.isDuplicate(message.getPlatformMessageId())) {
+            return;
+        }
+        if (isControlCommand(message.getText())) {
+            dispatchAdmittedInboundControl(message);
+            return;
+        }
+        submitInboundAfterPendingRecovery(
+                callbackExecutor,
                 new Runnable() {
                     /** 执行异步任务主体。 */
                     public void run() {
                         try {
-                            inboundMessageHandler().handle(message);
+                            inboundMessageHandler().handleAdmitted(message);
                         } catch (Exception e) {
                             log.warn(
                                     "[WECOM] inbound dispatch failed: errorType={}, error={}",
@@ -460,6 +466,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatName(chatId);
         message.setUserName(userId);
         message.setReplyToMessageId(msgId);
+        message.setPlatformMessageId(msgId);
         message.setAttachments(attachments);
         return message;
     }
@@ -536,7 +543,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     /**
-     * 追加附件。
+     * 追加可持久化的企业微信原始附件引用。
      *
      * @param attachments attachments 参数。
      * @param kind kind 参数。
@@ -550,11 +557,6 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (StrUtil.isBlank(url)) {
             return;
         }
-        byte[] data = downloadBytes(url, FILE_MAX_BYTES);
-        String aesKey = payload.get("aeskey").getString();
-        if (StrUtil.isNotBlank(aesKey)) {
-            data = decryptFileBytes(data, aesKey);
-        }
         String fileName = payload.get("filename").getString();
         if (StrUtil.isBlank(fileName)) {
             fileName = payload.get("name").getString();
@@ -565,15 +567,46 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         String mimeType =
                 AttachmentCacheService.normalizeMimeType(
                         payload.get("content_type").getString(), fileName);
-        attachments.add(
-                attachmentCacheService.cacheBytes(
-                        PlatformType.WECOM,
-                        kind,
-                        fileName,
-                        mimeType,
-                        fromQuote,
-                        payload.get("content").getString(),
-                        data));
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind(kind);
+        attachment.setOriginalName(fileName);
+        attachment.setMimeType(mimeType);
+        attachment.setUrl(url);
+        attachment.setFromQuote(fromQuote);
+        attachment.setTranscribedText(payload.get("content").getString());
+        attachment.setSourceReference(url);
+        attachment.setSourceEncryptionKey(payload.get("aeskey").getString());
+        attachment.setSourceResourceType("remote_url");
+        attachments.add(attachment);
+    }
+
+    /** 准入完成后下载并解密企业微信附件；失败时不领取 pending receipt。 */
+    @Override
+    public void hydrateInboundAttachments(GatewayMessage message) throws Exception {
+        if (message == null || message.getAttachments() == null) {
+            return;
+        }
+        List<MessageAttachment> hydrated = new ArrayList<MessageAttachment>();
+        for (MessageAttachment attachment : message.getAttachments()) {
+            if (attachment == null || StrUtil.isBlank(attachment.getSourceReference())) {
+                hydrated.add(attachment);
+                continue;
+            }
+            byte[] data = downloadBytes(attachment.getSourceReference(), FILE_MAX_BYTES);
+            if (StrUtil.isNotBlank(attachment.getSourceEncryptionKey())) {
+                data = decryptFileBytes(data, attachment.getSourceEncryptionKey());
+            }
+            hydrated.add(
+                    attachmentCacheService.cacheBytes(
+                            PlatformType.WECOM,
+                            attachment.getKind(),
+                            attachment.getOriginalName(),
+                            attachment.getMimeType(),
+                            attachment.isFromQuote(),
+                            attachment.getTranscribedText(),
+                            data));
+        }
+        message.setAttachments(hydrated);
     }
 
     /**

@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
+import com.jimuqu.solon.claw.context.CuratorStateStore;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -24,6 +25,20 @@ import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
 public class SkillCuratorServiceTest {
+    /** 人工维护的技能不得进入自动整理结果。 */
+    @Test
+    void shouldExcludeHumanMaintainedSkillsFromAutomatedCuration() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File manualSkill = createManualSkill(env, "manual-skill", false);
+        SkillCuratorService service = new SkillCuratorService(env.appConfig, env.localSkillService);
+
+        Map<String, Object> report = service.runOnce(true);
+
+        assertThat(String.valueOf(report)).doesNotContain("manual-skill");
+        assertThat(manualSkill).isDirectory();
+        service.shutdown();
+    }
+
     @Test
     void shouldMarkAgentCreatedSkillsAndWriteReportsWithoutDeleting() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -200,6 +215,54 @@ public class SkillCuratorServiceTest {
         assertThat(((Number) record.get("callCount")).longValue()).isEqualTo(2L);
     }
 
+    /** 慢评估期间同名重建必须保留新来源代次，旧快照不得回滚新技能状态。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldNotMergeCuratorSnapshotAcrossSkillGeneration() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String skillName = "concurrent-generation-skill";
+        File originalDir = createSkill(env, skillName, false);
+        String originalContent = FileUtil.readUtf8String(new File(originalDir, "SKILL.md"));
+        SessionRecord session = session(env, "generation-session", "请评估这个技能", "开始评估");
+        env.localSkillService.bumpUsage(skillName, "call", session.getSessionId(), 1);
+        CuratorStateStore store =
+                new CuratorStateStore(
+                        new File(env.appConfig.getRuntime().getSkillsDir(), ".curator_state"));
+        Map<String, Object> beforeSkills = (Map<String, Object>) store.read().get("skills");
+        String oldGeneration =
+                String.valueOf(
+                        ((Map<String, Object>) beforeSkills.get(skillName)).get("generation"));
+        BlockingGateway gateway = new BlockingGateway(skillName);
+        SkillCuratorService service =
+                new SkillCuratorService(
+                        env.appConfig, env.localSkillService, env.sessionRepository, gateway);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        String newGeneration;
+        try {
+            Future<Map<String, Object>> run = executor.submit(() -> service.runOnce(true));
+            assertThat(gateway.entered.await(2, TimeUnit.SECONDS)).isTrue();
+            env.localSkillService.deleteSkill(skillName);
+            env.localSkillService.createAgentSkill(skillName, null, originalContent);
+            Map<String, Object> recreatedSkills = (Map<String, Object>) store.read().get("skills");
+            newGeneration =
+                    String.valueOf(
+                            ((Map<String, Object>) recreatedSkills.get(skillName))
+                                    .get("generation"));
+            gateway.release.countDown();
+            run.get(2, TimeUnit.SECONDS);
+        } finally {
+            gateway.release.countDown();
+            executor.shutdownNow();
+            service.shutdown();
+        }
+
+        Map<String, Object> finalSkills = (Map<String, Object>) store.read().get("skills");
+        Map<String, Object> finalRecord = (Map<String, Object>) finalSkills.get(skillName);
+        assertThat(newGeneration).isNotEqualTo(oldGeneration);
+        assertThat(String.valueOf(finalRecord.get("generation"))).isEqualTo(newGeneration);
+        assertThat(finalRecord).doesNotContainKey("evaluation");
+    }
+
     /** 技能会话引用必须按最近顺序去重并严格限制为十条。 */
     @Test
     void shouldBoundRecentSkillSessionEvidence() throws Exception {
@@ -279,6 +342,19 @@ public class SkillCuratorServiceTest {
     }
 
     private File createSkill(TestEnvironment env, String name, boolean pinned) {
+        File dir = new File(env.appConfig.getRuntime().getSkillsDir(), name);
+        String frontmatter =
+                "---\nname: "
+                        + name
+                        + "\ndescription: demo\n"
+                        + (pinned ? "pinned: true\n" : "")
+                        + "---\n\n# Demo\n";
+        env.localSkillService.createAgentSkill(name, null, frontmatter);
+        return dir;
+    }
+
+    /** 创建没有 Agent 来源标记的人工技能。 */
+    private File createManualSkill(TestEnvironment env, String name, boolean pinned) {
         File dir = new File(env.appConfig.getRuntime().getSkillsDir(), name);
         FileUtil.mkdir(dir);
         String frontmatter =

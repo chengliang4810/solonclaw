@@ -161,12 +161,15 @@ final class DefaultBusyCommandHandler {
                         source.getPlatform(), source.getChatId(), source.getUserId(), text);
         copy.setThreadId(source.getThreadId());
         copy.setReplyToMessageId(source.getReplyToMessageId());
+        copy.setPlatformMessageId(source.getPlatformMessageId());
         copy.setChatType(source.getChatType());
         copy.setChatName(source.getChatName());
         copy.setUserName(source.getUserName());
+        copy.setProfile(source.getProfile());
         copy.setTimestamp(source.getTimestamp());
         copy.setHeartbeat(source.isHeartbeat());
         copy.setSourceKeyOverride(source.sourceKey());
+        copy.setReplyCommitter(source.getReplyCommitter());
         return copy;
     }
 

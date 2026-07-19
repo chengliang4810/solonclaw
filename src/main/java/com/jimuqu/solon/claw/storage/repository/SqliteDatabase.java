@@ -318,6 +318,33 @@ public class SqliteDatabase {
                             + "session_id text not null"
                             + ")");
             statement.execute(
+                    "create table if not exists channel_inbound_messages ("
+                            + "ingress_id text primary key,"
+                            + "message_key text not null unique,"
+                            + "profile text not null,"
+                            + "platform text not null,"
+                            + "source_key text not null,"
+                            + "message_json text not null,"
+                            + "status text not null,"
+                            + "attempts integer not null default 0,"
+                            + "reply_json text,"
+                            + "last_error text,"
+                            + "recovery_token text,"
+                            + "recovery_claimed_at integer,"
+                            + "created_at integer not null,"
+                            + "updated_at integer not null,"
+                            + "processed_at integer not null default 0,"
+                            + "completed_at integer not null default 0"
+                            + ")");
+            addColumn(statement, "channel_inbound_messages", "recovery_token text");
+            addColumn(statement, "channel_inbound_messages", "recovery_claimed_at integer");
+            statement.execute(
+                    "create index if not exists idx_channel_inbound_status"
+                            + " on channel_inbound_messages(profile, status, updated_at)");
+            statement.execute(
+                    "create index if not exists idx_channel_inbound_recovery"
+                            + " on channel_inbound_messages(profile, status, recovery_token, processed_at)");
+            statement.execute(
                     "create table if not exists tool_toggles ("
                             + "source_key text not null,"
                             + "tool_name text not null,"

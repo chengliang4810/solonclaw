@@ -148,6 +148,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         try {
             String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL);
             callbackExecutor = Executors.newSingleThreadExecutor();
+            queuePlatformPendingInboundRecovery(callbackExecutor);
             Request request =
                     new Request.Builder()
                             .url(wsUrl)
@@ -179,6 +180,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         webSocket = null;
         ChannelConnectionSupport.disconnect(current, callbackExecutor);
         callbackExecutor = null;
+        shutdownControlExecutor();
         setConnected(false);
         setDetail("disconnected");
     }
@@ -432,20 +434,34 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (callbackExecutor == null || inboundMessageHandler() == null || StrUtil.isBlank(raw)) {
             return;
         }
-        callbackExecutor.submit(
+        final GatewayMessage message;
+        try {
+            message = toGatewayMessage(raw);
+        } catch (IllegalArgumentException e) {
+            log.warn(
+                    "[YUANBAO] inbound attachment rejected: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
+            return;
+        }
+        if (message == null || !admitInboundBeforeAsync(message)) {
+            return;
+        }
+        if (inboundMessageDeduplicator.isDuplicate(message.getPlatformMessageId())) {
+            return;
+        }
+        if (isControlCommand(message.getText())) {
+            dispatchAdmittedInboundControl(message);
+            return;
+        }
+        submitInboundAfterPendingRecovery(
+                callbackExecutor,
                 new Runnable() {
                     /** 执行异步任务主体。 */
                     @Override
                     public void run() {
-                        GatewayMessage message = toGatewayMessage(raw);
-                        if (message == null) {
-                            return;
-                        }
-                        if (inboundMessageDeduplicator.isDuplicate(message.getReplyToMessageId())) {
-                            return;
-                        }
                         try {
-                            inboundMessageHandler().handle(message);
+                            inboundMessageHandler().handleAdmitted(message);
                         } catch (Exception e) {
                             log.warn(
                                     "[YUANBAO] inbound dispatch failed: errorType={}, error={}",
@@ -487,10 +503,11 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                         body.get("content").getString(),
                         body.get("voice").get("text").getString(),
                         body.get("asr_text").getString());
+        if (StrUtil.isBlank(chatId) || !allowInbound(chatType, chatId, userId)) {
+            return null;
+        }
         List<MessageAttachment> attachments = extractAttachments(body);
-        if (StrUtil.isBlank(chatId)
-                || (StrUtil.isBlank(text) && attachments.isEmpty())
-                || !allowInbound(chatType, chatId, userId)) {
+        if (StrUtil.isBlank(text) && attachments.isEmpty()) {
             return null;
         }
         GatewayMessage message =
@@ -501,6 +518,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setUserName(userId);
         message.setReplyToMessageId(
                 firstNonBlank(body.get("message_id").getString(), body.get("msg_id").getString()));
+        message.setPlatformMessageId(message.getReplyToMessageId());
         message.setAttachments(attachments);
         return message;
     }
@@ -569,51 +587,8 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (StrUtil.isBlank(inlineData) && StrUtil.isBlank(url)) {
             return;
         }
-        try {
-            result.add(
-                    cacheInboundAttachment(kind, fileName, mimeType, transcript, inlineData, url));
-        } catch (Exception e) {
-            log.warn(
-                    "[YUANBAO] attachment cache failed: errorType={}, error={}",
-                    errorType(e),
-                    safeError(e));
-        }
-    }
-
-    /** 下载或解码入站附件；无缓存服务的测试构造仅保留受限 URL 元数据。 */
-    private MessageAttachment cacheInboundAttachment(
-            String kind,
-            String fileName,
-            String mimeType,
-            String transcript,
-            String inlineData,
-            String url)
-            throws Exception {
-        if (attachmentCacheService != null) {
-            byte[] data;
-            String effectiveMime = mimeType;
-            if (StrUtil.isNotBlank(inlineData)) {
-                data = Base64.decode(inlineData);
-            } else {
-                BoundedAttachmentIO.OkHttpDownloadResult download =
-                        BoundedAttachmentIO.downloadOkHttpResult(
-                                client,
-                                url,
-                                BoundedAttachmentIO.DEFAULT_MAX_BYTES,
-                                securityPolicyService);
-                data = download.getData();
-                effectiveMime =
-                        AttachmentCacheService.normalizeMimeType(
-                                download.getContentType(), fileName);
-            }
-            return attachmentCacheService.cacheBytes(
-                    PlatformType.YUANBAO,
-                    kind,
-                    StrUtil.blankToDefault(fileName, "yuanbao-attachment.bin"),
-                    effectiveMime,
-                    false,
-                    transcript,
-                    data);
+        if (StrUtil.isNotBlank(inlineData)) {
+            validateInlineAttachmentData(inlineData, BoundedAttachmentIO.DEFAULT_MAX_BYTES);
         }
         MessageAttachment attachment = new MessageAttachment();
         attachment.setKind(kind);
@@ -622,7 +597,103 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         attachment.setData(inlineData);
         attachment.setUrl(url);
         attachment.setTranscribedText(StrUtil.nullToEmpty(transcript).trim());
-        return attachment;
+        attachment.setSourceReference(StrUtil.isNotBlank(inlineData) ? "inline_data" : url);
+        attachment.setSourceResourceType(
+                StrUtil.isNotBlank(inlineData) ? "inline_data" : "remote_url");
+        result.add(attachment);
+    }
+
+    /** 准入完成后解码或下载元宝附件；失败时保留 pending receipt。 */
+    @Override
+    public void hydrateInboundAttachments(GatewayMessage message) throws Exception {
+        if (message == null || message.getAttachments() == null) {
+            return;
+        }
+        List<MessageAttachment> hydrated = new ArrayList<MessageAttachment>();
+        for (MessageAttachment attachment : message.getAttachments()) {
+            if (attachment == null || StrUtil.isBlank(attachment.getSourceReference())) {
+                hydrated.add(attachment);
+                continue;
+            }
+            hydrated.add(
+                    cacheInboundAttachment(
+                            attachment.getKind(),
+                            attachment.getOriginalName(),
+                            attachment.getMimeType(),
+                            attachment.getTranscribedText(),
+                            attachment.getData(),
+                            attachment.getUrl()));
+        }
+        message.setAttachments(hydrated);
+    }
+
+    /** 下载或解码已经准入的入站附件。 */
+    private MessageAttachment cacheInboundAttachment(
+            String kind,
+            String fileName,
+            String mimeType,
+            String transcript,
+            String inlineData,
+            String url)
+            throws Exception {
+        if (attachmentCacheService == null) {
+            throw new IllegalStateException("Yuanbao attachment cache is unavailable");
+        }
+        byte[] data;
+        String effectiveMime = mimeType;
+        if (StrUtil.isNotBlank(inlineData)) {
+            validateInlineAttachmentData(inlineData, BoundedAttachmentIO.DEFAULT_MAX_BYTES);
+            data = Base64.decode(inlineData);
+            if (data.length > BoundedAttachmentIO.DEFAULT_MAX_BYTES) {
+                throw new IllegalArgumentException("Yuanbao inline attachment exceeds size limit");
+            }
+        } else {
+            BoundedAttachmentIO.OkHttpDownloadResult download =
+                    BoundedAttachmentIO.downloadOkHttpResult(
+                            client,
+                            url,
+                            BoundedAttachmentIO.DEFAULT_MAX_BYTES,
+                            securityPolicyService);
+            data = download.getData();
+            effectiveMime =
+                    AttachmentCacheService.normalizeMimeType(download.getContentType(), fileName);
+        }
+        return attachmentCacheService.cacheBytes(
+                PlatformType.YUANBAO,
+                kind,
+                StrUtil.blankToDefault(fileName, "yuanbao-attachment.bin"),
+                effectiveMime,
+                false,
+                transcript,
+                data);
+    }
+
+    /**
+     * 在持久化或解码前按 Base64 有效字符估算解码大小，拒绝超过给定上限的内联附件。
+     *
+     * @param inlineData Base64 编码正文。
+     * @param maxBytes 最大允许解码字节数。
+     */
+    protected void validateInlineAttachmentData(String inlineData, long maxBytes) {
+        if (StrUtil.isBlank(inlineData) || maxBytes < 0L) {
+            throw new IllegalArgumentException("Yuanbao inline attachment data is invalid");
+        }
+        long encodedCharacters = 0L;
+        int padding = 0;
+        for (int index = 0; index < inlineData.length(); index++) {
+            char current = inlineData.charAt(index);
+            if (Character.isWhitespace(current)) {
+                continue;
+            }
+            encodedCharacters++;
+            if (current == '=') {
+                padding++;
+            }
+        }
+        long estimatedBytes = (encodedCharacters * 3L) / 4L - Math.min(2, padding);
+        if (estimatedBytes > maxBytes) {
+            throw new IllegalArgumentException("Yuanbao inline attachment exceeds size limit");
+        }
     }
 
     /**

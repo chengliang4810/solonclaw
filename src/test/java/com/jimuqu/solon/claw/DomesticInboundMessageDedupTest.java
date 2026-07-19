@@ -1,13 +1,17 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dingtalk.open.app.api.models.bot.ChatbotMessage;
 import com.dingtalk.open.app.api.models.bot.MessageContent;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
+import com.jimuqu.solon.claw.core.service.ChannelAdapter;
+import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
 import com.jimuqu.solon.claw.gateway.platform.dingtalk.DingTalkChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.feishu.FeishuChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.qqbot.QQBotChannelAdapter;
@@ -18,9 +22,12 @@ import com.lark.oapi.service.im.v1.model.EventMessage;
 import com.lark.oapi.service.im.v1.model.EventSender;
 import com.lark.oapi.service.im.v1.model.P2MessageReceiveV1Data;
 import com.lark.oapi.service.im.v1.model.UserId;
+import com.sun.net.httpserver.HttpServer;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,6 +35,7 @@ import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -35,6 +43,103 @@ import org.noear.snack4.ONode;
 
 /** 验证五个国内渠道按平台原始消息标识抑制重复入站。 */
 public class DomesticInboundMessageDedupTest {
+    /** 企业微信附件必须在下载前转换成可持久化原始引用，供总账恢复后再水化。 */
+    @Test
+    void shouldExposeDurableWeComAttachmentReferenceBeforeHydration() throws Throwable {
+        AppConfig config = new AppConfig();
+        WeComChannelAdapter adapter =
+                new WeComChannelAdapter(
+                        config.getChannels().getWecom(), new AttachmentCacheService(config));
+        setField(adapter, WeComChannelAdapter.class, "callbackExecutor", new DirectExecutor());
+        List<GatewayMessage> messages = captureMessages(adapter);
+        ONode payload =
+                ONode.ofJson(
+                        "{\"body\":{\"msgid\":\"wecom-attachment-1\","
+                                + "\"chatid\":\"wecom-chat\",\"chattype\":\"single\","
+                                + "\"from\":{\"userid\":\"wecom-user\"},"
+                                + "\"msgtype\":\"mixed\",\"mixed\":{\"msg_item\":["
+                                + "{\"msgtype\":\"text\",\"text\":{\"content\":\"hello\"}},"
+                                + "{\"msgtype\":\"file\",\"file\":{"
+                                + "\"url\":\"https://example.test/report.pdf\","
+                                + "\"filename\":\"report.pdf\","
+                                + "\"content_type\":\"application/pdf\","
+                                + "\"aeskey\":\"attachment-key\"}}]}}}");
+        Method handle = WeComChannelAdapter.class.getDeclaredMethod("handleInbound", ONode.class);
+        handle.setAccessible(true);
+
+        invoke(handle, adapter, payload);
+
+        assertThat(messages).hasSize(1);
+        assertThat(messages.get(0).getText()).isEqualTo("hello");
+        assertThat(messages.get(0).getAttachments()).hasSize(1);
+        MessageAttachment attachment = messages.get(0).getAttachments().get(0);
+        assertThat(attachment.getKind()).isEqualTo("file");
+        assertThat(attachment.getOriginalName()).isEqualTo("report.pdf");
+        assertThat(attachment.getMimeType()).isEqualTo("application/pdf");
+        assertThat(attachment.getSourceReference()).isEqualTo("https://example.test/report.pdf");
+        assertThat(attachment.getSourceEncryptionKey()).isEqualTo("attachment-key");
+        assertThat(attachment.getSourceResourceType()).isEqualTo("remote_url");
+        assertThat(attachment.getLocalPath()).isNull();
+    }
+
+    /** QQ 交互确认必须晚于 durable admission；准入异常时平台应看不到 ACK 并重投。 */
+    @Test
+    void shouldAcknowledgeQqInteractionOnlyAfterAdmissionReturnsNormally() throws Exception {
+        AtomicInteger requests = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(
+                "/",
+                exchange -> {
+                    requests.incrementAndGet();
+                    byte[] body = "{}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, body.length);
+                    exchange.getResponseBody().write(body);
+                    exchange.close();
+                });
+        server.start();
+        try {
+            AppConfig config = new AppConfig();
+            config.getChannels().getQqbot().setAllowAllUsers(true);
+            config.getChannels()
+                    .getQqbot()
+                    .setApiDomain("http://127.0.0.1:" + server.getAddress().getPort());
+            TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+            setField(adapter, QQBotChannelAdapter.class, "callbackExecutor", new DirectExecutor());
+            AtomicInteger admissions = new AtomicInteger();
+            adapter.setInboundMessageHandler(
+                    new InboundMessageHandler() {
+                        /** 首次模拟持久化失败，第二次按重复或拒绝正常返回。 */
+                        @Override
+                        public boolean admit(GatewayMessage message) throws Exception {
+                            if (admissions.incrementAndGet() == 1) {
+                                throw new Exception("simulated persistence failure");
+                            }
+                            return false;
+                        }
+
+                        /** 本用例的两次消息都不应进入业务处理。 */
+                        @Override
+                        public void handle(GatewayMessage message) {
+                            throw new AssertionError("interaction must not reach legacy handler");
+                        }
+                    });
+            String raw =
+                    "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"qq-interaction-retry\","
+                            + "\"chat_type\":2,\"user_openid\":\"qq-user\","
+                            + "\"resolved\":{\"button_data\":\"approve:approval-1:deny\"}}}";
+
+            assertThatThrownBy(() -> adapter.dispatch(raw))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("inbound admission failed");
+            assertThat(requests.get()).isZero();
+
+            adapter.dispatch(raw);
+            assertThat(requests.get()).isEqualTo(1);
+        } finally {
+            server.stop(0);
+        }
+    }
+
     /**
      * 相同消息标识只允许进入统一处理器一次。
      *
@@ -61,6 +166,20 @@ public class DomesticInboundMessageDedupTest {
         assertThat(messages)
                 .extracting(GatewayMessage::getReplyToMessageId)
                 .containsExactly(platform + "-message-1", platform + "-message-2");
+    }
+
+    /** 准入写库失败不能提前污染内存去重，同一平台消息重投后必须仍能进入已准入处理入口。 */
+    @ParameterizedTest(name = "{0} admission retry")
+    @MethodSource("admissionRetryScenarios")
+    void shouldRetrySameMessageAfterAdmissionFailure(
+            String platform, String messageId, AdmissionRetryScenario scenario) throws Throwable {
+        AdmissionRetryResult result = scenario.dispatchTwice();
+
+        assertThat(result.admitCalls).isEqualTo(2);
+        assertThat(result.admittedHandleCalls).isEqualTo(1);
+        assertThat(result.legacyHandleCalls).isZero();
+        assertThat(result.platformMessageId).isEqualTo(messageId);
+        assertThat(result.replyToMessageId).isEqualTo(messageId);
     }
 
     /** 提供五个国内渠道的重复消息入站场景。 */
@@ -90,6 +209,36 @@ public class DomesticInboundMessageDedupTest {
                         "yuanbao",
                         (ReplyIdentityScenario)
                                 DomesticInboundMessageDedupTest::yuanbaoReplyIdentity));
+    }
+
+    /** 提供五个国内渠道的准入失败重投场景。 */
+    private static Stream<Arguments> admissionRetryScenarios() {
+        return Stream.of(
+                Arguments.of(
+                        "feishu",
+                        "feishu-message-retry",
+                        (AdmissionRetryScenario)
+                                DomesticInboundMessageDedupTest::feishuAdmissionRetry),
+                Arguments.of(
+                        "dingtalk",
+                        "dingtalk-message-retry",
+                        (AdmissionRetryScenario)
+                                DomesticInboundMessageDedupTest::dingtalkAdmissionRetry),
+                Arguments.of(
+                        "wecom",
+                        "wecom-message-retry",
+                        (AdmissionRetryScenario)
+                                DomesticInboundMessageDedupTest::wecomAdmissionRetry),
+                Arguments.of(
+                        "qqbot",
+                        "qq-message-retry",
+                        (AdmissionRetryScenario)
+                                DomesticInboundMessageDedupTest::qqbotAdmissionRetry),
+                Arguments.of(
+                        "yuanbao",
+                        "yuanbao-message-retry",
+                        (AdmissionRetryScenario)
+                                DomesticInboundMessageDedupTest::yuanbaoAdmissionRetry));
     }
 
     /** 执行飞书重复入站场景。 */
@@ -195,6 +344,97 @@ public class DomesticInboundMessageDedupTest {
         adapter.dispatch(raw);
         adapter.dispatch(raw);
         return handled.get();
+    }
+
+    /** 执行飞书准入失败后的同消息重投场景。 */
+    private static AdmissionRetryResult feishuAdmissionRetry() throws Throwable {
+        AppConfig config = new AppConfig();
+        FeishuChannelAdapter adapter =
+                new FeishuChannelAdapter(
+                        config.getChannels().getFeishu(), new AttachmentCacheService(config));
+        P2MessageReceiveV1Data data = new P2MessageReceiveV1Data();
+        data.setMessage(
+                EventMessage.newBuilder()
+                        .messageId("feishu-message-retry")
+                        .chatId("feishu-chat")
+                        .chatType("p2p")
+                        .messageType("text")
+                        .content("{\"text\":\"hello\"}")
+                        .build());
+        data.setSender(
+                EventSender.newBuilder()
+                        .senderId(UserId.newBuilder().openId("feishu-user").build())
+                        .build());
+        return executeAdmissionRetry(adapter, () -> adapter.handleWebsocketEvent(data));
+    }
+
+    /** 执行钉钉准入失败后的同消息重投场景。 */
+    private static AdmissionRetryResult dingtalkAdmissionRetry() throws Throwable {
+        AppConfig config = new AppConfig();
+        DingTalkChannelAdapter adapter =
+                new DingTalkChannelAdapter(
+                        config.getChannels().getDingtalk(),
+                        new EmptyChannelStateRepository(),
+                        new AttachmentCacheService(config));
+        setField(adapter, DingTalkChannelAdapter.class, "callbackExecutor", new DirectExecutor());
+        Method handle =
+                DingTalkChannelAdapter.class.getDeclaredMethod(
+                        "handleInbound", ChatbotMessage.class);
+        handle.setAccessible(true);
+        ChatbotMessage message = dingtalkMessage("dingtalk-message-retry");
+        return executeAdmissionRetry(adapter, () -> invoke(handle, adapter, message));
+    }
+
+    /** 执行企微准入失败后的同消息重投场景。 */
+    private static AdmissionRetryResult wecomAdmissionRetry() throws Throwable {
+        AppConfig config = new AppConfig();
+        WeComChannelAdapter adapter =
+                new WeComChannelAdapter(
+                        config.getChannels().getWecom(), new AttachmentCacheService(config));
+        setField(adapter, WeComChannelAdapter.class, "callbackExecutor", new DirectExecutor());
+        Method handle = WeComChannelAdapter.class.getDeclaredMethod("handleInbound", ONode.class);
+        handle.setAccessible(true);
+        ONode message = wecomMessage("wecom-message-retry");
+        return executeAdmissionRetry(adapter, () -> invoke(handle, adapter, message));
+    }
+
+    /** 执行 QQBot 准入失败后的同消息重投场景。 */
+    private static AdmissionRetryResult qqbotAdmissionRetry() throws Throwable {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+        setField(adapter, QQBotChannelAdapter.class, "callbackExecutor", new DirectExecutor());
+        String raw =
+                "{\"t\":\"C2C_MESSAGE_CREATE\",\"d\":{\"id\":\"qq-message-retry\","
+                        + "\"openid\":\"qq-user\",\"content\":\"hello\"}}";
+        return executeAdmissionRetry(adapter, () -> adapter.dispatch(raw));
+    }
+
+    /** 执行元宝准入失败后的同消息重投场景。 */
+    private static AdmissionRetryResult yuanbaoAdmissionRetry() throws Throwable {
+        AppConfig config = new AppConfig();
+        config.getChannels().getYuanbao().setAllowAllUsers(true);
+        TestYuanbaoAdapter adapter = new TestYuanbaoAdapter(config);
+        setField(adapter, YuanbaoChannelAdapter.class, "callbackExecutor", new DirectExecutor());
+        String raw = yuanbaoMessage("yuanbao-message-retry");
+        return executeAdmissionRetry(adapter, () -> adapter.dispatch(raw));
+    }
+
+    /** 安装首次失败的两阶段处理器，连续执行两次相同平台回调并返回观测结果。 */
+    private static AdmissionRetryResult executeAdmissionRetry(
+            ChannelAdapter adapter, ThrowingDispatch dispatch) throws Throwable {
+        RetryingAdmissionHandler handler = new RetryingAdmissionHandler();
+        adapter.setInboundMessageHandler(handler);
+        boolean failed = false;
+        try {
+            dispatch.run();
+        } catch (IllegalStateException expected) {
+            failed = true;
+            assertThat(expected).hasMessageContaining("inbound admission failed");
+        }
+        assertThat(failed).isTrue();
+        dispatch.run();
+        return handler.result();
     }
 
     /** 接收两条钉钉消息并返回统一消息模型。 */
@@ -318,6 +558,102 @@ public class DomesticInboundMessageDedupTest {
     private interface ReplyIdentityScenario {
         /** 连续接收两条不同消息标识的同会话消息。 */
         List<GatewayMessage> receiveTwoMessages() throws Throwable;
+    }
+
+    /** 允许准入重投场景执行渠道私有回调。 */
+    private interface AdmissionRetryScenario {
+        /** 连续投递同一消息并返回两阶段处理观测。 */
+        AdmissionRetryResult dispatchTwice() throws Throwable;
+    }
+
+    /** 允许测试场景包装会抛出渠道异常的单次分发。 */
+    private interface ThrowingDispatch {
+        /** 执行一次真实渠道入站入口。 */
+        void run() throws Throwable;
+    }
+
+    /** 首次准入失败、第二次成功的测试处理器。 */
+    private static class RetryingAdmissionHandler implements InboundMessageHandler {
+        /** 准入调用次数。 */
+        private int admitCalls;
+
+        /** 旧入口调用次数。 */
+        private int legacyHandleCalls;
+
+        /** 已准入入口调用次数。 */
+        private int admittedHandleCalls;
+
+        /** 最近一次平台消息标识。 */
+        private String platformMessageId;
+
+        /** 最近一次原消息回复标识。 */
+        private String replyToMessageId;
+
+        /** 首次抛出模拟持久化异常，第二次接受相同消息。 */
+        @Override
+        public boolean admit(GatewayMessage message) throws Exception {
+            admitCalls++;
+            platformMessageId = message.getPlatformMessageId();
+            replyToMessageId = message.getReplyToMessageId();
+            if (admitCalls == 1) {
+                throw new Exception("simulated persistence failure");
+            }
+            return true;
+        }
+
+        /** 记录错误使用旧入口的次数。 */
+        @Override
+        public void handle(GatewayMessage message) {
+            legacyHandleCalls++;
+        }
+
+        /** 记录正确使用已准入入口的次数。 */
+        @Override
+        public void handleAdmitted(GatewayMessage message) {
+            admittedHandleCalls++;
+        }
+
+        /** 返回当前处理器的不可变数值快照。 */
+        private AdmissionRetryResult result() {
+            return new AdmissionRetryResult(
+                    admitCalls,
+                    legacyHandleCalls,
+                    admittedHandleCalls,
+                    platformMessageId,
+                    replyToMessageId);
+        }
+    }
+
+    /** 保存单个渠道两阶段准入重投的观测结果。 */
+    private static class AdmissionRetryResult {
+        /** 准入调用次数。 */
+        private final int admitCalls;
+
+        /** 旧入口调用次数。 */
+        private final int legacyHandleCalls;
+
+        /** 已准入入口调用次数。 */
+        private final int admittedHandleCalls;
+
+        /** 平台稳定消息标识。 */
+        private final String platformMessageId;
+
+        /** 原消息回复锚点。 */
+        private final String replyToMessageId;
+
+        /** 创建两阶段准入观测结果。 */
+        private AdmissionRetryResult(
+                int admitCalls,
+                int legacyHandleCalls,
+                int admittedHandleCalls,
+                String platformMessageId,
+                String replyToMessageId) {
+            this.admitCalls = admitCalls;
+            this.legacyHandleCalls = legacyHandleCalls;
+            this.admittedHandleCalls = admittedHandleCalls;
+            this.platformMessageId = platformMessageId;
+            this.replyToMessageId = replyToMessageId;
+        }
     }
 
     /** 同步执行回调，避免测试等待后台线程。 */

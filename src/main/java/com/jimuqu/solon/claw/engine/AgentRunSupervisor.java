@@ -224,7 +224,10 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @return 停止结果。
      */
     private AgentRunStopResult stopHandle(RunHandle handle) {
-        handle.cancelled.set(true);
+        synchronized (handle.outputLock) {
+            handle.cancelled.set(true);
+            handle.outputRevoked = true;
+        }
         Thread thread = handle.thread;
         boolean interruptSent = false;
         if (thread != null && thread.isAlive()) {
@@ -382,8 +385,18 @@ public class AgentRunSupervisor implements AgentRunControlService {
                             : agentRunRepository.findRun(handle.runId);
             if (handle != null
                     && StrUtil.isBlank(handle.runId)
-                    && handle.thread == Thread.currentThread()) {
+                    && handle.thread == Thread.currentThread()
+                    && !handle.cancelled.get()) {
                 return RunBusyDecision.runNow(policy);
+            }
+            if (handle != null
+                    && message != null
+                    && GatewayMessage.RUN_KIND_DELEGATION_COMPLETION.equals(message.getRunKind())) {
+                RunBusyDecision deferred = new RunBusyDecision();
+                deferred.setPolicy(policy);
+                deferred.setStatus("completion_deferred");
+                deferred.setMessage("[SILENT]");
+                return deferred;
             }
             if (handle == null
                     || handle.cancelled.get()
@@ -394,7 +407,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 boolean claimed =
                         handle == null
                                 ? runningRuns.putIfAbsent(key, reservation) == null
-                                : runningRuns.replace(key, handle, reservation);
+                                : replaceRunHandle(key, handle, reservation);
                 if (claimed) {
                     return RunBusyDecision.runNow(policy);
                 }
@@ -437,7 +450,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             RunHandle reservation =
                     new RunHandle(
                             "", sessionId, Thread.currentThread(), System.currentTimeMillis());
-            if (runningRuns.replace(key, handle, reservation)) {
+            if (replaceRunHandle(key, handle, reservation)) {
                 return RunBusyDecision.runNow(policy);
             }
             return coordinateIncoming(sourceKey, sessionId, message);
@@ -750,6 +763,46 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return handle != null && !handle.cancelled.get();
     }
 
+    /** 仅在来源键空闲时原子领取当前线程的入站占位。 */
+    @Override
+    public IncomingReservation tryReserveIncoming(String sourceKey, String sessionId) {
+        final String key = normalizeSourceKey(sourceKey);
+        while (true) {
+            RunHandle existing = runningRuns.get(key);
+            if (existing != null && !existing.cancelled.get()) {
+                return null;
+            }
+            final RunHandle reservation =
+                    new RunHandle(
+                            "", sessionId, Thread.currentThread(), System.currentTimeMillis());
+            boolean claimed =
+                    existing == null
+                            ? runningRuns.putIfAbsent(key, reservation) == null
+                            : replaceRunHandle(key, existing, reservation);
+            if (!claimed) {
+                continue;
+            }
+            return new IncomingReservation() {
+                /** 确保重复关闭不会重复触碰运行表。 */
+                private final AtomicBoolean released = new AtomicBoolean(false);
+
+                /** 释放仍由本占位持有的来源键。 */
+                @Override
+                public void close() {
+                    if (released.compareAndSet(false, true)) {
+                        removeRunHandle(key, reservation);
+                    }
+                }
+            };
+        }
+    }
+
+    /** 当前监督器支持原子入站占位。 */
+    @Override
+    public boolean supportsIncomingReservation() {
+        return true;
+    }
+
     /**
      * 判断是否存在Running运行。
      *
@@ -908,6 +961,155 @@ public class AgentRunSupervisor implements AgentRunControlService {
             Integer maxToolCalls,
             String runKind)
             throws Exception {
+        return run(
+                session,
+                systemPrompt,
+                userMessage,
+                tools,
+                feedbackSink,
+                eventSink,
+                resume,
+                agentScope,
+                userAttachments,
+                memoryPrefetchContext,
+                allowedToolNames,
+                requiredToolNames,
+                maxToolCalls,
+                runKind,
+                null);
+    }
+
+    /**
+     * 执行异步任务主体，并记录本轮实际暴露给模型的工具快照。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @param tools tools 参数。
+     * @param feedbackSink 反馈Sink参数。
+     * @param eventSink 事件Sink参数。
+     * @param resume resume 参数。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param userAttachments 用户Attachments参数。
+     * @param memoryPrefetchContext 本轮预取的临时记忆上下文。
+     * @param allowedToolNames 本轮临时允许调用的工具名称白名单。
+     * @param requiredToolNames 本轮必须真实完成的工具名称列表。
+     * @param maxToolCalls 本轮允许尝试的最大工具调用次数。
+     * @param runKind 本轮运行类型标记。
+     * @param enabledToolNames 本轮实际暴露给模型的工具名称快照。
+     * @return 返回运行结果。
+     */
+    public AgentRunOutcome run(
+            SessionRecord session,
+            String systemPrompt,
+            String userMessage,
+            List<Object> tools,
+            ConversationFeedbackSink feedbackSink,
+            ConversationEventSink eventSink,
+            boolean resume,
+            AgentRuntimeScope agentScope,
+            List<MessageAttachment> userAttachments,
+            String memoryPrefetchContext,
+            List<String> allowedToolNames,
+            List<String> requiredToolNames,
+            Integer maxToolCalls,
+            String runKind,
+            List<String> enabledToolNames)
+            throws Exception {
+        return runInternal(
+                session,
+                systemPrompt,
+                userMessage,
+                tools,
+                feedbackSink,
+                eventSink,
+                resume,
+                agentScope,
+                userAttachments,
+                memoryPrefetchContext,
+                allowedToolNames,
+                requiredToolNames,
+                maxToolCalls,
+                runKind,
+                enabledToolNames,
+                false);
+    }
+
+    /**
+     * 执行需要由编排器补写最终事件的运行，并把输出租约保留到终态写入完成。
+     *
+     * @param session 会话参数。
+     * @param systemPrompt 系统提示词参数。
+     * @param userMessage 用户消息参数。
+     * @param tools 本轮可用工具。
+     * @param feedbackSink 渠道反馈接收器。
+     * @param eventSink 界面事件接收器。
+     * @param resume 是否恢复挂起运行。
+     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param userAttachments 用户附件。
+     * @param memoryPrefetchContext 本轮预取的临时记忆上下文。
+     * @param allowedToolNames 本轮临时允许调用的工具名称白名单。
+     * @param requiredToolNames 本轮必须真实完成的工具名称列表。
+     * @param maxToolCalls 本轮允许尝试的最大工具调用次数。
+     * @param runKind 本轮运行类型标记。
+     * @param enabledToolNames 本轮实际暴露给模型的工具名称快照。
+     * @return 返回运行结果；调用方必须通过 completeOutputLease 或 releaseOutputLease 释放租约。
+     */
+    public AgentRunOutcome runWithOutputLease(
+            SessionRecord session,
+            String systemPrompt,
+            String userMessage,
+            List<Object> tools,
+            ConversationFeedbackSink feedbackSink,
+            ConversationEventSink eventSink,
+            boolean resume,
+            AgentRuntimeScope agentScope,
+            List<MessageAttachment> userAttachments,
+            String memoryPrefetchContext,
+            List<String> allowedToolNames,
+            List<String> requiredToolNames,
+            Integer maxToolCalls,
+            String runKind,
+            List<String> enabledToolNames)
+            throws Exception {
+        return runInternal(
+                session,
+                systemPrompt,
+                userMessage,
+                tools,
+                feedbackSink,
+                eventSink,
+                resume,
+                agentScope,
+                userAttachments,
+                memoryPrefetchContext,
+                allowedToolNames,
+                requiredToolNames,
+                maxToolCalls,
+                runKind,
+                enabledToolNames,
+                true);
+    }
+
+    /** 执行 Agent 主循环，并按调用方式决定是否把输出租约保留给编排器。 */
+    private AgentRunOutcome runInternal(
+            SessionRecord session,
+            String systemPrompt,
+            String userMessage,
+            List<Object> tools,
+            ConversationFeedbackSink feedbackSink,
+            ConversationEventSink eventSink,
+            boolean resume,
+            AgentRuntimeScope agentScope,
+            List<MessageAttachment> userAttachments,
+            String memoryPrefetchContext,
+            List<String> allowedToolNames,
+            List<String> requiredToolNames,
+            Integer maxToolCalls,
+            String runKind,
+            List<String> enabledToolNames,
+            boolean retainOutputLease)
+            throws Exception {
         if (agentScope == null) {
             agentScope = new AgentRuntimeScope();
             agentScope.setAgentName(
@@ -965,6 +1167,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         runContext.setParentRunId(runRecord.getParentRunId());
         runContext.setUserAttachments(userAttachments);
         runContext.setWorkspaceDir(agentScope.getWorkspaceDir());
+        runContext.setEnabledToolNames(enabledToolNames);
         runContext.setToolPolicy(allowedToolNames, maxToolCalls);
         if (!resume && StrUtil.isNotBlank(memoryPrefetchContext)) {
             runContext.setMemoryPrefetchContext(userMessage, memoryPrefetchContext);
@@ -972,6 +1175,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
         RunHandle runHandle =
                 registerRun(
                         session.getSourceKey(), runRecord.getRunId(), session.getSessionId(), now);
+        final String writerSourceKey = normalizeSourceKey(session.getSourceKey());
+        SingleWriterOutputGuard.WriteGate writeGate =
+                output -> writeOutput(writerSourceKey, runHandle, output);
+        eventSink = SingleWriterOutputGuard.events(eventSink, writeGate);
+        feedbackSink = SingleWriterOutputGuard.feedback(feedbackSink, writeGate);
         AgentRunContext previousContext = AgentRunContext.current();
         AgentRunContext.setCurrent(runContext);
         try {
@@ -1378,12 +1586,13 @@ public class AgentRunSupervisor implements AgentRunControlService {
             throw e;
         } finally {
             SubprocessEnvironmentSanitizer.clearSkillEnvironmentPassthrough();
-            unregisterRun(session.getSourceKey(), runHandle);
+            if (!retainOutputLease) {
+                unregisterRun(session.getSourceKey(), runHandle);
+            }
             AgentRunContext.setCurrent(previousContext);
             if (runHandle.cancelled.get()) {
                 Thread.interrupted();
             }
-            lastRunFinishedAt = System.currentTimeMillis();
         }
     }
 
@@ -2269,6 +2478,138 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     /**
+     * 在当前 run 仍持有来源写入权时原子写入最终回复与完成事件，并释放输出租约。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param runId 申请完成终态输出的运行标识。
+     * @param terminalOutput 最终回复和完成事件写入动作。
+     * @return 成功写入终态返回 true；运行已被交权或取消时返回 false。
+     */
+    public boolean completeOutputLease(String sourceKey, String runId, Runnable terminalOutput) {
+        String key = normalizeSourceKey(sourceKey);
+        RunHandle handle = runningRuns.get(key);
+        if (handle == null || !StrUtil.equals(handle.runId, runId)) {
+            return false;
+        }
+        synchronized (handle.outputLock) {
+            if (handle.outputRevoked || handle.cancelled.get() || runningRuns.get(key) != handle) {
+                return false;
+            }
+            try {
+                if (terminalOutput != null) {
+                    terminalOutput.run();
+                }
+                return true;
+            } finally {
+                handle.outputRevoked = true;
+                runningRuns.remove(key, handle);
+                lastRunFinishedAt = System.currentTimeMillis();
+            }
+        }
+    }
+
+    /**
+     * 在当前线程仍持有来源写入权时原子提交异常终态，并释放真实 run 或入站占位。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param terminalOutput 失败、取消或前置异常的终态写入动作。
+     * @return 当前线程仍是唯一 owner 且成功提交时返回 true。
+     */
+    public boolean completeCurrentThreadOutputLease(String sourceKey, Runnable terminalOutput) {
+        String key = normalizeSourceKey(sourceKey);
+        RunHandle handle = runningRuns.get(key);
+        if (handle == null || handle.thread != Thread.currentThread()) {
+            return false;
+        }
+        synchronized (handle.outputLock) {
+            if (handle.outputRevoked || handle.cancelled.get() || runningRuns.get(key) != handle) {
+                return false;
+            }
+            try {
+                if (terminalOutput != null) {
+                    terminalOutput.run();
+                }
+                return true;
+            } finally {
+                handle.outputRevoked = true;
+                runningRuns.remove(key, handle);
+                lastRunFinishedAt = System.currentTimeMillis();
+            }
+        }
+    }
+
+    /**
+     * 释放当前线程在异常路径上尚未提交的真实 run 或入站占位。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 当前线程仍持有并成功释放 owner 时返回 true。
+     */
+    public boolean releaseCurrentThreadOutputLease(String sourceKey) {
+        String key = normalizeSourceKey(sourceKey);
+        RunHandle handle = runningRuns.get(key);
+        if (handle == null || handle.thread != Thread.currentThread()) {
+            return false;
+        }
+        return removeRunHandle(key, handle);
+    }
+
+    /**
+     * 放弃尚未完成的输出租约，供编排器异常路径清理运行句柄。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param runId 需要释放租约的运行标识。
+     * @return 当前 run 的租约被释放时返回 true。
+     */
+    public boolean releaseOutputLease(String sourceKey, String runId) {
+        String key = normalizeSourceKey(sourceKey);
+        RunHandle handle = runningRuns.get(key);
+        if (handle == null || !StrUtil.equals(handle.runId, runId)) {
+            return false;
+        }
+        return removeRunHandle(key, handle);
+    }
+
+    /** 在写入权检查和实际事件写入之间持有当前 run 的原子锁。 */
+    private void writeOutput(String sourceKey, RunHandle handle, Runnable output) {
+        if (handle == null || output == null) {
+            return;
+        }
+        synchronized (handle.outputLock) {
+            if (!handle.outputRevoked
+                    && !handle.cancelled.get()
+                    && runningRuns.get(sourceKey) == handle) {
+                output.run();
+            }
+        }
+    }
+
+    /** 原子替换来源键的运行句柄，并同步撤销旧句柄的输出权。 */
+    private boolean replaceRunHandle(String sourceKey, RunHandle expected, RunHandle replacement) {
+        if (expected == null) {
+            return false;
+        }
+        synchronized (expected.outputLock) {
+            expected.outputRevoked = true;
+            return runningRuns.replace(sourceKey, expected, replacement);
+        }
+    }
+
+    /** 原子移除来源键的运行句柄，并同步撤销该句柄的输出权。 */
+    private boolean removeRunHandle(String sourceKey, RunHandle handle) {
+        if (handle == null) {
+            return false;
+        }
+        synchronized (handle.outputLock) {
+            handle.outputRevoked = true;
+            boolean removed = runningRuns.remove(sourceKey, handle);
+            if (removed) {
+                lastRunFinishedAt = System.currentTimeMillis();
+            }
+            return removed;
+        }
+    }
+
+    /**
      * 注册运行。
      *
      * @param sourceKey 渠道来源键。
@@ -2291,7 +2632,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             }
             if (StrUtil.isBlank(existing.runId)
                     && existing.thread == Thread.currentThread()
-                    && runningRuns.replace(key, existing, handle)) {
+                    && replaceRunHandle(key, existing, handle)) {
                 return handle;
             }
             throw new AgentRunCancelledException();
@@ -2319,9 +2660,41 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (handle != null
                 && StrUtil.isBlank(handle.runId)
                 && handle.thread == Thread.currentThread()) {
-            return runningRuns.remove(key, handle);
+            return removeRunHandle(key, handle);
         }
         return false;
+    }
+
+    /**
+     * 在当前线程仍持有空白入站占位时原子提交一条终态输出并释放占位。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param terminalOutput 需要与占位所有权一同校验的终态写入动作。
+     * @return 成功提交时返回 true；占位已被抢占或取消时返回 false。
+     */
+    public boolean completeIncomingReservation(String sourceKey, Runnable terminalOutput) {
+        String key = normalizeSourceKey(sourceKey);
+        RunHandle handle = runningRuns.get(key);
+        if (handle == null
+                || StrUtil.isNotBlank(handle.runId)
+                || handle.thread != Thread.currentThread()) {
+            return false;
+        }
+        synchronized (handle.outputLock) {
+            if (handle.outputRevoked || handle.cancelled.get() || runningRuns.get(key) != handle) {
+                return false;
+            }
+            try {
+                if (terminalOutput != null) {
+                    terminalOutput.run();
+                }
+                return true;
+            } finally {
+                handle.outputRevoked = true;
+                runningRuns.remove(key, handle);
+                lastRunFinishedAt = System.currentTimeMillis();
+            }
+        }
     }
 
     /**
@@ -2334,8 +2707,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (handle == null) {
             return;
         }
-        runningRuns.remove(normalizeSourceKey(sourceKey), handle);
-        lastRunFinishedAt = System.currentTimeMillis();
+        removeRunHandle(normalizeSourceKey(sourceKey), handle);
     }
 
     /**
@@ -2690,6 +3062,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         map.put("text", message.getText());
         map.put("threadId", message.getThreadId());
         map.put("replyToMessageId", message.getReplyToMessageId());
+        map.put("platformMessageId", message.getPlatformMessageId());
         map.put("sourceKeyOverride", message.getSourceKeyOverride());
         map.put("runKind", message.getRunKind());
         map.put("heartbeat", message.isHeartbeat());
@@ -2722,6 +3095,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 message.setText(stringValue(map.get("text")));
                 message.setThreadId(stringValue(map.get("threadId")));
                 message.setReplyToMessageId(stringValue(map.get("replyToMessageId")));
+                message.setPlatformMessageId(stringValue(map.get("platformMessageId")));
                 message.setSourceKeyOverride(stringValue(map.get("sourceKeyOverride")));
                 message.setRunKind(stringValue(map.get("runKind")));
                 message.setHeartbeat(Boolean.parseBoolean(stringValue(map.get("heartbeat"))));
@@ -2882,7 +3256,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             boolean claimed =
                     existing == null
                             ? runningRuns.putIfAbsent(key, reservation) == null
-                            : runningRuns.replace(key, existing, reservation);
+                            : replaceRunHandle(key, existing, reservation);
             if (claimed) {
                 return true;
             }
@@ -3228,6 +3602,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
 
         /** 记录运行Handle中的cancelled。 */
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
+
+        /** 串行化当前 run 的所有权校验、撤销与实际输出。 */
+        private final Object outputLock = new Object();
+
+        /** 当前 run 的输出权是否已经被永久撤销。 */
+        private boolean outputRevoked;
 
         /**
          * 创建运行Handle实例，并注入运行所需依赖。

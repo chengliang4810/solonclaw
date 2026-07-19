@@ -28,6 +28,21 @@ import org.junit.jupiter.api.Test;
 
 /** 验证钉钉渠道入站消息与卡片回调解析为统一网关消息的关键路径。 */
 public class DingTalkInboundDispatchTest {
+    /** SDK 客户端成功启动后应对统一连接管理器报告就绪，避免 watchdog 周期性重启健康连接。 */
+    @Test
+    void shouldReportReadyAfterStreamClientStarts() throws Throwable {
+        TestDingTalkFixture fixture = TestDingTalkFixture.create();
+        final int[] readyCalls = new int[] {0};
+        fixture.adapter.setConnectionReadyHandler(() -> readyCalls[0]++);
+
+        fixture.invokeMarkStreamClientStarted();
+
+        assertThat(fixture.adapter.isConnected()).isFalse();
+        assertThat(fixture.adapter.isConnectionHealthObservable()).isFalse();
+        assertThat(readyCalls[0]).isEqualTo(1);
+        assertThat(fixture.adapter.detail()).contains("connection health unavailable");
+    }
+
     /** 验证被 @ 的钉钉群消息会转换为统一网关消息，并写入后续回复所需的会话状态。 */
     @Test
     void shouldDispatchMentionedGroupTextAndPersistConversationContext() throws Throwable {
@@ -48,6 +63,7 @@ public class DingTalkInboundDispatchTest {
         assertThat(dispatched.getUserName()).isEqualTo("值班同事");
         assertThat(dispatched.getText()).isEqualTo("请检查 solonclaw 状态");
         assertThat(dispatched.getReplyToMessageId()).isEqualTo("msg-001");
+        assertThat(dispatched.getPlatformMessageId()).isEqualTo("msg-001");
         assertThat(dispatched.getAttachments()).isEmpty();
         assertThat(fixture.state.get(PlatformType.DINGTALK, "open-cid-1", "last_user_id"))
                 .isEqualTo("staff-001");
@@ -86,6 +102,7 @@ public class DingTalkInboundDispatchTest {
         assertThat(dispatched.getUserName()).isEqualTo("staff-card-1");
         assertThat(dispatched.getThreadId()).isEqualTo("process-001");
         assertThat(dispatched.getText()).contains("Card action:").contains("approve");
+        assertThat(dispatched.getPlatformMessageId()).startsWith("card:");
     }
 
     /** 验证默认配置与上游一致，未 @ 的钉钉群消息也会进入统一入站处理链。 */
@@ -332,6 +349,14 @@ public class DingTalkInboundDispatchTest {
                     DingTalkChannelAdapter.class.getDeclaredMethod("handleCardCallback", Map.class);
             method.setAccessible(true);
             invoke(method, adapter, payload);
+        }
+
+        /** 调用钉钉 Stream 客户端启动成功后的状态收敛入口。 */
+        private void invokeMarkStreamClientStarted() throws Throwable {
+            Method method =
+                    DingTalkChannelAdapter.class.getDeclaredMethod("markStreamClientStarted");
+            method.setAccessible(true);
+            invoke(method, adapter);
         }
 
         /** 写入被测对象私有字段，限定用于安装测试执行器。 */

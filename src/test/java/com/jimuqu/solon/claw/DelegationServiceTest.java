@@ -532,8 +532,17 @@ public class DelegationServiceTest {
         task.setModel("test-model");
         task.setAllowedTools(java.util.Collections.<String>emptyList());
         task.setToolsets(Arrays.asList("web"));
+        AgentRunContext parent =
+                new AgentRunContext(null, "parent-web-run", "parent-web-session", parentSourceKey);
+        parent.setEnabledToolNames(Arrays.asList("codesearch", "websearch", "web_extract"));
 
-        DelegationResult result = env.delegationService.delegateSingle(parentSourceKey, task);
+        AgentRunContext.setCurrent(parent);
+        DelegationResult result;
+        try {
+            result = env.delegationService.delegateSingle(parentSourceKey, task);
+        } finally {
+            AgentRunContext.setCurrent(null);
+        }
 
         assertThat(result.isError()).isFalse();
         assertThat(gateway.lastToolObjects).hasSize(3);
@@ -556,8 +565,18 @@ public class DelegationServiceTest {
         task.setModel("test-model");
         task.setSystemPrompt("minimal-system-marker");
         task.setAllowedTools(Arrays.asList("codesearch"));
+        AgentRunContext parent =
+                new AgentRunContext(
+                        null, "parent-minimal-run", "parent-minimal-session", parentSourceKey);
+        parent.setEnabledToolNames(Arrays.asList("codesearch"));
 
-        DelegationResult result = env.delegationService.delegateSingle(parentSourceKey, task);
+        AgentRunContext.setCurrent(parent);
+        DelegationResult result;
+        try {
+            result = env.delegationService.delegateSingle(parentSourceKey, task);
+        } finally {
+            AgentRunContext.setCurrent(null);
+        }
 
         assertThat(result.isError()).isFalse();
         assertThat(gateway.lastSystemPrompt)
@@ -612,6 +631,10 @@ public class DelegationServiceTest {
         CountDownLatch channelDelivered = new CountDownLatch(1);
         AtomicReference<String> completionText = new AtomicReference<String>();
         AtomicReference<DeliveryRequest> channelDelivery = new AtomicReference<DeliveryRequest>();
+        AtomicBoolean handlingCompletion = new AtomicBoolean(false);
+        AtomicBoolean deliveredInsideCompletion = new AtomicBoolean(false);
+        java.util.concurrent.atomic.AtomicInteger channelDeliveryCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
         ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
         holder.set(
                 new ConversationOrchestrator() {
@@ -619,8 +642,20 @@ public class DelegationServiceTest {
                     public com.jimuqu.solon.claw.core.model.GatewayReply handleIncoming(
                             com.jimuqu.solon.claw.core.model.GatewayMessage message) {
                         if (message.getText().startsWith("[后台委派完成]")) {
-                            completionText.set(message.getText());
-                            completionDelivered.countDown();
+                            handlingCompletion.set(true);
+                            try {
+                                completionText.set(message.getText());
+                                completionDelivered.countDown();
+                                com.jimuqu.solon.claw.core.model.GatewayReply reply =
+                                        com.jimuqu.solon.claw.core.model.GatewayReply.ok(
+                                                "continued");
+                                if (message.getReplyCommitter() != null) {
+                                    message.getReplyCommitter().apply(reply);
+                                }
+                                return reply;
+                            } finally {
+                                handlingCompletion.set(false);
+                            }
                         }
                         return com.jimuqu.solon.claw.core.model.GatewayReply.ok("continued");
                     }
@@ -648,6 +683,8 @@ public class DelegationServiceTest {
                         new com.jimuqu.solon.claw.core.service.DeliveryService() {
                             @Override
                             public void deliver(DeliveryRequest request) {
+                                channelDeliveryCalls.incrementAndGet();
+                                deliveredInsideCompletion.set(handlingCompletion.get());
                                 channelDelivery.set(request);
                                 channelDelivered.countDown();
                             }
@@ -702,6 +739,109 @@ public class DelegationServiceTest {
         assertThat(channelDelivery.get().getChatId()).isEqualTo("room-a");
         assertThat(channelDelivery.get().getThreadId()).isEqualTo("thread-a");
         assertThat(channelDelivery.get().getUserId()).isEqualTo("user-a");
+        assertThat(channelDeliveryCalls.get()).isEqualTo(1);
+        assertThat(deliveredInsideCompletion.get()).isTrue();
+    }
+
+    /** 后台完成回复首次投递失败时只能重试已生成回复，不能重跑父模型与工具副作用。 */
+    @Test
+    void backgroundCompletionShouldRetryTransientChannelDeliveryFailure() throws Exception {
+        CountDownLatch delivered = new CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger completionCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger deliveryCalls =
+                new java.util.concurrent.atomic.AtomicInteger();
+        ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
+        holder.set(
+                new ConversationOrchestrator() {
+                    /** 把后台完成载荷转换成父会话回复，并通过原子提交器执行渠道投递。 */
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply handleIncoming(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        completionCalls.incrementAndGet();
+                        com.jimuqu.solon.claw.core.model.GatewayReply reply =
+                                com.jimuqu.solon.claw.core.model.GatewayReply.ok("continued");
+                        try {
+                            message.getReplyCommitter().apply(reply);
+                            return reply;
+                        } catch (RuntimeException ignored) {
+                            // 模拟真实编排器在终态提交失败后收敛异常并返回空回复。
+                            return null;
+                        }
+                    }
+
+                    /** 本测试不使用会话恢复入口。 */
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply resumePending(
+                            String sourceKey) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("resumed");
+                    }
+
+                    /** 本测试不使用调度入口。 */
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply runScheduled(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage syntheticMessage) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("scheduled");
+                    }
+                });
+        DefaultDelegationService service =
+                new DefaultDelegationService(
+                        holder,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new com.jimuqu.solon.claw.core.service.DeliveryService() {
+                            /** 首次模拟短暂渠道异常，第二次记录成功投递。 */
+                            @Override
+                            public void deliver(DeliveryRequest request) {
+                                if (deliveryCalls.incrementAndGet() == 1) {
+                                    throw new IllegalStateException("temporary channel failure");
+                                }
+                                delivered.countDown();
+                            }
+
+                            /** 本测试不暴露渠道状态。 */
+                            @Override
+                            public List<com.jimuqu.solon.claw.core.model.ChannelStatus> statuses() {
+                                return java.util.Collections.emptyList();
+                            }
+                        }) {
+                    /** 返回固定子任务结果，聚焦验证完成回复的重试。 */
+                    @Override
+                    public List<DelegationResult> delegateBatch(
+                            String sourceKey, List<DelegationTask> tasks) {
+                        DelegationResult result = new DelegationResult();
+                        result.setContent("child summary");
+                        return Arrays.asList(result);
+                    }
+
+                    /** 测试中不等待默认重试间隔。 */
+                    @Override
+                    protected void pauseBeforeBackgroundDeliveryRetry() {}
+                };
+        String sourceKey = "profile:worker:FEISHU:room-a:thread-a:user-a";
+        AgentRunContext parent =
+                new AgentRunContext(null, "parent-run", "parent-session", sourceKey);
+        parent.setRunKind("conversation");
+        DelegationTask task = new DelegationTask();
+        task.setPrompt("retry delivery");
+
+        AgentRunContext.setCurrent(parent);
+        try {
+            service.delegateInBackground(sourceKey, Arrays.asList(task));
+        } finally {
+            AgentRunContext.setCurrent(null);
+        }
+
+        try {
+            assertThat(delivered.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(deliveryCalls.get()).isEqualTo(2);
+            assertThat(completionCalls.get()).isEqualTo(1);
+        } finally {
+            service.shutdown();
+        }
     }
 
     /** 后台委派完成前父来源键切到新会话时，旧结果必须拒绝回流。 */

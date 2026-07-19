@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.gateway.platform.feishu;
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.http.ContentType;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
@@ -32,6 +33,7 @@ import com.lark.oapi.event.cardcallback.model.CallBackOperator;
 import com.lark.oapi.event.cardcallback.model.P2CardActionTrigger;
 import com.lark.oapi.event.cardcallback.model.P2CardActionTriggerData;
 import com.lark.oapi.event.cardcallback.model.P2CardActionTriggerResponse;
+import com.lark.oapi.event.model.BaseEventV2;
 import com.lark.oapi.service.application.v6.model.GetApplicationReq;
 import com.lark.oapi.service.application.v6.model.GetApplicationResp;
 import com.lark.oapi.service.im.ImService;
@@ -222,6 +224,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             refreshTenantTokenIfNecessary();
             hydrateBotIdentity();
             inboundExecutor = Executors.newSingleThreadExecutor();
+            queuePlatformPendingInboundRecovery(inboundExecutor);
             EventDispatcher dispatcher =
                     EventDispatcher.newBuilder("", "")
                             .onP2MessageReceiveV1(
@@ -239,37 +242,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                                 return;
                                             }
                                             final P2MessageReceiveV1Data data = event.getEvent();
-                                            // 控制命令（/stop、/cancel）在提交串行入站队列之前判定，
-                                            // 直接走并发执行器，避免被运行中的长任务阻塞而错过取消时机
-                                            GatewayMessage controlMessage =
+                                            GatewayMessage message =
                                                     toGatewayMessage(
                                                             data == null ? null : data.getMessage(),
                                                             data == null ? null : data.getSender());
-                                            if (controlMessage != null
-                                                    && inboundMessageHandler() != null
-                                                    && isControlCommand(controlMessage.getText())) {
-                                                if (inboundMessageDeduplicator.isDuplicate(
-                                                        data.getMessage().getMessageId())) {
-                                                    return;
-                                                }
-                                                dispatchInboundControl(controlMessage);
-                                                return;
-                                            }
-                                            inboundExecutor.submit(
-                                                    new Runnable() {
-                                                        /** 执行异步任务主体。 */
-                                                        @Override
-                                                        public void run() {
-                                                            try {
-                                                                handleWebsocketEvent(data);
-                                                            } catch (Exception e) {
-                                                                log.warn(
-                                                                        "[FEISHU] websocket inbound dispatch failed: errorType={}, error={}",
-                                                                        errorType(e),
-                                                                        safeError(e));
-                                                            }
-                                                        }
-                                                    });
+                                            dispatchWebsocketMessage(message, true);
                                         }
                                     })
                             .onP2MessageReactionCreatedV1(
@@ -283,7 +260,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                         public void handle(P2MessageReactionCreatedV1 event)
                                                 throws Exception {
                                             handleReactionCreatedEvent(
-                                                    event == null ? null : event.getEvent());
+                                                    event == null ? null : event.getEvent(),
+                                                    eventId(event));
                                         }
                                     })
                             .onP2MessageReactionDeletedV1(
@@ -297,7 +275,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                         public void handle(P2MessageReactionDeletedV1 event)
                                                 throws Exception {
                                             handleReactionDeletedEvent(
-                                                    event == null ? null : event.getEvent());
+                                                    event == null ? null : event.getEvent(),
+                                                    eventId(event));
                                         }
                                     })
                             .onP2CardActionTrigger(
@@ -312,7 +291,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                         public P2CardActionTriggerResponse handle(
                                                 P2CardActionTrigger event) throws Exception {
                                             handleCardActionEvent(
-                                                    event == null ? null : event.getEvent());
+                                                    event == null ? null : event.getEvent(),
+                                                    eventId(event));
                                             return new P2CardActionTriggerResponse();
                                         }
                                     })
@@ -384,6 +364,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     /** 标记飞书 SDK 正在执行自动重连，此状态不额外触发连接管理器的第二套重连。 */
     protected void markWebsocketReconnecting() {
+        notifyConnectionUnavailable();
         setConnected(false);
         setSetupState("reconnecting");
         setDetail("websocket reconnecting");
@@ -395,6 +376,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         setSetupState("connected");
         clearLastError();
         setDetail("websocket connected");
+        notifyConnectionReady();
     }
 
     /** 断开当前组件持有的连接。 */
@@ -463,22 +445,52 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 toGatewayMessage(
                         event == null ? null : event.getMessage(),
                         event == null ? null : event.getSender());
-        if (message != null
-                && inboundMessageDeduplicator.isDuplicate(message.getReplyToMessageId())) {
+        dispatchWebsocketMessage(message, false);
+    }
+
+    /** 在飞书回调返回前准入消息，再按控制命令或普通消息选择执行器。 */
+    private void dispatchWebsocketMessage(final GatewayMessage message, boolean asynchronous) {
+        if (message == null || inboundMessageHandler() == null) {
             return;
         }
-        if (message != null && inboundMessageHandler() != null) {
-            // 控制命令已在 handle(P2MessageReceiveV1) 提交串行队列前分流到并发执行器，
-            // 这里只处理普通消息；保留防御性判定以防外部直接调用本方法时仍能正确分流。
-            if (isControlCommand(message.getText())) {
-                dispatchInboundControl(message);
-                return;
-            }
-            try {
-                inboundMessageHandler().handle(message);
-            } catch (Exception e) {
-                throw new IllegalStateException("Feishu websocket handle failed", e);
-            }
+        if (!admitInboundBeforeAsync(message)) {
+            return;
+        }
+        if (inboundMessageDeduplicator.isDuplicate(message.getPlatformMessageId())) {
+            return;
+        }
+        if (isControlCommand(message.getText())) {
+            dispatchAdmittedInboundControl(message);
+            return;
+        }
+        if (!asynchronous) {
+            handleAdmittedWebsocketMessage(message);
+            return;
+        }
+        submitInboundAfterPendingRecovery(
+                inboundExecutor,
+                new Runnable() {
+                    /** 执行已持久化飞书消息的异步业务处理。 */
+                    @Override
+                    public void run() {
+                        try {
+                            handleAdmittedWebsocketMessage(message);
+                        } catch (Exception e) {
+                            log.warn(
+                                    "[FEISHU] websocket inbound dispatch failed: errorType={}, error={}",
+                                    errorType(e),
+                                    safeError(e));
+                        }
+                    }
+                });
+    }
+
+    /** 调用统一已准入入口，并把业务异常隔离为飞书渠道异常。 */
+    private void handleAdmittedWebsocketMessage(GatewayMessage message) {
+        try {
+            inboundMessageHandler().handleAdmitted(message);
+        } catch (Exception e) {
+            throw new IllegalStateException("Feishu websocket handle failed", e);
         }
     }
 
@@ -519,12 +531,36 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message == null ? "" : StrUtil.nullToEmpty(message.getReplyToMessageId()).trim();
     }
 
+    /** 读取飞书 v2 事件信封中的跨重投稳定事件标识。 */
+    private String eventId(BaseEventV2 event) {
+        return event == null || event.getHeader() == null
+                ? null
+                : StrUtil.trimToNull(event.getHeader().getEventId());
+    }
+
+    /** 在旧版信封缺少 event_id 时为 reaction 构造不混淆不同动作的稳定降级标识。 */
+    private String reactionFallbackId(
+            GatewayMessage message, String emoji, String actionTime, boolean created) {
+        return "reaction:"
+                + StrUtil.nullToEmpty(message.getReplyToMessageId())
+                + ":"
+                + StrUtil.nullToEmpty(message.getUserId())
+                + ":"
+                + StrUtil.nullToEmpty(emoji)
+                + ":"
+                + StrUtil.nullToEmpty(actionTime)
+                + ":"
+                + String.valueOf(created);
+    }
+
     /**
      * 执行Reaction创建事件相关逻辑。
      *
      * @param event 事件参数。
+     * @param platformEventId 飞书事件信封中的稳定事件标识。
      */
-    private void handleReactionCreatedEvent(P2MessageReactionCreatedV1Data event) {
+    private void handleReactionCreatedEvent(
+            P2MessageReactionCreatedV1Data event, String platformEventId) {
         if (event == null) {
             return;
         }
@@ -537,11 +573,17 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 : event.getReactionType().getEmojiType(),
                         true);
         if (message != null && inboundMessageHandler() != null) {
-            try {
-                inboundMessageHandler().handle(message);
-            } catch (Exception e) {
-                throw new IllegalStateException("Feishu reaction handle failed", e);
-            }
+            message.setPlatformMessageId(
+                    StrUtil.firstNonBlank(
+                            platformEventId,
+                            reactionFallbackId(
+                                    message,
+                                    event.getReactionType() == null
+                                            ? ""
+                                            : event.getReactionType().getEmojiType(),
+                                    event.getActionTime(),
+                                    true)));
+            dispatchWebsocketMessage(message, true);
         }
     }
 
@@ -549,8 +591,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * 执行Reaction删除事件相关逻辑。
      *
      * @param event 事件参数。
+     * @param platformEventId 飞书事件信封中的稳定事件标识。
      */
-    private void handleReactionDeletedEvent(P2MessageReactionDeletedV1Data event) {
+    private void handleReactionDeletedEvent(
+            P2MessageReactionDeletedV1Data event, String platformEventId) {
         if (event == null) {
             return;
         }
@@ -563,11 +607,17 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 : event.getReactionType().getEmojiType(),
                         false);
         if (message != null && inboundMessageHandler() != null) {
-            try {
-                inboundMessageHandler().handle(message);
-            } catch (Exception e) {
-                throw new IllegalStateException("Feishu reaction handle failed", e);
-            }
+            message.setPlatformMessageId(
+                    StrUtil.firstNonBlank(
+                            platformEventId,
+                            reactionFallbackId(
+                                    message,
+                                    event.getReactionType() == null
+                                            ? ""
+                                            : event.getReactionType().getEmojiType(),
+                                    event.getActionTime(),
+                                    false)));
+            dispatchWebsocketMessage(message, true);
         }
     }
 
@@ -575,8 +625,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * 执行卡片Action事件相关逻辑。
      *
      * @param event 事件参数。
+     * @param platformEventId 飞书事件信封中的稳定事件标识。
      */
-    private void handleCardActionEvent(P2CardActionTriggerData event) {
+    private void handleCardActionEvent(P2CardActionTriggerData event, String platformEventId) {
         if (event == null || inboundMessageHandler() == null) {
             return;
         }
@@ -584,11 +635,18 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (message == null) {
             return;
         }
-        try {
-            inboundMessageHandler().handle(message);
-        } catch (Exception e) {
-            throw new IllegalStateException("Feishu card action handle failed", e);
-        }
+        message.setPlatformMessageId(
+                StrUtil.firstNonBlank(
+                        platformEventId,
+                        "card:"
+                                + StrUtil.nullToEmpty(message.getReplyToMessageId())
+                                + ":"
+                                + DigestUtil.sha256Hex(
+                                        ONode.serialize(
+                                                event.getAction() == null
+                                                        ? Collections.emptyMap()
+                                                        : event.getAction().getValue()))));
+        dispatchWebsocketMessage(message, true);
     }
 
     /**
@@ -602,23 +660,28 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         // 先解析评论消息，便于识别控制命令；控制命令走并发执行器避免被运行中的任务阻塞
         GatewayMessage message = toCommentGatewayMessage(req);
-        if (message == null) {
+        if (message == null || !admitInboundBeforeAsync(message)) {
+            return;
+        }
+        if (inboundMessageDeduplicator.isDuplicate(message.getPlatformMessageId())) {
             return;
         }
         if (isControlCommand(message.getText())) {
-            dispatchInboundControl(message);
+            dispatchAdmittedInboundControl(message);
             return;
         }
         if (inboundExecutor == null) {
             inboundExecutor = Executors.newSingleThreadExecutor();
+            queuePlatformPendingInboundRecovery(inboundExecutor);
         }
-        inboundExecutor.submit(
+        submitInboundAfterPendingRecovery(
+                inboundExecutor,
                 new Runnable() {
                     /** 执行异步任务主体。 */
                     @Override
                     public void run() {
                         try {
-                            inboundMessageHandler().handle(message);
+                            inboundMessageHandler().handleAdmitted(message);
                         } catch (Exception e) {
                             log.warn(
                                     "[FEISHU-COMMENT] dispatch failed: errorType={}, error={}",
@@ -701,6 +764,17 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         + fileToken
                         + ":"
                         + StrUtil.blankToDefault(commentId, "whole"));
+        message.setPlatformMessageId(
+                StrUtil.firstNonBlank(
+                        root.get("header").get("event_id").getString(),
+                        root.get("header").get("eventId").getString(),
+                        root.get("event_id").getString(),
+                        "comment:"
+                                + fileToken
+                                + ":"
+                                + StrUtil.blankToDefault(commentId, "whole")
+                                + ":"
+                                + StrUtil.blankToDefault(replyId, "root")));
         return message;
     }
 
@@ -916,6 +990,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setThreadId(
                 StrUtil.firstNonBlank(messageNode.getThreadId(), messageNode.getRootId()));
         message.setReplyToMessageId(messageNode.getMessageId());
+        message.setPlatformMessageId(messageNode.getMessageId());
         message.setAttachments(attachments);
         return message;
     }
@@ -950,14 +1025,14 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
         if ("image".equalsIgnoreCase(messageType)) {
             MessageAttachment attachment =
-                    downloadMessageResource(
+                    createMessageResourceReference(
                             "image", messageId, content.get("image_key").getString(), "image.jpg");
             if (attachment != null) {
                 attachments.add(attachment);
             }
         } else if ("file".equalsIgnoreCase(messageType)) {
             MessageAttachment attachment =
-                    downloadMessageResource(
+                    createMessageResourceReference(
                             "file",
                             messageId,
                             content.get("file_key").getString(),
@@ -967,7 +1042,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             }
         } else if ("audio".equalsIgnoreCase(messageType)) {
             MessageAttachment attachment =
-                    downloadMessageResource(
+                    createMessageResourceReference(
                             "audio",
                             messageId,
                             content.get("file_key").getString(),
@@ -978,7 +1053,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             }
         } else if ("media".equalsIgnoreCase(messageType)) {
             MessageAttachment attachment =
-                    downloadMessageResource(
+                    createMessageResourceReference(
                             "media",
                             messageId,
                             content.get("file_key").getString(),
@@ -991,14 +1066,14 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             PostParseResult post = parsePostContent(content);
             for (String imageKey : post.imageKeys) {
                 MessageAttachment attachment =
-                        downloadMessageResource("image", messageId, imageKey, "image.jpg");
+                        createMessageResourceReference("image", messageId, imageKey, "image.jpg");
                 if (attachment != null) {
                     attachments.add(attachment);
                 }
             }
             for (PostMediaRef ref : post.mediaRefs) {
                 MessageAttachment attachment =
-                        downloadMessageResource(
+                        createMessageResourceReference(
                                 ref.resourceType, messageId, ref.fileKey, ref.fileName);
                 if (attachment != null) {
                     attachment.setKind(
@@ -1440,7 +1515,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     /**
-     * 执行download消息资源相关逻辑。
+     * 创建可持久化的飞书消息资源引用。
      *
      * @param resourceType 资源类型参数。
      * @param messageId 消息标识。
@@ -1448,36 +1523,72 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param fallbackName 兜底名称参数。
      * @return 返回download消息Resource结果。
      */
-    private MessageAttachment downloadMessageResource(
+    private MessageAttachment createMessageResourceReference(
             String resourceType, String messageId, String fileKey, String fallbackName) {
         if (StrUtil.isBlank(messageId) || StrUtil.isBlank(fileKey)) {
             return null;
         }
-        refreshTenantTokenIfNecessary();
-        String url = String.format(MESSAGE_RESOURCE_URL, messageId, fileKey, resourceType);
-        Map<String, String> headers = new LinkedHashMap<String, String>();
-        headers.put("Authorization", "Bearer " + tenantAccessToken);
-        BoundedAttachmentIO.HutoolDownloadResult result =
-                BoundedAttachmentIO.downloadHutoolResult(
-                        url,
-                        30000,
-                        BoundedAttachmentIO.DEFAULT_MAX_BYTES,
-                        securityPolicyService,
-                        headers);
         String fileName = fallbackName;
         if (StrUtil.isBlank(fileName)) {
             fileName = fileKey;
         }
-        String mimeType =
-                AttachmentCacheService.normalizeMimeType(result.getContentType(), fileName);
-        return attachmentCacheService.cacheBytes(
-                PlatformType.FEISHU,
-                AttachmentCacheService.normalizeKind(resourceType, fileName, mimeType),
-                fileName,
-                mimeType,
-                false,
-                null,
-                result.getData());
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind(AttachmentCacheService.normalizeKind(resourceType, fileName, null));
+        attachment.setOriginalName(fileName);
+        attachment.setMimeType(AttachmentCacheService.normalizeMimeType(null, fileName));
+        attachment.setSourceReference(fileKey);
+        attachment.setSourceContext(messageId);
+        attachment.setSourceResourceType(resourceType);
+        return attachment;
+    }
+
+    /** 准入完成后下载飞书消息资源；任一失败时保留总账中的原始引用。 */
+    @Override
+    public void hydrateInboundAttachments(GatewayMessage message) throws Exception {
+        if (message == null || message.getAttachments() == null) {
+            return;
+        }
+        List<MessageAttachment> hydrated = new ArrayList<MessageAttachment>();
+        for (MessageAttachment attachment : message.getAttachments()) {
+            if (attachment == null || StrUtil.isBlank(attachment.getSourceReference())) {
+                hydrated.add(attachment);
+                continue;
+            }
+            refreshTenantTokenIfNecessary();
+            String resourceType =
+                    StrUtil.blankToDefault(attachment.getSourceResourceType(), "file");
+            String url =
+                    String.format(
+                            MESSAGE_RESOURCE_URL,
+                            attachment.getSourceContext(),
+                            attachment.getSourceReference(),
+                            resourceType);
+            Map<String, String> headers = new LinkedHashMap<String, String>();
+            headers.put("Authorization", "Bearer " + tenantAccessToken);
+            BoundedAttachmentIO.HutoolDownloadResult result =
+                    BoundedAttachmentIO.downloadHutoolResult(
+                            url,
+                            30000,
+                            BoundedAttachmentIO.DEFAULT_MAX_BYTES,
+                            securityPolicyService,
+                            headers);
+            String fileName =
+                    StrUtil.blankToDefault(
+                            attachment.getOriginalName(), attachment.getSourceReference());
+            String mimeType =
+                    AttachmentCacheService.normalizeMimeType(result.getContentType(), fileName);
+            hydrated.add(
+                    attachmentCacheService.cacheBytes(
+                            PlatformType.FEISHU,
+                            AttachmentCacheService.normalizeKind(
+                                    attachment.getKind(), fileName, mimeType),
+                            fileName,
+                            mimeType,
+                            attachment.isFromQuote(),
+                            attachment.getTranscribedText(),
+                            result.getData()));
+        }
+        message.setAttachments(hydrated);
     }
 
     /**

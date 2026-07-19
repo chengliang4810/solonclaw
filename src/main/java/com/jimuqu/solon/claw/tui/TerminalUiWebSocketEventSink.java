@@ -282,6 +282,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
     @Override
     public void onRunFailed(String sessionId, Throwable error) {
         activeSessionId = sessionId;
+        runCompleted = true;
         if (rpcEnvelope) {
             flushPendingDeltas();
             send(
@@ -331,7 +332,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         return assistantDeltaSent;
     }
 
-    /** 是否已经向终端 UI 发送过当前运行的完成事件。 */
+    /** 是否已经向终端 UI 发送过当前运行的成功或失败终态。 */
     public boolean hasRunCompleted() {
         return runCompleted;
     }

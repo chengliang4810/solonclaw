@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.gateway.platform.dingtalk;
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.aliyun.dingtalkconv_file_1_0.models.GetSpaceHeaders;
@@ -289,6 +290,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         try {
             refreshAccessTokenIfNecessary();
             callbackExecutor = Executors.newSingleThreadExecutor();
+            queuePlatformPendingInboundRecovery(callbackExecutor);
             streamClient =
                     OpenDingTalkStreamClientBuilder.custom()
                             .credential(
@@ -347,7 +349,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     /**
      * 标记钉钉 Stream 客户端生命周期已启动。
      *
-     * <p>当前 SDK 仅公开异步启动入口，没有可用于确认真实会话健康的回调或查询接口，因此保守保持未连接状态，并向 Doctor 明确暴露健康未知。
+     * <p>当前 SDK 没有真实会话健康查询接口；客户端成功启动不伪装成已连接，由统一管理器按健康不可观测语义跳过 watchdog。
      */
     protected void markStreamClientStarted() {
         setConnected(false);
@@ -355,6 +357,13 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         setMissingConfig(new String[0]);
         clearLastError();
         setDetail("stream client started; connection health unavailable");
+        notifyConnectionReady();
+    }
+
+    /** 钉钉 Stream SDK 不提供真实会话健康查询接口。 */
+    @Override
+    public boolean isConnectionHealthObservable() {
+        return false;
     }
 
     /** 断开当前组件持有的连接。 */
@@ -370,9 +379,11 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                     errorType(e),
                     safeError(e));
         } finally {
+            streamClient = null;
             if (callbackExecutor != null) {
                 callbackExecutor.shutdownNow();
             }
+            callbackExecutor = null;
             // 关闭控制命令并发执行器，避免断开连接后线程泄漏
             shutdownControlExecutor();
             setConnected(false);
@@ -497,125 +508,33 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (callbackExecutor == null || inboundMessageHandler() == null || message == null) {
             return;
         }
-        if (inboundMessageDeduplicator.isDuplicate(message.getMsgId())) {
+        final GatewayMessage gatewayMessage = toInboundGatewayMessage(message);
+        if (gatewayMessage == null || !admitInboundBeforeAsync(gatewayMessage)) {
             return;
         }
-        if (!isDingTalkUserAllowed(message.getSenderId(), message.getSenderStaffId())) {
+        if (inboundMessageDeduplicator.isDuplicate(gatewayMessage.getPlatformMessageId())) {
             return;
         }
-        String inboundConversationId =
-                notBlank(message.getConversationId())
-                        ? message.getConversationId()
-                        : message.getSenderId();
-        String inboundChatType =
-                "2".equals(String.valueOf(message.getConversationType())) ? "group" : "dm";
-        String inboundUserId =
-                notBlank(message.getSenderStaffId())
-                        ? message.getSenderStaffId()
-                        : message.getSenderId();
-        if (!allowInbound(message, inboundConversationId, inboundChatType, inboundUserId)) {
-            return;
-        }
+        rememberInboundContext(message, gatewayMessage);
+        log.info(
+                "[DINGTALK-INBOUND] conversationId={}, senderId={}, senderStaffId={}, type={}, text={}",
+                gatewayMessage.getChatId(),
+                message.getSenderId(),
+                message.getSenderStaffId(),
+                message.getConversationType(),
+                gatewayMessage.getText());
         // 控制命令（/stop、/cancel）走并发执行器，避免被串行回调队列中运行中的任务阻塞而错过取消时机
-        if (isControlCommand(extractText(message))) {
-            // 复用现有转换逻辑构造网关消息后再投递到控制执行器
-            final String text = extractText(message);
-            String conversationId =
-                    notBlank(message.getConversationId())
-                            ? message.getConversationId()
-                            : message.getSenderId();
-            String chatType =
-                    "2".equals(String.valueOf(message.getConversationType())) ? "group" : "dm";
-            String userId =
-                    notBlank(message.getSenderStaffId())
-                            ? message.getSenderStaffId()
-                            : message.getSenderId();
-            GatewayMessage gatewayMessage =
-                    new GatewayMessage(PlatformType.DINGTALK, conversationId, userId, text);
-            gatewayMessage.setChatType(chatType);
-            gatewayMessage.setChatName(
-                    notBlank(message.getConversationTitle())
-                            ? message.getConversationTitle()
-                            : conversationId);
-            gatewayMessage.setUserName(
-                    notBlank(message.getSenderNick()) ? message.getSenderNick() : userId);
-            gatewayMessage.setReplyToMessageId(message.getMsgId());
-            dispatchInboundControl(gatewayMessage);
+        if (isControlCommand(gatewayMessage.getText())) {
+            dispatchAdmittedInboundControl(gatewayMessage);
             return;
         }
-        callbackExecutor.submit(
+        submitInboundAfterPendingRecovery(
+                callbackExecutor,
                 new Runnable() {
                     /** 执行异步任务主体。 */
                     public void run() {
                         try {
-                            String text = extractText(message);
-                            String conversationId =
-                                    notBlank(message.getConversationId())
-                                            ? message.getConversationId()
-                                            : message.getSenderId();
-                            String chatType =
-                                    "2".equals(String.valueOf(message.getConversationType()))
-                                            ? "group"
-                                            : "dm";
-                            String userId =
-                                    notBlank(message.getSenderStaffId())
-                                            ? message.getSenderStaffId()
-                                            : message.getSenderId();
-                            if (!allowInbound(message, conversationId, chatType, userId)) {
-                                return;
-                            }
-                            List<MessageAttachment> attachments = extractAttachments(message);
-                            if (isBlank(text) && attachments.isEmpty()) {
-                                return;
-                            }
-                            conversationGroupFlags.put(
-                                    conversationId,
-                                    "2".equals(String.valueOf(message.getConversationType())));
-                            rememberSessionWebhook(
-                                    conversationId,
-                                    message.getSessionWebhook(),
-                                    message.getSessionWebhookExpiredTime());
-                            try {
-                                channelStateRepository.put(
-                                        PlatformType.DINGTALK,
-                                        conversationId,
-                                        STATE_LAST_USER_ID,
-                                        userId);
-                                channelStateRepository.put(
-                                        PlatformType.DINGTALK,
-                                        conversationId,
-                                        STATE_LAST_UNION_ID,
-                                        StrUtil.nullToEmpty(message.getSenderId()));
-                                channelStateRepository.put(
-                                        PlatformType.DINGTALK,
-                                        conversationId,
-                                        STATE_CHAT_TYPE,
-                                        chatType);
-                            } catch (Exception e) {
-                                logRecoverableChannelFailure("remember_inbound_sender", e);
-                            }
-                            log.info(
-                                    "[DINGTALK-INBOUND] conversationId={}, senderId={}, senderStaffId={}, type={}, text={}",
-                                    conversationId,
-                                    message.getSenderId(),
-                                    message.getSenderStaffId(),
-                                    message.getConversationType(),
-                                    text);
-                            GatewayMessage gatewayMessage =
-                                    new GatewayMessage(
-                                            PlatformType.DINGTALK, conversationId, userId, text);
-                            gatewayMessage.setChatType(chatType);
-                            gatewayMessage.setChatName(
-                                    notBlank(message.getConversationTitle())
-                                            ? message.getConversationTitle()
-                                            : conversationId);
-                            gatewayMessage.setUserName(
-                                    notBlank(message.getSenderNick())
-                                            ? message.getSenderNick()
-                                            : userId);
-                            gatewayMessage.setReplyToMessageId(message.getMsgId());
-                            gatewayMessage.setAttachments(attachments);
-                            inboundMessageHandler().handle(gatewayMessage);
+                            inboundMessageHandler().handleAdmitted(gatewayMessage);
                         } catch (Exception e) {
                             log.warn(
                                     "[DINGTALK] inbound dispatch failed: errorType={}, error={}",
@@ -624,6 +543,74 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         }
                     }
                 });
+    }
+
+    /** 把钉钉机器人回调同步转换为可持久化的统一入站消息。 */
+    private GatewayMessage toInboundGatewayMessage(ChatbotMessage message) {
+        if (!isDingTalkUserAllowed(message.getSenderId(), message.getSenderStaffId())) {
+            return null;
+        }
+        String conversationId =
+                notBlank(message.getConversationId())
+                        ? message.getConversationId()
+                        : message.getSenderId();
+        String chatType =
+                "2".equals(String.valueOf(message.getConversationType())) ? "group" : "dm";
+        String userId =
+                notBlank(message.getSenderStaffId())
+                        ? message.getSenderStaffId()
+                        : message.getSenderId();
+        if (!allowInbound(message, conversationId, chatType, userId)) {
+            return null;
+        }
+        String text = extractText(message);
+        List<MessageAttachment> attachments = extractAttachments(message);
+        if (isBlank(text) && attachments.isEmpty()) {
+            return null;
+        }
+        GatewayMessage gatewayMessage =
+                new GatewayMessage(PlatformType.DINGTALK, conversationId, userId, text);
+        gatewayMessage.setChatType(chatType);
+        gatewayMessage.setChatName(
+                notBlank(message.getConversationTitle())
+                        ? message.getConversationTitle()
+                        : conversationId);
+        gatewayMessage.setUserName(
+                notBlank(message.getSenderNick()) ? message.getSenderNick() : userId);
+        gatewayMessage.setReplyToMessageId(message.getMsgId());
+        gatewayMessage.setPlatformMessageId(message.getMsgId());
+        gatewayMessage.setAttachments(attachments);
+        return gatewayMessage;
+    }
+
+    /** 在持久化 receipt 建立后保存回复和后续渠道投递所需的钉钉会话上下文。 */
+    private void rememberInboundContext(ChatbotMessage message, GatewayMessage gatewayMessage) {
+        String conversationId = gatewayMessage.getChatId();
+        conversationGroupFlags.put(
+                conversationId, "2".equals(String.valueOf(message.getConversationType())));
+        rememberSessionWebhook(
+                conversationId,
+                message.getSessionWebhook(),
+                message.getSessionWebhookExpiredTime());
+        try {
+            channelStateRepository.put(
+                    PlatformType.DINGTALK,
+                    conversationId,
+                    STATE_LAST_USER_ID,
+                    gatewayMessage.getUserId());
+            channelStateRepository.put(
+                    PlatformType.DINGTALK,
+                    conversationId,
+                    STATE_LAST_UNION_ID,
+                    StrUtil.nullToEmpty(message.getSenderId()));
+            channelStateRepository.put(
+                    PlatformType.DINGTALK,
+                    conversationId,
+                    STATE_CHAT_TYPE,
+                    gatewayMessage.getChatType());
+        } catch (Exception e) {
+            logRecoverableChannelFailure("remember_inbound_sender", e);
+        }
     }
 
     /**
@@ -646,17 +633,24 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (!allowCardCallback(message)) {
             return;
         }
-        if (isControlCommand(message.getText())) {
-            dispatchInboundControl(message);
+        if (!admitInboundBeforeAsync(message)) {
             return;
         }
-        callbackExecutor.submit(
+        if (inboundMessageDeduplicator.isDuplicate(message.getPlatformMessageId())) {
+            return;
+        }
+        if (isControlCommand(message.getText())) {
+            dispatchAdmittedInboundControl(message);
+            return;
+        }
+        submitInboundAfterPendingRecovery(
+                callbackExecutor,
                 new Runnable() {
                     /** 执行异步任务主体。 */
                     @Override
                     public void run() {
                         try {
-                            inboundMessageHandler().handle(message);
+                            inboundMessageHandler().handleAdmitted(message);
                         } catch (Exception e) {
                             log.warn(
                                     "[DINGTALK] card callback dispatch failed: errorType={}, error={}",
@@ -1023,7 +1017,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     /**
-     * 追加附件。
+     * 追加可持久化的钉钉原始附件引用。
      *
      * @param attachments attachments 参数。
      * @param kind kind 参数。
@@ -1042,30 +1036,47 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (isBlank(downloadCode)) {
             return;
         }
-        try {
-            String downloadUrl = resolveDownloadUrl(downloadCode);
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind(kind);
+        attachment.setOriginalName(fileName);
+        attachment.setMimeType(mimeType);
+        attachment.setTranscribedText(transcribedText);
+        attachment.setSourceReference(downloadCode);
+        attachment.setSourceResourceType("download_code");
+        attachments.add(attachment);
+    }
+
+    /** 准入完成后下载钉钉附件；任一失败时不替换原始引用列表。 */
+    @Override
+    public void hydrateInboundAttachments(GatewayMessage message) throws Exception {
+        if (message == null || message.getAttachments() == null) {
+            return;
+        }
+        List<MessageAttachment> hydrated = new ArrayList<MessageAttachment>();
+        for (MessageAttachment attachment : message.getAttachments()) {
+            if (attachment == null || isBlank(attachment.getSourceReference())) {
+                hydrated.add(attachment);
+                continue;
+            }
+            refreshAccessTokenIfNecessary();
+            String downloadUrl = resolveDownloadUrl(attachment.getSourceReference());
             byte[] data =
                     BoundedAttachmentIO.downloadHutool(
                             downloadUrl,
                             30000,
                             BoundedAttachmentIO.DEFAULT_MAX_BYTES,
                             securityPolicyService);
-            attachments.add(
+            hydrated.add(
                     attachmentCacheService.cacheBytes(
                             PlatformType.DINGTALK,
-                            kind,
-                            fileName,
-                            mimeType,
-                            false,
-                            transcribedText,
+                            attachment.getKind(),
+                            attachment.getOriginalName(),
+                            attachment.getMimeType(),
+                            attachment.isFromQuote(),
+                            attachment.getTranscribedText(),
                             data));
-        } catch (Exception e) {
-            log.warn(
-                    "[DINGTALK] attachment download failed: kind={}, code={}, message={}",
-                    kind,
-                    downloadCode,
-                    e.getMessage());
         }
+        message.setAttachments(hydrated);
     }
 
     /**
@@ -1731,6 +1742,16 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setUserName(StrUtil.blankToDefault(userId, "dingtalk-card"));
         message.setThreadId(
                 StrUtil.blankToDefault(processKey, "card-callback-" + System.currentTimeMillis()));
+        String callbackId =
+                StrUtil.firstNonBlank(
+                        node.get("callbackId").getString(),
+                        node.get("callback_id").getString(),
+                        node.get("eventId").getString(),
+                        node.get("event_id").getString(),
+                        findNested(node, "headers", "eventId"),
+                        findNested(node, "headers", "event_id"));
+        message.setPlatformMessageId(
+                StrUtil.blankToDefault(callbackId, "card:" + DigestUtil.sha256Hex(node.toJson())));
         if (StrUtil.isNotBlank(command)) {
             message.setSourceKeyOverride(
                     GatewayMessage.directSourceKey(PlatformType.DINGTALK, chatId, userId));

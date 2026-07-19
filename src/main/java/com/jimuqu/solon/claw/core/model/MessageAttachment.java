@@ -35,4 +35,16 @@ public class MessageAttachment {
 
     /** 平台原生提供的转写文本。 */
     private String transcribedText;
+
+    /** 入站准入阶段保存的平台原始附件引用，例如下载码、资源键或远程 URL。 */
+    private String sourceReference;
+
+    /** 解析原始附件引用所需的平台上下文，例如消息 ID 或备用加密键。 */
+    private String sourceContext;
+
+    /** 下载后解密附件所需的平台原始密钥。 */
+    private String sourceEncryptionKey;
+
+    /** 平台原始资源类型或引用类型，用于恢复时选择正确下载协议。 */
+    private String sourceResourceType;
 }

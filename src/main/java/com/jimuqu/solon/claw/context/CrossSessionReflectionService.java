@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
+import com.jimuqu.solon.claw.support.ExecutorShutdownSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
@@ -181,7 +182,7 @@ public class CrossSessionReflectionService {
 
     /** 关闭辅助模型执行器。 */
     public void shutdown() {
-        auxiliaryExecutor.shutdownNow();
+        ExecutorShutdownSupport.drain(auxiliaryExecutor);
     }
 
     /** 收集、过滤、脱敏并限制近期真实会话证据。 */

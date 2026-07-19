@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.context;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.SecureUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -24,13 +25,17 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -55,6 +60,10 @@ public class LocalSkillService implements SkillCatalogService {
 
     /** 内联终端最大输出的统一常量值。 */
     private static final int INLINE_SHELL_MAX_OUTPUT = 4000;
+
+    /** 按技能文件规范路径共享的写锁，保证人工写入和后台比较写入不会互相覆盖。 */
+    private static final ConcurrentHashMap<String, Object> SKILL_WRITE_LOCKS =
+            new ConcurrentHashMap<String, Object>();
 
     /** 应用配置。 */
     private final AppConfig appConfig;
@@ -841,12 +850,37 @@ public class LocalSkillService implements SkillCatalogService {
         validateCategory(category);
         validateSkillContent(content);
         File skillDir = resolveSkillDir(name, category);
-        if (skillDir.exists()) {
-            throw new IllegalStateException(
-                    "Skill already exists: " + canonicalName(category, name));
+        File target = FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME);
+        String canonicalName = canonicalName(normalizeCategory(category), name);
+        synchronized (skillWriteLock(target)) {
+            if (skillDir.exists() || target.exists()) {
+                throw new IllegalStateException("Skill already exists: " + canonicalName);
+            }
+            removeCuratorProvenance(canonicalName);
+            writeNewSkillMainFileLocked(
+                    skillDir, content, canonicalName + "/" + SkillConstants.SKILL_FILE_NAME);
         }
-        writeSkillMainFile(
-                skillDir, content, canonicalName(normalizeCategory(category), name) + "/SKILL.md");
+        return buildDescriptor(skillDir, normalizeCategory(category));
+    }
+
+    /** 创建后台 Agent 技能，并在同一技能锁内登记全新的来源代次。 */
+    public SkillDescriptor createAgentSkill(String name, String category, String content) {
+        validateSkillName(name);
+        validateCategory(category);
+        validateSkillContent(content);
+        File skillDir = resolveSkillDir(name, category);
+        File target = FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME);
+        String canonicalName = canonicalName(normalizeCategory(category), name);
+        synchronized (skillWriteLock(target)) {
+            if (skillDir.exists() || target.exists()) {
+                throw new IllegalStateException("Skill already exists: " + canonicalName);
+            }
+            removeCuratorProvenance(canonicalName);
+            writeNewSkillMainFileLocked(
+                    skillDir, content, canonicalName + "/" + SkillConstants.SKILL_FILE_NAME);
+            writeAgentProvenanceLocked(
+                    canonicalName, target, content, UUID.randomUUID().toString());
+        }
         return buildDescriptor(skillDir, normalizeCategory(category));
     }
 
@@ -858,11 +892,100 @@ public class LocalSkillService implements SkillCatalogService {
             throw new IllegalStateException("Skill not found: " + nameOrPath);
         }
         ensureWritable(descriptor);
-        writeSkillMainFile(
-                FileUtil.file(descriptor.getSkillDir()),
-                content,
-                descriptor.canonicalName() + "/SKILL.md");
+        File skillDir = FileUtil.file(descriptor.getSkillDir());
+        File target = FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME);
+        synchronized (skillWriteLock(target)) {
+            writeSkillMainFile(skillDir, content, descriptor.canonicalName() + "/SKILL.md");
+            removeCuratorProvenance(descriptor.canonicalName());
+        }
         return buildDescriptor(FileUtil.file(descriptor.getSkillDir()), descriptor.getCategory());
+    }
+
+    /**
+     * 仅当技能主文件仍与后台任务读取时一致时执行全量改写。
+     *
+     * @param nameOrPath 技能名称或规范路径。
+     * @param expectedContent 后台任务读取到的原始正文。
+     * @param content 待写入的新正文。
+     * @return 文件未被人工或其他任务改动且已写入时返回 true。
+     */
+    public boolean editSkillIfUnchanged(String nameOrPath, String expectedContent, String content)
+            throws Exception {
+        validateSkillContent(content);
+        SkillDescriptor descriptor = findDescriptor(nameOrPath);
+        if (descriptor == null) {
+            throw new IllegalStateException("Skill not found: " + nameOrPath);
+        }
+        ensureWritable(descriptor);
+        File skillDir = FileUtil.file(descriptor.getSkillDir());
+        File target = FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME);
+        synchronized (skillWriteLock(target)) {
+            String current = target.isFile() ? FileUtil.readUtf8String(target) : "";
+            if (!StrUtil.equals(current, StrUtil.nullToEmpty(expectedContent))) {
+                return false;
+            }
+            writeSkillMainFile(skillDir, content, descriptor.canonicalName() + "/SKILL.md");
+            removeCuratorProvenance(descriptor.canonicalName());
+            return true;
+        }
+    }
+
+    /**
+     * 仅当技能正文和 Agent 来源代次都未变化时执行后台改写。
+     *
+     * @param nameOrPath 技能名称或规范路径。
+     * @param expectedContent 后台任务读取到的原始正文。
+     * @param expectedContentHash 后台任务读取到的受控正文摘要。
+     * @param expectedGeneration 后台任务读取到的唯一来源代次。
+     * @param content 待写入的新正文。
+     * @return 正文、文件身份和来源代次均匹配且提交成功时返回 true。
+     */
+    public boolean editAgentSkillIfUnchanged(
+            String nameOrPath,
+            String expectedContent,
+            String expectedContentHash,
+            String expectedGeneration,
+            String content)
+            throws Exception {
+        validateSkillContent(content);
+        SkillDescriptor descriptor = findDescriptor(nameOrPath);
+        if (descriptor == null) {
+            return false;
+        }
+        ensureWritable(descriptor);
+        File skillDir = FileUtil.file(descriptor.getSkillDir());
+        File target = FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME);
+        synchronized (skillWriteLock(target)) {
+            String current = target.isFile() ? FileUtil.readUtf8String(target) : "";
+            if (!StrUtil.equals(current, StrUtil.nullToEmpty(expectedContent))) {
+                return false;
+            }
+            String currentFileIdentity = skillFileIdentity(target);
+            return curatorStateStore()
+                    .update(
+                            state -> {
+                                Map<String, Object> record =
+                                        curatorSkillRecord(
+                                                state, descriptor.canonicalName(), false);
+                                if (!matchesAgentProvenance(
+                                        record,
+                                        expectedContentHash,
+                                        expectedGeneration,
+                                        currentFileIdentity)) {
+                                    return Boolean.FALSE;
+                                }
+                                if (!StrUtil.equals(current, StrUtil.nullToEmpty(content))) {
+                                    writeTextAtomicallyLocked(
+                                            target,
+                                            content,
+                                            descriptor.canonicalName() + "/SKILL.md");
+                                }
+                                record.put("contentHash", skillContentHash(content));
+                                record.put("fileIdentity", skillFileIdentity(target));
+                                return Boolean.TRUE;
+                            })
+                    .booleanValue();
+        }
     }
 
     /** 在技能主文件或支持文件中做定点替换。 */
@@ -891,7 +1014,12 @@ public class LocalSkillService implements SkillCatalogService {
             throw new IllegalStateException("Skill not found: " + nameOrPath);
         }
         ensureWritable(descriptor);
-        FileUtil.del(FileUtil.file(descriptor.getSkillDir()));
+        File skillDir = FileUtil.file(descriptor.getSkillDir());
+        File target = FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME);
+        synchronized (skillWriteLock(target)) {
+            FileUtil.del(skillDir);
+            removeCuratorProvenance(descriptor.canonicalName());
+        }
         return "Deleted skill: " + descriptor.canonicalName();
     }
 
@@ -1240,6 +1368,153 @@ public class LocalSkillService implements SkillCatalogService {
                 FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME),
                 StrUtil.nullToEmpty(content),
                 displayPath);
+    }
+
+    /** 在技能目标锁内以 create-if-absent 语义创建新技能主文件。 */
+    private void writeNewSkillMainFileLocked(File skillDir, String content, String displayPath) {
+        FileUtil.mkdir(skillDir);
+        FileUtil.mkdir(FileUtil.file(skillDir, SkillConstants.REFERENCES_DIR));
+        FileUtil.mkdir(FileUtil.file(skillDir, SkillConstants.TEMPLATES_DIR));
+        FileUtil.mkdir(FileUtil.file(skillDir, SkillConstants.SCRIPTS_DIR));
+        FileUtil.mkdir(FileUtil.file(skillDir, SkillConstants.ASSETS_DIR));
+        File target = FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME);
+        File tempFile =
+                FileUtil.file(
+                        target.getParentFile(), target.getName() + ".tmp-" + System.nanoTime());
+        try {
+            FileUtil.writeUtf8String(StrUtil.nullToEmpty(content), tempFile);
+            try {
+                Files.createLink(target.toPath(), tempFile.toPath());
+            } catch (UnsupportedOperationException e) {
+                Files.copy(tempFile.toPath(), target.toPath());
+            } catch (IOException e) {
+                if (target.exists()) {
+                    throw e;
+                }
+                Files.copy(tempFile.toPath(), target.toPath());
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Failed to create skill file: "
+                            + SecretRedactor.redact(
+                                    StrUtil.blankToDefault(displayPath, target.getName()), 400),
+                    e);
+        } finally {
+            if (tempFile.exists()) {
+                FileUtil.del(tempFile);
+            }
+        }
+    }
+
+    /** 删除技能时同步清理整理器来源记录，防止人工同名重建继承自动写权限。 */
+    @SuppressWarnings("unchecked")
+    private void removeCuratorProvenance(final String canonicalName) {
+        curatorStateStore()
+                .update(
+                        state -> {
+                            Object rawSkills = state.get("skills");
+                            if (rawSkills instanceof Map) {
+                                Map<String, Object> skills = (Map<String, Object>) rawSkills;
+                                skills.remove(canonicalName);
+                            }
+                            return null;
+                        });
+    }
+
+    /** 在技能写锁内登记后台 Agent 技能的受控来源信息。 */
+    private void writeAgentProvenanceLocked(
+            String canonicalName, File target, String content, String generation) {
+        curatorStateStore()
+                .update(
+                        state -> {
+                            Map<String, Object> record =
+                                    curatorSkillRecord(state, canonicalName, true);
+                            record.put("createdBy", "agent");
+                            record.put("generation", generation);
+                            record.put("contentHash", skillContentHash(content));
+                            record.put("fileIdentity", skillFileIdentity(target));
+                            record.put("createdAt", Long.valueOf(System.currentTimeMillis()));
+                            return null;
+                        });
+    }
+
+    /** 读取或创建指定技能的整理器状态记录。 */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> curatorSkillRecord(
+            Map<String, Object> state, String canonicalName, boolean create) {
+        Object rawSkills = state.get("skills");
+        Map<String, Object> skills;
+        if (rawSkills instanceof Map) {
+            skills = (Map<String, Object>) rawSkills;
+        } else if (create) {
+            skills = new LinkedHashMap<String, Object>();
+            state.put("skills", skills);
+        } else {
+            return null;
+        }
+        Object rawRecord = skills.get(canonicalName);
+        if (rawRecord instanceof Map) {
+            return (Map<String, Object>) rawRecord;
+        }
+        if (!create) {
+            return null;
+        }
+        Map<String, Object> record = new LinkedHashMap<String, Object>();
+        skills.put(canonicalName, record);
+        return record;
+    }
+
+    /** 判断来源状态、正文摘要和当前文件身份是否仍属于同一受控技能代次。 */
+    private boolean matchesAgentProvenance(
+            Map<String, Object> record,
+            String expectedContentHash,
+            String expectedGeneration,
+            String currentFileIdentity) {
+        return record != null
+                && "agent".equals(String.valueOf(record.get("createdBy")))
+                && StrUtil.equals(
+                        StrUtil.nullToEmpty(expectedContentHash),
+                        String.valueOf(record.get("contentHash")))
+                && StrUtil.equals(
+                        StrUtil.nullToEmpty(expectedGeneration),
+                        String.valueOf(record.get("generation")))
+                && StrUtil.equals(
+                        StrUtil.nullToEmpty(currentFileIdentity),
+                        String.valueOf(record.get("fileIdentity")));
+    }
+
+    /** 生成技能正文的稳定 SHA-256 摘要。 */
+    private String skillContentHash(String content) {
+        return SecureUtil.sha256(StrUtil.nullToEmpty(content));
+    }
+
+    /** 读取技能文件身份；文件系统不提供 fileKey 时使用创建时间、修改时间和大小组合。 */
+    private String skillFileIdentity(File target) {
+        if (target == null || !target.isFile()) {
+            return "";
+        }
+        try {
+            BasicFileAttributes attributes =
+                    Files.readAttributes(
+                            target.toPath(), BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            Object fileKey = attributes.fileKey();
+            if (fileKey != null) {
+                return String.valueOf(fileKey);
+            }
+            return attributes.creationTime().toMillis()
+                    + ":"
+                    + attributes.lastModifiedTime().toMillis()
+                    + ":"
+                    + attributes.size();
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
+    /** 返回异步学习和技能整理共用的来源状态仓储。 */
+    private CuratorStateStore curatorStateStore() {
+        return new CuratorStateStore(
+                FileUtil.file(appConfig.getRuntime().getSkillsDir(), ".curator_state"));
     }
 
     /** 解析技能支持文件路径。 */
@@ -1667,6 +1942,13 @@ public class LocalSkillService implements SkillCatalogService {
 
     /** 以原子替换方式写文本，降低并发写和中断写导致的半成品风险。 */
     private void writeTextAtomically(File target, String content, String displayPath) {
+        synchronized (skillWriteLock(target)) {
+            writeTextAtomicallyLocked(target, content, displayPath);
+        }
+    }
+
+    /** 在目标技能文件写锁内执行原子替换。 */
+    private void writeTextAtomicallyLocked(File target, String content, String displayPath) {
         try {
             FileUtil.mkParentDirs(target);
             File tempFile =
@@ -1698,6 +1980,17 @@ public class LocalSkillService implements SkillCatalogService {
                                     StrUtil.blankToDefault(displayPath, target.getName()), 400),
                     e);
         }
+    }
+
+    /** 返回技能文件规范路径对应的共享写锁。 */
+    private Object skillWriteLock(File target) {
+        String key;
+        try {
+            key = target.getCanonicalPath();
+        } catch (IOException e) {
+            key = target.getAbsolutePath();
+        }
+        return SKILL_WRITE_LOCKS.computeIfAbsent(key, ignored -> new Object());
     }
 
     /**

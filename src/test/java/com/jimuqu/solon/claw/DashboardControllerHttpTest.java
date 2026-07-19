@@ -6,6 +6,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.context.CuratorStateStore;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
@@ -3289,6 +3290,8 @@ public class DashboardControllerHttpTest {
         assertThat(replay.status).isEqualTo(409);
     }
 
+    /** 创建 Dashboard 集成测试使用的 Agent 来源样本技能。 */
+    @SuppressWarnings("unchecked")
     private static void createSampleSkill() {
         File skillFile = FileUtil.file(workspaceHome, "skills", "sample-skill", "SKILL.md");
         String content =
@@ -3297,6 +3300,19 @@ public class DashboardControllerHttpTest {
         File references = FileUtil.file(workspaceHome, "skills", "sample-skill", "references");
         FileUtil.mkdir(references);
         FileUtil.writeUtf8String("supporting skill notes", FileUtil.file(references, "info.md"));
+        new CuratorStateStore(FileUtil.file(workspaceHome, "skills", ".curator_state"))
+                .update(
+                        state -> {
+                            Map<String, Object> skills =
+                                    state.get("skills") instanceof Map
+                                            ? (Map<String, Object>) state.get("skills")
+                                            : new LinkedHashMap<String, Object>();
+                            Map<String, Object> record = new LinkedHashMap<String, Object>();
+                            record.put("createdBy", "agent");
+                            skills.put("sample-skill", record);
+                            state.put("skills", skills);
+                            return null;
+                        });
     }
 
     private static void seedDashboardGoalSession() throws Exception {

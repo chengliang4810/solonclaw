@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.AgentRunCancelledException;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
@@ -42,6 +43,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.noear.snack4.ONode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -308,28 +310,164 @@ public class DefaultDelegationService implements DelegationService {
                                 + payload);
         completion.setThreadId(StrUtil.blankToDefault(source[3], null));
         completion.setSourceKeyOverride(sourceKey);
+        completion.setRunKind(GatewayMessage.RUN_KIND_DELEGATION_COMPLETION);
+        final AtomicBoolean terminalCommitted = new AtomicBoolean(false);
+        final AtomicReference<GatewayReply> generatedReply = new AtomicReference<GatewayReply>();
+        final boolean channelDeliveryRequired =
+                deliveryService != null && completion.getPlatform() != PlatformType.MEMORY;
+        completion.setReplyCommitter(
+                reply -> {
+                    generatedReply.compareAndSet(null, reply);
+                    try {
+                        if (channelDeliveryRequired) {
+                            deliverBackgroundReply(sourceKey, reply);
+                        }
+                        terminalCommitted.set(true);
+                        return Boolean.TRUE;
+                    } catch (Exception e) {
+                        throw new BackgroundReplyDeliveryException(e);
+                    }
+                });
+        boolean completionProcessed = false;
         try {
-            waitForParentRun(sourceKey);
-            if (background.cancelRequested.get()) {
-                return;
+            while (backgroundDeliveryActive(background)) {
+                AgentRunControlService.IncomingReservation reservation = null;
+                try {
+                    if (agentRunControlService != null) {
+                        reservation = reserveParentRun(background);
+                        if (reservation == null) {
+                            return;
+                        }
+                    }
+                    if (!backgroundDeliveryActive(background)) {
+                        return;
+                    }
+                    GatewayReply pendingDelivery = generatedReply.get();
+                    if (pendingDelivery != null && channelDeliveryRequired) {
+                        deliverBackgroundReply(sourceKey, pendingDelivery);
+                        terminalCommitted.set(true);
+                        return;
+                    }
+                    if (completionProcessed) {
+                        return;
+                    }
+                    // 一旦进入父会话处理，任何失败都只能重试已捕获回复，禁止重放 completion。
+                    completionProcessed = true;
+                    GatewayReply reply = conversationHolder.get().handleIncoming(completion);
+                    if (reply != null) {
+                        generatedReply.compareAndSet(null, reply);
+                    }
+                    GatewayReply replyToCommit = generatedReply.get();
+                    if (terminalCommitted.get()) {
+                        return;
+                    }
+                    if (!channelDeliveryRequired && replyToCommit != null) {
+                        terminalCommitted.set(true);
+                        return;
+                    }
+                    if (replyToCommit == null) {
+                        // 父模型已消费 completion；没有生成回复时也不能通过重跑模型补偿。
+                        return;
+                    }
+                } catch (Exception e) {
+                    if (isBackgroundReplyDeliveryFailure(e)) {
+                        log.warn(
+                                "Background delegation channel delivery failed, retrying: error={}",
+                                exceptionLogSummary(e));
+                    } else if (!isRunCancellation(e)) {
+                        log.warn(
+                                "Background delegation result processing failed: error={}",
+                                exceptionLogSummary(e));
+                        return;
+                    } else if (generatedReply.get() == null) {
+                        return;
+                    }
+                } finally {
+                    if (reservation != null) {
+                        reservation.close();
+                    }
+                }
+                if (!waitForBackgroundDeliveryRetry(background)) {
+                    return;
+                }
             }
-            if (!isParentSessionCurrent(sourceKey, background.parentSessionId)) {
-                log.warn("Background delegation result dropped: parent session changed");
-                return;
+        } finally {
+            completion.setReplyCommitter(null);
+        }
+    }
+
+    /** 判断后台完成结果仍可继续等待父会话处理。 */
+    private boolean backgroundDeliveryActive(BackgroundDelegation background) {
+        return background != null
+                && !background.cancelRequested.get()
+                && !closed.get()
+                && isParentSessionCurrent(background.sourceKey, background.parentSessionId);
+    }
+
+    /** 只对用户抢占和审批延后进行短暂重试，取消、关闭和会话切换会立即退出。 */
+    private boolean waitForBackgroundDeliveryRetry(BackgroundDelegation background) {
+        if (!backgroundDeliveryActive(background)) {
+            return false;
+        }
+        if (Thread.currentThread().isInterrupted()) {
+            if (background.cancelRequested.get() || closed.get()) {
+                return false;
             }
-            GatewayReply reply = conversationHolder.get().handleIncoming(completion);
-            if (deliveryService != null
-                    && reply != null
-                    && completion.getPlatform() != PlatformType.MEMORY) {
-                DeliveryRequest request =
-                        SourceKeySupport.toDeliveryRequest(sourceKey, reply.getContent());
-                request.getChannelExtras().putAll(reply.getChannelExtras());
-                deliveryService.deliver(request);
+            Thread.interrupted();
+        }
+        try {
+            pauseBeforeBackgroundDeliveryRetry();
+            return backgroundDeliveryActive(background);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    /** 测试可覆盖的后台完成结果重试间隔。 */
+    protected void pauseBeforeBackgroundDeliveryRetry() throws InterruptedException {
+        Thread.sleep(50L);
+    }
+
+    /** 判断异常链是否表示运行被真实用户抢占。 */
+    private boolean isRunCancellation(Throwable error) {
+        Throwable current = error;
+        for (int depth = 0; current != null && depth < 16; depth++) {
+            if (current instanceof AgentRunCancelledException) {
+                return true;
             }
-        } catch (Exception e) {
-            log.warn(
-                    "Background delegation result delivery failed: error={}",
-                    exceptionLogSummary(e));
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    /** 判断异常链是否来自后台完成回复的渠道投递失败。 */
+    private boolean isBackgroundReplyDeliveryFailure(Throwable error) {
+        Throwable current = error;
+        for (int depth = 0; current != null && depth < 16; depth++) {
+            if (current instanceof BackgroundReplyDeliveryException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    /** 把后台委派继续运行生成的终态回复投递回原渠道。 */
+    private void deliverBackgroundReply(String sourceKey, GatewayReply reply) throws Exception {
+        if (deliveryService == null || reply == null) {
+            return;
+        }
+        DeliveryRequest request = SourceKeySupport.toDeliveryRequest(sourceKey, reply.getContent());
+        request.getChannelExtras().putAll(reply.getChannelExtras());
+        deliveryService.deliver(request);
+    }
+
+    /** 标识模型已完成但渠道终态投递失败，允许后台完成载荷保留并重试。 */
+    private static final class BackgroundReplyDeliveryException extends RuntimeException {
+        /** 创建后台回复投递异常。 */
+        private BackgroundReplyDeliveryException(Throwable cause) {
+            super(cause);
         }
     }
 
@@ -425,24 +563,36 @@ public class DefaultDelegationService implements DelegationService {
         }
     }
 
-    /** 父 run 仍在收敛当前轮时等待其退出，避免完成消息误触发 interrupt/steer busy 策略。 */
-    private void waitForParentRun(String sourceKey) {
-        if (agentRunControlService == null) {
-            return;
+    /**
+     * 持续等待父来源键空闲并原子领取入站占位，避免空闲判断后被新消息抢占。
+     *
+     * @param background 当前后台委派归属。
+     * @return 成功领取的占位；取消、关闭、会话切换或中断时返回 null。
+     */
+    private AgentRunControlService.IncomingReservation reserveParentRun(
+            BackgroundDelegation background) {
+        if (!agentRunControlService.supportsIncomingReservation()) {
+            log.warn("Background delegation result dropped: atomic run reservation unavailable");
+            return null;
         }
-        long deadline = System.currentTimeMillis() + 30000L;
-        while (agentRunControlService.isRunning(sourceKey)
-                && System.currentTimeMillis() < deadline) {
+        while (!background.cancelRequested.get()
+                && !closed.get()
+                && !Thread.currentThread().isInterrupted()
+                && isParentSessionCurrent(background.sourceKey, background.parentSessionId)) {
+            AgentRunControlService.IncomingReservation reservation =
+                    agentRunControlService.tryReserveIncoming(
+                            background.sourceKey, background.parentSessionId);
+            if (reservation != null) {
+                return reservation;
+            }
             try {
                 Thread.sleep(50L);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return;
+                return null;
             }
         }
-        if (agentRunControlService.isRunning(sourceKey)) {
-            log.warn("Background delegation parent run did not drain before delivery timeout");
-        }
+        return null;
     }
 
     /**
@@ -505,11 +655,12 @@ public class DefaultDelegationService implements DelegationService {
             SessionRecord parentSession = sessionRepository.getBoundSession(sourceKey);
             String subagentId = "sa-" + IdSupport.newId();
             String childSourceKey = childSourceKey(sourceKey, subagentId);
-            applyAllowedTools(
-                    sourceKey,
-                    childSourceKey,
-                    task == null ? null : task.getAllowedTools(),
-                    task == null ? null : task.getToolsets());
+            List<String> childAllowedTools =
+                    applyAllowedTools(
+                            sourceKey,
+                            childSourceKey,
+                            task == null ? null : task.getAllowedTools(),
+                            task == null ? null : task.getToolsets());
             applyBlockedTools(childSourceKey);
             prepareChildSession(childSourceKey, parentSession);
 
@@ -524,10 +675,7 @@ public class DefaultDelegationService implements DelegationService {
             }
             message.setSystemPromptOverride(
                     StrUtil.blankToDefault(task.getSystemPrompt(), DEFAULT_SUBAGENT_SYSTEM_PROMPT));
-            message.setAllowedToolsOverride(
-                    task.getAllowedTools() == null
-                            ? java.util.Collections.<String>emptyList()
-                            : task.getAllowedTools());
+            message.setAllowedToolsOverride(childAllowedTools);
             subagent =
                     startSubagent(
                             subagentId, sourceKey, childSourceKey, task, parentContext, depth);
@@ -839,7 +987,7 @@ public class DefaultDelegationService implements DelegationService {
      * @param allowedTools allowedTools开关值。
      * @param toolsets toolsets 参数。
      */
-    private void applyAllowedTools(
+    private List<String> applyAllowedTools(
             String parentSourceKey,
             String childSourceKey,
             List<String> allowedTools,
@@ -857,19 +1005,39 @@ public class DefaultDelegationService implements DelegationService {
         for (String toolName : ALL_TOOLS) {
             preferenceStore.setToolEnabled(childSourceKey, toolName, false);
         }
+        List<String> effective = new ArrayList<String>();
         for (String toolName : requested) {
             String normalized = StrUtil.nullToEmpty(toolName).trim();
             if (ALL_TOOLS.contains(normalized)
+                    && !BLOCKED_TOOLS.contains(normalized)
                     && isParentToolEnabled(parentSourceKey, normalized)) {
                 preferenceStore.setToolEnabled(childSourceKey, normalized, true);
+                effective.add(normalized);
             }
         }
+        return effective;
     }
 
-    /** 判断父会话是否允许某个工具。 */
+    /** 判断父会话、父 Agent 范围和父运行临时策略是否共同允许某个工具。 */
     private boolean isParentToolEnabled(String parentSourceKey, String toolName) throws Exception {
         String normalized = StrUtil.nullToEmpty(toolName).trim();
-        return preferenceStore.isToolEnabled(parentSourceKey, normalized);
+        boolean preferenceEnabled =
+                ToolNameConstants.TOOL_GATEWAY.equals(normalized)
+                        ? preferenceStore.isToolEnabled(parentSourceKey, normalized, false)
+                        : preferenceStore.isToolEnabled(parentSourceKey, normalized);
+        if (!preferenceEnabled) {
+            return false;
+        }
+        AgentRunContext parentContext = AgentRunContext.current();
+        if (parentContext == null || !parentSourceKey.equals(parentContext.getSourceKey())) {
+            return false;
+        }
+        if (!parentContext.hasEnabledToolNamesSnapshot()
+                || !parentContext.getEnabledToolNames().contains(normalized)) {
+            return false;
+        }
+        List<String> temporaryAllowed = parentContext.getAllowedToolNames();
+        return temporaryAllowed.isEmpty() || temporaryAllowed.contains(normalized);
     }
 
     /** 在服务边界拒绝子 Agent 递归委派。 */

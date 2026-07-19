@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.core.model.MemoryTurnContext;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
+import com.jimuqu.solon.claw.core.service.AgentRunCancelledException;
 import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.ContextService;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Function;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -457,7 +459,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      * @return 返回resume Pending结果。
      */
     public GatewayReply resumePending(String sourceKey) throws Exception {
-        return resumePending(sourceKey, null, ConversationEventSink.noop());
+        return resumePending(sourceKey, null, ConversationEventSink.noop(), null);
     }
 
     /**
@@ -468,7 +470,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      * @return 返回resume Pending结果。
      */
     public GatewayReply resumePending(String sourceKey, String sessionId) throws Exception {
-        return resumePending(sourceKey, sessionId, ConversationEventSink.noop());
+        return resumePending(sourceKey, sessionId, ConversationEventSink.noop(), null);
     }
 
     /**
@@ -480,7 +482,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      */
     public GatewayReply resumePending(String sourceKey, ConversationEventSink eventSink)
             throws Exception {
-        return resumePending(sourceKey, null, eventSink);
+        return resumePending(sourceKey, null, eventSink, null);
     }
 
     /**
@@ -493,6 +495,25 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      */
     public GatewayReply resumePending(
             String sourceKey, String sessionId, ConversationEventSink eventSink) throws Exception {
+        return resumePending(sourceKey, sessionId, eventSink, null);
+    }
+
+    /**
+     * 恢复指定 pending 会话，并把真实渠道回复提交动作纳入当前 run 的输出租约。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 精确会话标识。
+     * @param eventSink 运行事件接收器。
+     * @param replyCommitter 真实回复提交器；非网关调用传 null。
+     * @return 恢复运行生成的回复。
+     */
+    @Override
+    public GatewayReply resumePending(
+            String sourceKey,
+            String sessionId,
+            ConversationEventSink eventSink,
+            Function<GatewayReply, Boolean> replyCommitter)
+            throws Exception {
         synchronized (lockFor(sourceKey)) {
             SessionRecord session = findPendingSession(sourceKey, sessionId);
             if (session == null) {
@@ -515,37 +536,72 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
 
             GatewayMessage feedbackTarget = messageFromSourceKey(sourceKey);
             ConversationFeedbackSink feedbackSink = feedbackSinkFor(feedbackTarget);
-            AgentRunOutcome outcome =
-                    agentRunSupervisor.run(
-                            session,
-                            systemPrompt,
-                            null,
-                            enabledTools,
-                            feedbackSink,
-                            eventSink,
-                            true,
-                            agentScope,
-                            Collections.emptyList(),
-                            null,
-                            Collections.emptyList(),
-                            Collections.emptyList(),
-                            null,
-                            null);
-            String finalReply =
-                    sanitizeFinalReply(
-                            StrUtil.blankToDefault(
-                                    outcome.getFinalReply(),
-                                    AgentRecoveryPromptConstants.EMPTY_REPLY_FALLBACK));
-            finalReply = decorateFinalReply(finalReply, feedbackTarget.getPlatform(), outcome);
-            feedbackSink.onFinalReply(finalReply);
-            eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
-            clearAgentPending(session);
-            syncMemory(session.getSourceKey(), resumedUserMessage, finalReply, session, outcome);
-            GatewayReply reply = GatewayReply.ok(finalReply);
-            reply.setSessionId(session.getSessionId());
-            reply.setBranchName(session.getBranchName());
-            applyRuntimeMetadata(reply, outcome);
-            return reply;
+            String outputLeaseRunId = null;
+            try {
+                AgentRunOutcome outcome =
+                        agentRunSupervisor.runWithOutputLease(
+                                session,
+                                systemPrompt,
+                                null,
+                                enabledTools,
+                                feedbackSink,
+                                eventSink,
+                                true,
+                                agentScope,
+                                Collections.emptyList(),
+                                null,
+                                Collections.emptyList(),
+                                Collections.emptyList(),
+                                null,
+                                null,
+                                enabledToolNames);
+                outputLeaseRunId = outcome.getRunRecord().getRunId();
+                String finalReply =
+                        sanitizeFinalReply(
+                                StrUtil.blankToDefault(
+                                        outcome.getFinalReply(),
+                                        AgentRecoveryPromptConstants.EMPTY_REPLY_FALLBACK));
+                finalReply = decorateFinalReply(finalReply, feedbackTarget.getPlatform(), outcome);
+                final String terminalReply = finalReply;
+                final GatewayReply reply = GatewayReply.ok(terminalReply);
+                reply.setSessionId(session.getSessionId());
+                reply.setBranchName(session.getBranchName());
+                applyRuntimeMetadata(reply, outcome);
+                boolean terminalWritten =
+                        agentRunSupervisor.completeOutputLease(
+                                session.getSourceKey(),
+                                outputLeaseRunId,
+                                () -> {
+                                    feedbackSink.onFinalReply(terminalReply);
+                                    eventSink.onRunCompleted(
+                                            session.getSessionId(),
+                                            terminalReply,
+                                            outcome.getResult());
+                                    clearAgentPending(session);
+                                    syncMemory(
+                                            session.getSourceKey(),
+                                            resumedUserMessage,
+                                            terminalReply,
+                                            session,
+                                            outcome);
+                                    if (replyCommitter != null) {
+                                        replyCommitter.apply(reply);
+                                    }
+                                });
+                if (!terminalWritten) {
+                    return null;
+                }
+                return reply;
+            } catch (Throwable error) {
+                return completeFailedRun(
+                        session.getSourceKey(), session, eventSink, replyCommitter, error);
+            } finally {
+                if (StrUtil.isNotBlank(outputLeaseRunId)) {
+                    agentRunSupervisor.releaseOutputLease(session.getSourceKey(), outputLeaseRunId);
+                } else {
+                    agentRunSupervisor.releaseCurrentThreadOutputLease(session.getSourceKey());
+                }
+            }
         }
     }
 
@@ -714,6 +770,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             SessionRecord session, GatewayMessage message, ConversationEventSink eventSink)
             throws Exception {
         boolean shouldDrainQueue = false;
+        String outputLeaseRunId = null;
         String previousTransientProvider = session.getTransientProviderOverride();
         String previousTransientModel = session.getTransientModelOverride();
         String previousTransientBaseUrl = session.getTransientBaseUrlOverride();
@@ -722,6 +779,10 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                         ? null
                         : dangerousCommandApprovalService.getPendingApproval(session);
         if (pendingApproval != null) {
+            if (message != null
+                    && GatewayMessage.RUN_KIND_DELEGATION_COMPLETION.equals(message.getRunKind())) {
+                return null;
+            }
             GatewayReply reply = GatewayReply.error(formatPendingApprovalBlock(pendingApproval));
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
@@ -730,6 +791,15 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                         .putAll(
                                 dangerousCommandApprovalService.buildDeliveryExtras(
                                         message.getPlatform(), pendingApproval));
+            }
+            if (message != null && message.getReplyCommitter() != null) {
+                boolean terminalWritten =
+                        agentRunSupervisor.completeIncomingReservation(
+                                message.sourceKey(),
+                                () -> message.getReplyCommitter().apply(reply));
+                if (!terminalWritten) {
+                    return null;
+                }
             }
             return reply;
         }
@@ -778,7 +848,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             : prefetchMemory(message.sourceKey(), effectiveUserText);
             MessageDeliveryTracker.clearDirectDelivery(message.sourceKey());
             AgentRunOutcome outcome =
-                    agentRunSupervisor.run(
+                    agentRunSupervisor.runWithOutputLease(
                             session,
                             systemPrompt,
                             effectiveUserText,
@@ -796,7 +866,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                                     ? "heartbeat"
                                     : (StrUtil.isNotBlank(message.getRunKind())
                                             ? message.getRunKind()
-                                            : null));
+                                            : null),
+                            enabledToolNames);
+            outputLeaseRunId = outcome.getRunRecord().getRunId();
             shouldDrainQueue = true;
             String finalReply =
                     sanitizeFinalReply(
@@ -810,21 +882,49 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                     finalReply = decorateFinalReply(finalReply, message.getPlatform(), outcome);
                 }
             }
-            feedbackSink.onFinalReply(finalReply);
-            eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
-            if (!groupGuest && !minimalContext) {
-                syncMemory(message.sourceKey(), effectiveUserText, finalReply, session, outcome);
-            }
-            GatewayReply reply = GatewayReply.ok(finalReply);
+            final String terminalReply = finalReply;
+            final GatewayReply reply = GatewayReply.ok(terminalReply);
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             if (!groupGuest) {
                 applyRuntimeMetadata(reply, outcome);
                 applyApprovalCardIfNeeded(reply, message.getPlatform(), session);
-                applyGoalDecision(reply, session, finalReply, message);
+                applyGoalDecision(reply, session, terminalReply, message);
+            }
+            final Function<GatewayReply, Boolean> replyCommitter = message.getReplyCommitter();
+            boolean terminalWritten =
+                    agentRunSupervisor.completeOutputLease(
+                            message.sourceKey(),
+                            outputLeaseRunId,
+                            () -> {
+                                feedbackSink.onFinalReply(terminalReply);
+                                eventSink.onRunCompleted(
+                                        session.getSessionId(), terminalReply, outcome.getResult());
+                                if (!groupGuest && !minimalContext) {
+                                    syncMemory(
+                                            message.sourceKey(),
+                                            effectiveUserText,
+                                            terminalReply,
+                                            session,
+                                            outcome);
+                                }
+                                if (replyCommitter != null) {
+                                    replyCommitter.apply(reply);
+                                }
+                            });
+            if (!terminalWritten) {
+                return null;
             }
             return reply;
+        } catch (Throwable error) {
+            return completeFailedRun(
+                    message.sourceKey(), session, eventSink, message.getReplyCommitter(), error);
         } finally {
+            if (StrUtil.isNotBlank(outputLeaseRunId)) {
+                agentRunSupervisor.releaseOutputLease(message.sourceKey(), outputLeaseRunId);
+            } else {
+                agentRunSupervisor.releaseCurrentThreadOutputLease(message.sourceKey());
+            }
             session.setTransientProviderOverride(previousTransientProvider);
             session.setTransientModelOverride(previousTransientModel);
             session.setTransientBaseUrlOverride(previousTransientBaseUrl);
@@ -841,6 +941,57 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                         });
             }
         }
+    }
+
+    /** 把失败或取消回复与界面终态纳入当前线程仍持有的唯一输出 owner。 */
+    private GatewayReply completeFailedRun(
+            String sourceKey,
+            SessionRecord session,
+            ConversationEventSink eventSink,
+            Function<GatewayReply, Boolean> replyCommitter,
+            Throwable error) {
+        final Throwable cause = rootCause(error);
+        final boolean cancelled = cause instanceof AgentRunCancelledException;
+        final GatewayReply reply =
+                cancelled
+                        ? GatewayReply.ok(StrUtil.blankToDefault(cause.getMessage(), "当前任务已停止。"))
+                        : GatewayReply.error("处理消息失败：" + safeFailure(cause));
+        reply.setSessionId(session == null ? null : session.getSessionId());
+        reply.setBranchName(session == null ? null : session.getBranchName());
+        try {
+            boolean terminalWritten =
+                    agentRunSupervisor.completeCurrentThreadOutputLease(
+                            sourceKey,
+                            () -> {
+                                eventSink.onRunFailed(
+                                        session == null ? null : session.getSessionId(), cause);
+                                if (replyCommitter != null) {
+                                    replyCommitter.apply(reply);
+                                }
+                            });
+            return terminalWritten ? reply : null;
+        } catch (Throwable terminalError) {
+            log.warn(
+                    "Run failure terminal output failed inside writer lease: sourceKey={}, error={}",
+                    sourceKey,
+                    safeFailure(terminalError));
+            return null;
+        }
+    }
+
+    /** 解包运行边界的包装异常，保留可识别的取消语义。 */
+    private Throwable rootCause(Throwable error) {
+        Throwable current = error;
+        while (current != null && current.getCause() != null && current.getCause() != current) {
+            current = current.getCause();
+        }
+        return current == null ? error : current;
+    }
+
+    /** 生成不暴露敏感上下文的用户可见失败摘要。 */
+    private String safeFailure(Throwable error) {
+        return SecretRedactor.redact(
+                StrUtil.blankToDefault(error == null ? null : error.getMessage(), "unknown"), 500);
     }
 
     /**

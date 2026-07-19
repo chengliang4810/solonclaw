@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.scheduler;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.MemoryArchiveService;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
+import com.jimuqu.solon.claw.support.ExecutorShutdownSupport;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -98,7 +99,7 @@ public class MemoryArchiveScheduler {
     /** 关闭调度线程。 */
     public synchronized void shutdown() {
         if (executorService != null) {
-            executorService.shutdownNow();
+            ExecutorShutdownSupport.drain(executorService);
             executorService = null;
         }
     }

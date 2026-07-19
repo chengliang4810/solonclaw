@@ -4,6 +4,7 @@ import com.jimuqu.solon.claw.agent.AgentProfileRepository;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
+import com.jimuqu.solon.claw.core.repository.ChannelInboundMessageRepository;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
@@ -13,6 +14,7 @@ import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteApprovalAuditRepository;
+import com.jimuqu.solon.claw.storage.repository.SqliteChannelInboundMessageRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteChannelStateRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteCronJobRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -115,6 +117,18 @@ public class StorageConfiguration {
     @Bean
     public ChannelStateRepository channelStateRepository(SqliteDatabase sqliteDatabase) {
         return new SqliteChannelStateRepository(sqliteDatabase);
+    }
+
+    /**
+     * 创建渠道入站消息总账仓储。
+     *
+     * @param sqliteDatabase SQLiteDatabase参数。
+     * @return 返回渠道入站消息仓储。
+     */
+    @Bean
+    public ChannelInboundMessageRepository channelInboundMessageRepository(
+            SqliteDatabase sqliteDatabase) {
+        return new SqliteChannelInboundMessageRepository(sqliteDatabase);
     }
 
     /**

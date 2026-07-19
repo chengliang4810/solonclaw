@@ -412,9 +412,12 @@ public class DefaultCommandService implements CommandService {
                             lastUser);
             retryMessage.setThreadId(message.getThreadId());
             retryMessage.setReplyToMessageId(message.getReplyToMessageId());
+            retryMessage.setPlatformMessageId(message.getPlatformMessageId());
             retryMessage.setChatType(message.getChatType());
             retryMessage.setChatName(message.getChatName());
             retryMessage.setUserName(message.getUserName());
+            retryMessage.setProfile(message.getProfile());
+            retryMessage.setReplyCommitter(message.getReplyCommitter());
             return conversationOrchestrator.handleIncoming(retryMessage);
         }
 
@@ -871,10 +874,13 @@ public class DefaultCommandService implements CommandService {
                             lastUser);
             retryMessage.setThreadId(message.getThreadId());
             retryMessage.setReplyToMessageId(message.getReplyToMessageId());
+            retryMessage.setPlatformMessageId(message.getPlatformMessageId());
             retryMessage.setChatType(message.getChatType());
             retryMessage.setChatName(message.getChatName());
             retryMessage.setUserName(message.getUserName());
+            retryMessage.setProfile(message.getProfile());
             retryMessage.setSourceKeyOverride(message.sourceKey());
+            retryMessage.setReplyCommitter(message.getReplyCommitter());
             return conversationOrchestrator.handleIncoming(retryMessage, eventSink);
         }
 
@@ -891,10 +897,13 @@ public class DefaultCommandService implements CommandService {
                             goalKickoff);
             kickoffMessage.setThreadId(message.getThreadId());
             kickoffMessage.setReplyToMessageId(message.getReplyToMessageId());
+            kickoffMessage.setPlatformMessageId(message.getPlatformMessageId());
             kickoffMessage.setChatType(message.getChatType());
             kickoffMessage.setChatName(message.getChatName());
             kickoffMessage.setUserName(message.getUserName());
+            kickoffMessage.setProfile(message.getProfile());
             kickoffMessage.setSourceKeyOverride(message.sourceKey());
+            kickoffMessage.setReplyCommitter(message.getReplyCommitter());
             return conversationOrchestrator.handleIncoming(kickoffMessage, eventSink);
         }
         return reply;
@@ -2705,7 +2714,8 @@ public class DefaultCommandService implements CommandService {
                 conversationOrchestrator.resumePending(
                         String.valueOf(approvalSession.getContext().get("source_key")),
                         approvalSession.getSessionId(),
-                        eventSink);
+                        eventSink,
+                        message.getReplyCommitter());
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
     }
@@ -2859,7 +2869,9 @@ public class DefaultCommandService implements CommandService {
         if (approved <= 0) {
             return GatewayReply.error("当前没有待审批的危险命令。若刚刚收到审批提示，请重试原始请求；也可以使用 /approve list 查看审批状态。");
         }
-        GatewayReply reply = conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+        GatewayReply reply =
+                conversationOrchestrator.resumePending(
+                        message.sourceKey(), null, eventSink, message.getReplyCommitter());
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
     }
@@ -3067,7 +3079,10 @@ public class DefaultCommandService implements CommandService {
             }
             GatewayReply reply =
                     conversationOrchestrator.resumePending(
-                            message.sourceKey(), agentSession.getSessionId(), eventSink);
+                            message.sourceKey(),
+                            agentSession.getSessionId(),
+                            eventSink,
+                            message.getReplyCommitter());
             reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
             return reply;
         }
@@ -3092,7 +3107,8 @@ public class DefaultCommandService implements CommandService {
                 conversationOrchestrator.resumePending(
                         String.valueOf(approvalSession.getContext().get("source_key")),
                         approvalSession.getSessionId(),
-                        eventSink);
+                        eventSink,
+                        message.getReplyCommitter());
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
     }

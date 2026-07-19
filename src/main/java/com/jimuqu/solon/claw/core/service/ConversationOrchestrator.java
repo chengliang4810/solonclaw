@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.core.service;
 
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import java.util.function.Function;
 
 /** Agent 主循环调度接口。 */
 public interface ConversationOrchestrator {
@@ -41,5 +42,27 @@ public interface ConversationOrchestrator {
     default GatewayReply resumePending(
             String sourceKey, String sessionId, ConversationEventSink eventSink) throws Exception {
         return resumePending(sourceKey, eventSink);
+    }
+
+    /**
+     * 按会话 ID 恢复 pending 会话，并在当前 run 的终态输出租约内提交真实网关回复。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 精确会话标识。
+     * @param eventSink 运行事件接收器。
+     * @param replyCommitter 真实回复提交器；非网关调用可传 null。
+     * @return 恢复运行生成的回复。
+     */
+    default GatewayReply resumePending(
+            String sourceKey,
+            String sessionId,
+            ConversationEventSink eventSink,
+            Function<GatewayReply, Boolean> replyCommitter)
+            throws Exception {
+        GatewayReply reply = resumePending(sourceKey, sessionId, eventSink);
+        if (reply != null && replyCommitter != null) {
+            replyCommitter.apply(reply);
+        }
+        return reply;
     }
 }

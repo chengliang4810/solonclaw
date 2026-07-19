@@ -73,6 +73,9 @@ public class AgentRunContext {
     /** 本轮允许调用的工具名称白名单；为空表示不限制具体工具名。 */
     private List<String> allowedToolNames;
 
+    /** 本轮实际暴露给模型的工具名称快照；null 表示旧调用方未提供快照。 */
+    private List<String> enabledToolNames;
+
     /** 本轮允许尝试的最大工具调用次数；为空或小于等于零表示不限制次数。 */
     private Integer maxToolCalls;
 
@@ -327,6 +330,36 @@ public class AgentRunContext {
         this.maxToolCalls =
                 maxToolCalls == null || maxToolCalls.intValue() <= 0 ? null : maxToolCalls;
         this.attemptedToolCalls = 0;
+    }
+
+    /**
+     * 保存本轮实际暴露给模型的工具名称快照。
+     *
+     * @param enabledToolNames 已经过 Agent 范围和会话开关过滤的工具名；null 表示未知。
+     */
+    public synchronized void setEnabledToolNames(List<String> enabledToolNames) {
+        this.enabledToolNames =
+                enabledToolNames == null ? null : normalizeToolNames(enabledToolNames);
+    }
+
+    /**
+     * 判断当前上下文是否持有实际工具快照。
+     *
+     * @return 即使实际快照为空，只要调用方明确提供过也返回 true。
+     */
+    public synchronized boolean hasEnabledToolNamesSnapshot() {
+        return enabledToolNames != null;
+    }
+
+    /**
+     * 读取本轮实际暴露给模型的工具名称快照。
+     *
+     * @return 返回不可变工具名列表；未提供快照时返回空列表。
+     */
+    public synchronized List<String> getEnabledToolNames() {
+        return enabledToolNames == null
+                ? Collections.<String>emptyList()
+                : Collections.unmodifiableList(new ArrayList<String>(enabledToolNames));
     }
 
     /**

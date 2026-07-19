@@ -13,10 +13,14 @@ import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.scheduler.MemoryArchiveScheduler;
+import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -47,6 +51,46 @@ class MemoryArchiveSchedulerTest {
         assertThat(runtime.service.state().getLastOutcome())
                 .isEqualTo(MemoryArchiveState.OUTCOME_NO_WORK);
         runtime.close();
+    }
+
+    /** 真实调度器启动后关闭必须终止其执行器，关闭返回后不得继续执行已登记周期任务。 */
+    @Test
+    void shouldStopScheduledWorkAfterShutdown() throws Exception {
+        TestRuntime runtime = runtime(false);
+        AtomicInteger executions = new AtomicInteger();
+        try {
+            runtime.scheduler.start();
+            ScheduledExecutorService executor = schedulerExecutor(runtime.scheduler);
+            executor.scheduleWithFixedDelay(
+                    executions::incrementAndGet, 0L, 10L, TimeUnit.MILLISECONDS);
+            awaitExecutions(executions);
+
+            runtime.scheduler.shutdown();
+            int countAfterShutdown = executions.get();
+            Thread.sleep(80L);
+
+            assertThat(executions.get()).isEqualTo(countAfterShutdown);
+            assertThat(executor.isTerminated()).isTrue();
+        } finally {
+            runtime.close();
+        }
+    }
+
+    /** 读取真实调度器持有的执行器，仅用于验证关闭后的运行语义。 */
+    private ScheduledExecutorService schedulerExecutor(MemoryArchiveScheduler scheduler)
+            throws Exception {
+        Field field = MemoryArchiveScheduler.class.getDeclaredField("executorService");
+        field.setAccessible(true);
+        return (ScheduledExecutorService) field.get(scheduler);
+    }
+
+    /** 等待测试周期任务至少执行一次。 */
+    private void awaitExecutions(AtomicInteger executions) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(1L);
+        while (executions.get() == 0 && System.currentTimeMillis() < deadline) {
+            Thread.sleep(5L);
+        }
+        assertThat(executions.get()).isGreaterThan(0);
     }
 
     /** 创建调度器测试运行时。 */

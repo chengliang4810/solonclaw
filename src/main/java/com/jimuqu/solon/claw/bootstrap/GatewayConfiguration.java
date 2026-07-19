@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
+import com.jimuqu.solon.claw.core.repository.ChannelInboundMessageRepository;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
@@ -428,6 +429,7 @@ public class GatewayConfiguration {
             ConversationOrchestrator conversationOrchestrator,
             DeliveryService deliveryService,
             SessionRepository sessionRepository,
+            ChannelInboundMessageRepository channelInboundMessageRepository,
             GatewayAuthorizationService gatewayAuthorizationService,
             SkillLearningService skillLearningService,
             AttachmentCacheService attachmentCacheService,
@@ -442,6 +444,7 @@ public class GatewayConfiguration {
                         conversationOrchestrator,
                         deliveryService,
                         sessionRepository,
+                        channelInboundMessageRepository,
                         gatewayAuthorizationService,
                         skillLearningService,
                         attachmentCacheService,
@@ -453,6 +456,18 @@ public class GatewayConfiguration {
 
         channelConnectionManager.bindInboundHandler(
                 new InboundMessageHandler() {
+                    /** 在渠道异步排队前同步写入原始入站 receipt。 */
+                    @Override
+                    public boolean admit(GatewayMessage message) throws Exception {
+                        assignProfile(message);
+                        if (profileScope == null) {
+                            return service.admitInbound(message);
+                        }
+                        try (ProfileRuntimeScope.Scope ignored = openProfileScope()) {
+                            return service.admitInbound(message);
+                        }
+                    }
+
                     /**
                      * 执行handle相关逻辑。
                      *
@@ -460,27 +475,118 @@ public class GatewayConfiguration {
                      */
                     @Override
                     public void handle(GatewayMessage message) throws Exception {
+                        assignProfile(message);
+                        if (profileScope == null) {
+                            service.handle(message);
+                            return;
+                        }
+                        try (ProfileRuntimeScope.Scope ignored = openProfileScope()) {
+                            service.handle(message);
+                        }
+                    }
+
+                    /** 在异步队列中处理已经同步准入的消息。 */
+                    @Override
+                    public void handleAdmitted(GatewayMessage message) throws Exception {
+                        assignProfile(message);
+                        if (profileScope == null) {
+                            service.handleAdmitted(message);
+                            return;
+                        }
+                        try (ProfileRuntimeScope.Scope ignored = openProfileScope()) {
+                            service.handleAdmitted(message);
+                        }
+                    }
+
+                    /** 为每次渠道连接捕获连接前 pending receipt 的稳定水位。 */
+                    @Override
+                    public long capturePendingRecoveryWatermark() throws Exception {
+                        if (profileScope == null) {
+                            return service.capturePendingInboundWatermark(service.profileName());
+                        }
+                        try (ProfileRuntimeScope.Scope ignored = openProfileScope()) {
+                            return service.capturePendingInboundWatermark(service.profileName());
+                        }
+                    }
+
+                    /** 每次渠道连接后恢复连接前水位内遗留的 pending receipt。 */
+                    @Override
+                    public void recoverPendingThrough(long maxSequence) throws Exception {
+                        if (profileScope == null) {
+                            service.recoverPendingInbounds(service.profileName(), maxSequence);
+                            return;
+                        }
+                        try (ProfileRuntimeScope.Scope ignored = openProfileScope()) {
+                            service.recoverPendingInbounds(service.profileName(), maxSequence);
+                        }
+                    }
+
+                    /** 每次渠道连接后只恢复当前平台在连接前遗留的 pending receipt。 */
+                    @Override
+                    public void recoverPendingThrough(PlatformType platform, long maxSequence)
+                            throws Exception {
+                        if (profileScope == null) {
+                            service.recoverPendingInbounds(
+                                    service.profileName(), platform, maxSequence);
+                            return;
+                        }
+                        try (ProfileRuntimeScope.Scope ignored = openProfileScope()) {
+                            service.recoverPendingInbounds(
+                                    service.profileName(), platform, maxSequence);
+                        }
+                    }
+
+                    /** 为渠道消息补齐当前运行时 Profile。 */
+                    private void assignProfile(GatewayMessage message) {
                         if (message != null
                                 && (message.getProfile() == null
                                         || message.getProfile().trim().length() == 0)) {
                             message.setProfile(service.profileName());
                         }
+                    }
+
+                    /** 打开与当前 Bean 创建上下文一致的 Profile 作用域。 */
+                    private ProfileRuntimeScope.Scope openProfileScope() {
+                        return ProfileRuntimeScope.open(
+                                profileScope.getProfile(),
+                                profileScope.getHome(),
+                                profileScope.getEnvironment(),
+                                profileScope.getAppContext());
+                    }
+                });
+        channelConnectionManager.bindConnectedHandler(
+                new java.util.function.Consumer<PlatformType>() {
+                    /** 渠道真正可用后按平台补投尚未完成的持久化回复。 */
+                    @Override
+                    public void accept(PlatformType platform) {
                         if (profileScope == null) {
-                            service.handle(message);
+                            recoverReadyPlatform(platform);
                             return;
                         }
-                        try (ProfileRuntimeScope.Scope ignored =
-                                ProfileRuntimeScope.open(
-                                        profileScope.getProfile(),
-                                        profileScope.getHome(),
-                                        profileScope.getEnvironment(),
-                                        profileScope.getAppContext())) {
-                            service.handle(message);
+                        try (ProfileRuntimeScope.Scope ignored = openProfileScope()) {
+                            recoverReadyPlatform(platform);
                         }
+                    }
+
+                    /** 只补投当前已启用且已 ready 平台尚未完成的回复。 */
+                    private void recoverReadyPlatform(PlatformType platform) {
+                        service.recoverPlatformInboundDeliveries(service.profileName(), platform);
+                    }
+
+                    /** 打开与当前 Bean 创建上下文一致的 Profile 作用域。 */
+                    private ProfileRuntimeScope.Scope openProfileScope() {
+                        return ProfileRuntimeScope.open(
+                                profileScope.getProfile(),
+                                profileScope.getHome(),
+                                profileScope.getEnvironment(),
+                                profileScope.getAppContext());
                     }
                 });
         GatewayOpenPolicyStartupGuard.requireAllowed(
                 appConfig, ProfileRuntimeIdentity.resolve(appConfig));
+        long startupRecoveryCutoff = System.currentTimeMillis();
+        service.convergeInterruptedInbounds(service.profileName(), startupRecoveryCutoff);
+        service.pruneTerminalInbounds(service.profileName(), startupRecoveryCutoff);
         channelConnectionManager.startAll();
         gatewayRestartNotificationService.deliverPendingRestartOnlineNotification();
         return service;

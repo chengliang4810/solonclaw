@@ -17,8 +17,10 @@ import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
@@ -64,6 +66,27 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
 
     /** 运行期连接终止时通知统一连接管理器安排重连。 */
     private volatile Runnable reconnectHandler;
+
+    /** 协议真正可用后通知统一连接管理器清理退避并执行恢复。 */
+    private volatile Runnable connectionReadyHandler;
+
+    /** SDK 自恢复期间通知统一连接管理器撤销旧的 ready 状态。 */
+    private volatile Runnable connectionUnavailableHandler;
+
+    /** 当前渠道普通消息使用的串行执行器，ready 后在同一队列恢复遗留入站。 */
+    private volatile ExecutorService pendingInboundRecoveryExecutor;
+
+    /** 保护单次 ready 状态只提交一轮 pending 恢复。 */
+    private final Object pendingInboundRecoveryLock = new Object();
+
+    /** 当前 ready 状态是否已经提交 pending 恢复。 */
+    private boolean pendingInboundRecoverySubmitted;
+
+    /** 当前连接代次在串行队列首部等待 ready 的恢复屏障。 */
+    private PendingInboundRecoveryCycle pendingInboundRecoveryCycle;
+
+    /** pending 恢复失败后的短暂重试间隔，避免数据库瞬时故障永久放行或阻断渠道。 */
+    private static final long PENDING_RECOVERY_RETRY_MILLIS = 100L;
 
     /**
      * 控制命令专用并发执行器（懒加载）。
@@ -158,14 +181,212 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         this.reconnectHandler = reconnectHandler;
     }
 
+    /** 注册协议真正可用后的统一通知处理器。 */
+    @Override
+    public void setConnectionReadyHandler(Runnable connectionReadyHandler) {
+        this.connectionReadyHandler = connectionReadyHandler;
+    }
+
+    /** 注册 SDK 自恢复期间的不可用状态通知处理器。 */
+    @Override
+    public void setConnectionUnavailableHandler(Runnable connectionUnavailableHandler) {
+        this.connectionUnavailableHandler = connectionUnavailableHandler;
+    }
+
     /** 供子类读取当前入站处理器。 */
     protected InboundMessageHandler inboundMessageHandler() {
         return inboundMessageHandler;
     }
 
+    /**
+     * 在渠道确认消息或进入异步执行器之前同步完成持久化准入。
+     *
+     * <p>准入异常必须向上传播，使支持重投的平台不要推进确认状态；调用方只能在本方法正常返回 true 后写入进程内去重缓存。
+     *
+     * @param message 已完成平台字段归一化的原始入站消息。
+     * @return 成功持久化返回 true；重复或未授权消息返回 false。
+     */
+    protected boolean admitInboundBeforeAsync(GatewayMessage message) {
+        InboundMessageHandler handler = inboundMessageHandler;
+        if (handler == null || message == null) {
+            return false;
+        }
+        try {
+            return handler.admit(message);
+        } catch (Exception e) {
+            throw new IllegalStateException(platform() + " inbound admission failed", e);
+        }
+    }
+
+    /** 登记当前渠道的串行入站执行器，等协议真实 ready 后再恢复遗留 receipt。 */
+    protected void queuePlatformPendingInboundRecovery(final ExecutorService inboundExecutor) {
+        synchronized (pendingInboundRecoveryLock) {
+            cancelPendingInboundRecoveryCycleLocked();
+            pendingInboundRecoveryExecutor = inboundExecutor;
+            pendingInboundRecoverySubmitted = false;
+            armPendingInboundRecoveryCycleLocked();
+        }
+    }
+
+    /** 在串行队列首部放置等待真实 ready 的恢复屏障。 */
+    private void armPendingInboundRecoveryCycleLocked() {
+        ExecutorService inboundExecutor = pendingInboundRecoveryExecutor;
+        if (inboundExecutor == null || inboundExecutor.isShutdown()) {
+            return;
+        }
+        final PendingInboundRecoveryCycle cycle = new PendingInboundRecoveryCycle();
+        pendingInboundRecoveryCycle = cycle;
+        try {
+            inboundExecutor.submit(
+                    new Runnable() {
+                        /** 等待真实 ready 后先恢复旧 receipt，再放行后续普通入站任务。 */
+                        @Override
+                        public void run() {
+                            runPendingInboundRecoveryCycle(cycle);
+                        }
+                    });
+        } catch (RejectedExecutionException e) {
+            pendingInboundRecoveryCycle = null;
+            log.warn(
+                    "[{}] pending inbound recovery barrier rejected: errorType={}, error={}",
+                    platform(),
+                    errorType(e),
+                    safeError(e));
+        }
+    }
+
+    /** 等待并执行一个连接代次的 pending 恢复屏障。 */
+    private void runPendingInboundRecoveryCycle(PendingInboundRecoveryCycle cycle) {
+        try {
+            cycle.ready.await();
+            while (!cycle.cancelled && cycle.handler != null) {
+                try {
+                    long maxSequence = cycle.handler.capturePendingRecoveryWatermark();
+                    if (maxSequence > 0L) {
+                        cycle.handler.recoverPendingThrough(platform(), maxSequence);
+                    }
+                    return;
+                } catch (Exception e) {
+                    log.warn(
+                            "[{}] pending inbound recovery failed, retrying: errorType={}, error={}",
+                            platform(),
+                            errorType(e),
+                            safeError(e));
+                    Thread.sleep(PENDING_RECOVERY_RETRY_MILLIS);
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /** 在真实 ready 边界捕获稳定水位并释放串行恢复屏障。 */
+    private void submitPlatformPendingInboundRecovery() {
+        final InboundMessageHandler handler = inboundMessageHandler;
+        synchronized (pendingInboundRecoveryLock) {
+            final PendingInboundRecoveryCycle cycle = pendingInboundRecoveryCycle;
+            if (pendingInboundRecoverySubmitted || handler == null || cycle == null) {
+                return;
+            }
+            try {
+                cycle.handler = handler;
+                pendingInboundRecoverySubmitted = true;
+                cycle.ready.countDown();
+            } catch (Exception e) {
+                log.warn(
+                        "[{}] pending inbound recovery prepare failed: errorType={}, error={}",
+                        platform(),
+                        errorType(e),
+                        safeError(e));
+            }
+        }
+    }
+
+    /**
+     * 把普通入站任务绑定到提交时的连接代次；旧代次在任务真正开始前失效时只保留持久化 receipt，由新代次恢复。
+     *
+     * @param inboundExecutor 当前渠道的串行入站执行器。
+     * @param task 已完成持久化准入的普通消息处理任务。
+     */
+    protected void submitInboundAfterPendingRecovery(
+            ExecutorService inboundExecutor, final Runnable task) {
+        if (inboundExecutor == null || task == null) {
+            return;
+        }
+        final PendingInboundRecoveryCycle submittedCycle;
+        synchronized (pendingInboundRecoveryLock) {
+            submittedCycle = pendingInboundRecoveryCycle;
+        }
+        inboundExecutor.submit(
+                new Runnable() {
+                    /** 仅在提交时的连接代次仍有效时开始业务处理。 */
+                    @Override
+                    public void run() {
+                        synchronized (pendingInboundRecoveryLock) {
+                            if (submittedCycle != null
+                                    && (submittedCycle.cancelled
+                                            || submittedCycle != pendingInboundRecoveryCycle)) {
+                                return;
+                            }
+                        }
+                        task.run();
+                    }
+                });
+    }
+
+    /** 撤销当前 ready 代次，使 SDK 恢复成功后可提交新一轮 pending 恢复。 */
+    private void resetPendingInboundRecovery() {
+        synchronized (pendingInboundRecoveryLock) {
+            cancelPendingInboundRecoveryCycleLocked();
+            pendingInboundRecoverySubmitted = false;
+            armPendingInboundRecoveryCycleLocked();
+        }
+    }
+
+    /** 取消并释放旧连接代次的恢复屏障，防止失败连接永久占用串行线程。 */
+    private void cancelPendingInboundRecoveryCycleLocked() {
+        PendingInboundRecoveryCycle cycle = pendingInboundRecoveryCycle;
+        pendingInboundRecoveryCycle = null;
+        if (cycle != null) {
+            cycle.cancelled = true;
+            cycle.ready.countDown();
+        }
+    }
+
+    /** 单个连接代次的 ready 屏障、水位和恢复处理器。 */
+    private static final class PendingInboundRecoveryCycle {
+        /** 真实 ready 或取消时释放的屏障。 */
+        private final CountDownLatch ready = new CountDownLatch(1);
+
+        /** 本轮恢复使用的入站处理器。 */
+        private volatile InboundMessageHandler handler;
+
+        /** 旧连接代次是否已经取消。 */
+        private volatile boolean cancelled;
+    }
+
     /** 通知连接管理器按统一退避策略安排重连。 */
     protected void requestReconnect() {
+        resetPendingInboundRecovery();
         Runnable handler = reconnectHandler;
+        if (handler != null) {
+            handler.run();
+        }
+    }
+
+    /** 通知统一连接管理器当前协议已经真正可用。 */
+    protected void notifyConnectionReady() {
+        submitPlatformPendingInboundRecovery();
+        Runnable handler = connectionReadyHandler;
+        if (handler != null) {
+            handler.run();
+        }
+    }
+
+    /** 通知统一连接管理器当前协议暂不可用，但不额外启动第二套重连。 */
+    protected void notifyConnectionUnavailable() {
+        resetPendingInboundRecovery();
+        Runnable handler = connectionUnavailableHandler;
         if (handler != null) {
             handler.run();
         }
@@ -216,6 +437,20 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
      * @param message 已构造好的网关消息（其文本应为控制命令）。
      */
     protected void dispatchInboundControl(final GatewayMessage message) {
+        dispatchInboundControl(message, false);
+    }
+
+    /**
+     * 将已同步准入的控制命令投递到专用并发执行器。
+     *
+     * @param message 已携带原始入站总账标识的控制命令。
+     */
+    protected void dispatchAdmittedInboundControl(final GatewayMessage message) {
+        dispatchInboundControl(message, true);
+    }
+
+    /** 按普通入口或已准入入口异步执行控制命令。 */
+    private void dispatchInboundControl(final GatewayMessage message, final boolean admitted) {
         final InboundMessageHandler handler = inboundMessageHandler();
         if (handler == null || message == null) {
             return;
@@ -228,7 +463,11 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
                                 @Override
                                 public void run() {
                                     try {
-                                        handler.handle(message);
+                                        if (admitted) {
+                                            handler.handleAdmitted(message);
+                                        } else {
+                                            handler.handle(message);
+                                        }
                                     } catch (Exception e) {
                                         log.warn(
                                                 "[{}] control dispatch failed: errorType={}, error={}",
@@ -354,6 +593,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         setConnected(true);
         setSetupState("connected");
         setDetail("websocket connected");
+        notifyConnectionReady();
     }
 
     /**
@@ -363,6 +603,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
      * @param throwable 连接失败异常。
      */
     protected void markWebSocketFailure(String errorCode, Throwable throwable) {
+        notifyConnectionUnavailable();
         setConnected(false);
         setSetupState("error");
         setLastError(errorCode, safeError(throwable));
@@ -376,6 +617,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
      * @param reason websocket 关闭原因。
      */
     protected void markWebSocketClosed(int code, String reason) {
+        notifyConnectionUnavailable();
         setConnected(false);
         setSetupState("disconnected");
         setDetail("websocket closed: " + code + " " + reason);

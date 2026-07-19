@@ -50,6 +50,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -352,6 +353,65 @@ public class AgentRunSupervisorEngineTest {
                             null);
             assertThat(outcome.getFinalReply()).isEqualTo("done");
             assertThat(supervisor.isRunning(sourceKey)).isFalse();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /** 旧 run 返回结果但尚未写终态时被交权，最终回复与完成事件都必须被抑制。 */
+    @Test
+    void shouldSuppressTerminalOutputAfterInterruptTransfersOwnership() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getTask().setBusyPolicy("interrupt");
+        AgentRunSupervisor supervisor = supervisor(fixture, new SuccessfulGateway("old reply"));
+        String sourceKey = "MEMORY:writer-transfer:user";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        AtomicInteger finalReplyWrites = new AtomicInteger();
+        AtomicInteger completionEvents = new AtomicInteger();
+
+        try {
+            Future<AgentRunOutcome> running =
+                    executor.submit(
+                            () ->
+                                    supervisor.runWithOutputLease(
+                                            session,
+                                            "system",
+                                            "first",
+                                            Collections.emptyList(),
+                                            ConversationFeedbackSink.noop(),
+                                            ConversationEventSink.noop(),
+                                            false,
+                                            null,
+                                            Collections.emptyList(),
+                                            null,
+                                            Collections.emptyList(),
+                                            Collections.emptyList(),
+                                            null,
+                                            null,
+                                            Collections.emptyList()));
+            AgentRunOutcome oldOutcome = running.get(3, TimeUnit.SECONDS);
+            assertThat(supervisor.isRunning(sourceKey)).isTrue();
+
+            GatewayMessage replacement =
+                    new GatewayMessage(PlatformType.MEMORY, "writer-transfer", "user", "second");
+            RunBusyDecision decision =
+                    supervisor.coordinateIncoming(sourceKey, session.getSessionId(), replacement);
+            assertThat(decision.isShouldRunNow()).isTrue();
+
+            boolean written =
+                    supervisor.completeOutputLease(
+                            sourceKey,
+                            oldOutcome.getRunRecord().getRunId(),
+                            () -> {
+                                finalReplyWrites.incrementAndGet();
+                                completionEvents.incrementAndGet();
+                            });
+
+            assertThat(written).isFalse();
+            assertThat(finalReplyWrites.get()).isZero();
+            assertThat(completionEvents.get()).isZero();
+            assertThat(supervisor.releaseIncomingReservation(sourceKey)).isTrue();
         } finally {
             executor.shutdownNow();
         }

@@ -57,6 +57,21 @@ public class ChannelStatus {
     /** 最近一次重连错误。 */
     private String lastReconnectError;
 
+    /** 当前是否处于连续失败后的重连熔断冷却期。 */
+    private boolean reconnectCircuitOpen;
+
+    /** 当前连续连接失败次数。 */
+    private int reconnectFailureCount;
+
+    /** 最近一次打开重连熔断的时间戳。 */
+    private long reconnectCircuitOpenedAt;
+
+    /** 当前重连熔断冷却截止时间戳。 */
+    private long reconnectCircuitOpenUntil;
+
+    /** 最近一次由连接 watchdog 补回重连任务的时间戳。 */
+    private long reconnectWatchdogRecoveredAt;
+
     /**
      * 创建渠道状态实例，并注入运行所需依赖。
      *

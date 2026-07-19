@@ -358,7 +358,8 @@ public class DashboardChatService {
 
             GatewayMessage message = buildMessage(request, state.sessionId);
             GatewayReply reply;
-            if (request.input.trim().startsWith("/")) {
+            boolean commandRequest = request.input.trim().startsWith("/");
+            if (commandRequest) {
                 DashboardCommandEventSink commandEventSink =
                         new DashboardCommandEventSink(eventSink, request);
                 reply = commandService.handle(message, request.input.trim(), commandEventSink);
@@ -367,7 +368,7 @@ public class DashboardChatService {
                 reply = conversationOrchestrator.handleIncoming(message, eventSink);
             }
 
-            if (!state.completed) {
+            if (commandRequest && !state.completed) {
                 if (reply != null && reply.isError()) {
                     eventSink.onRunFailed(
                             reply.getSessionId(), new IllegalStateException(reply.getContent()));

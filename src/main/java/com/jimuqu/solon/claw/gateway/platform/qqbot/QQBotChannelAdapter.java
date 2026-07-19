@@ -231,6 +231,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return true;
             }
             callbackExecutor = Executors.newSingleThreadExecutor();
+            queuePlatformPendingInboundRecovery(callbackExecutor);
             Request request =
                     new Request.Builder()
                             .url(gateway)
@@ -902,18 +903,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                     safeError(e));
             return;
         }
-        ONode sequenceNode = root.get("s");
-        if (sequenceNode != null && !sequenceNode.isNull()) {
-            long sequence = sequenceNode.getLong();
-            Long previous = gatewaySequence;
-            if (webSocket == socket && (previous == null || sequence > previous.longValue())) {
-                gatewaySequence = Long.valueOf(sequence);
-            }
-        }
         ONode operationNode = root.get("op");
         if (operationNode == null || operationNode.isNull()) {
             // 官方业务帧都会带 op；保留直传仅供受控适配测试与平台兼容接入。
-            dispatchInbound(raw);
+            if (dispatchInbound(raw)) {
+                updateGatewaySequence(socket, root);
+            }
             return;
         }
         int operation = operationNode.getInt(-1);
@@ -922,7 +917,9 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             return;
         }
         if (operation == 0) {
-            handleDispatch(socket, root, raw);
+            if (handleDispatch(socket, root, raw)) {
+                updateGatewaySequence(socket, root);
+            }
             return;
         }
         if (operation == 7) {
@@ -941,6 +938,19 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             requestProtocolReconnect(socket, "invalid session");
         }
         // op 11 为心跳确认，无需额外处理；未知操作码同样保持连接等待后续帧。
+    }
+
+    /** 仅在业务帧已同步准入或被正常拒绝后推进可恢复网关序号。 */
+    private void updateGatewaySequence(WebSocket socket, ONode root) {
+        ONode sequenceNode = root.get("s");
+        if (sequenceNode == null || sequenceNode.isNull()) {
+            return;
+        }
+        long sequence = sequenceNode.getLong();
+        Long previous = gatewaySequence;
+        if (webSocket == socket && (previous == null || sequence > previous.longValue())) {
+            gatewaySequence = Long.valueOf(sequence);
+        }
     }
 
     /**
@@ -1016,10 +1026,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param socket 当前有效 WebSocket。
      * @param root 已解析的协议帧。
      * @param raw 原始 JSON 帧。
+     * @return 当前帧可以安全推进网关序号时返回 true。
      */
-    private void handleDispatch(WebSocket socket, ONode root, String raw) {
+    private boolean handleDispatch(WebSocket socket, ONode root, String raw) {
         if (webSocket != socket) {
-            return;
+            return false;
         }
         String eventType = StrUtil.nullToEmpty(root.get("t").getString());
         if ("READY".equalsIgnoreCase(eventType)) {
@@ -1028,25 +1039,25 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 setLastError("qqbot_ready_missing_session", "READY missing session_id");
                 setSetupState("error");
                 requestProtocolReconnect(socket, "ready missing session");
-                return;
+                return false;
             }
             if (webSocket != socket) {
-                return;
+                return false;
             }
             gatewaySessionId = sessionId;
             stopHandshakeTimeout();
             markGatewayReady("websocket ready");
-            return;
+            return true;
         }
         if ("RESUMED".equalsIgnoreCase(eventType)) {
             if (webSocket != socket) {
-                return;
+                return false;
             }
             stopHandshakeTimeout();
             markGatewayReady("websocket resumed");
-            return;
+            return true;
         }
-        dispatchInbound(raw);
+        return dispatchInbound(raw);
     }
 
     /** 在鉴权成功后公开真实连接状态，并清理上一次瞬时连接错误。 */
@@ -1055,6 +1066,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         setSetupState("connected");
         clearLastError();
         setDetail(detail);
+        notifyConnectionReady();
     }
 
     /**
@@ -1240,32 +1252,39 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * 分发入站。
      *
      * @param raw 原始输入值。
+     * @return 消息已同步准入、被正常拒绝或无需业务处理时返回 true。
      */
-    protected void dispatchInbound(final String raw) {
+    protected boolean dispatchInbound(final String raw) {
         if (callbackExecutor == null || inboundMessageHandler() == null || StrUtil.isBlank(raw)) {
-            return;
+            return false;
         }
-        // 交互回调（按钮点击）仍需先应答；无论是否控制命令都要走一次确认，避免按钮一直转圈
-        acknowledgeInteractionIfNecessary(raw);
         // 先解析入站消息，便于识别控制命令；控制命令走并发执行器避免被运行中的任务阻塞而错过取消时机
         final GatewayMessage message = toGatewayMessage(raw);
         if (message == null) {
-            return;
+            acknowledgeInteractionIfNecessary(raw);
+            return true;
         }
-        if (inboundMessageDeduplicator.isDuplicate(message.getReplyToMessageId())) {
-            return;
+        boolean admitted = admitInboundBeforeAsync(message);
+        // 交互回调只有在 durable receipt 已建立或被正常拒绝后才应答，准入异常会直接向上抛出。
+        acknowledgeInteractionIfNecessary(raw);
+        if (!admitted) {
+            return true;
+        }
+        if (inboundMessageDeduplicator.isDuplicate(message.getPlatformMessageId())) {
+            return true;
         }
         if (isControlCommand(message.getText())) {
-            dispatchInboundControl(message);
-            return;
+            dispatchAdmittedInboundControl(message);
+            return true;
         }
-        callbackExecutor.submit(
+        submitInboundAfterPendingRecovery(
+                callbackExecutor,
                 new Runnable() {
                     /** 执行异步任务主体。 */
                     @Override
                     public void run() {
                         try {
-                            inboundMessageHandler().handle(message);
+                            inboundMessageHandler().handleAdmitted(message);
                         } catch (Exception e) {
                             log.warn(
                                     "[QQBOT] inbound dispatch failed: errorType={}, error={}",
@@ -1274,6 +1293,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         }
                     }
                 });
+        return true;
     }
 
     /**
@@ -1332,6 +1352,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatName(chatId);
         message.setUserName(userId);
         message.setReplyToMessageId(data.get("id").getString());
+        message.setPlatformMessageId(data.get("id").getString());
         message.setAttachments(attachments);
         return message;
     }
@@ -1473,14 +1494,40 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         node.get("transcribed_text").getString(),
                         node.get("text").getString(),
                         fallbackTranscribedText);
-        try {
-            result.add(cacheRemoteAttachment(url, kind, fileName, mimeType, fromQuote, transcript));
-        } catch (Exception e) {
-            log.warn(
-                    "[QQBOT] attachment cache failed: errorType={}, error={}",
-                    errorType(e),
-                    safeError(e));
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind(kind);
+        attachment.setOriginalName(StrUtil.blankToDefault(fileName, "qqbot-attachment.bin"));
+        attachment.setMimeType(AttachmentCacheService.normalizeMimeType(mimeType, fileName));
+        attachment.setUrl(url);
+        attachment.setFromQuote(fromQuote);
+        attachment.setTranscribedText(transcript);
+        attachment.setSourceReference(url);
+        attachment.setSourceResourceType("remote_url");
+        result.add(attachment);
+    }
+
+    /** 准入完成后下载 QQBot 原始附件 URL；失败时保留 pending receipt。 */
+    @Override
+    public void hydrateInboundAttachments(GatewayMessage message) throws Exception {
+        if (message == null || message.getAttachments() == null) {
+            return;
         }
+        List<MessageAttachment> hydrated = new ArrayList<MessageAttachment>();
+        for (MessageAttachment attachment : message.getAttachments()) {
+            if (attachment == null || StrUtil.isBlank(attachment.getSourceReference())) {
+                hydrated.add(attachment);
+                continue;
+            }
+            hydrated.add(
+                    cacheRemoteAttachment(
+                            attachment.getSourceReference(),
+                            attachment.getKind(),
+                            attachment.getOriginalName(),
+                            attachment.getMimeType(),
+                            attachment.isFromQuote(),
+                            attachment.getTranscribedText()));
+        }
+        message.setAttachments(hydrated);
     }
 
     /**
@@ -1601,6 +1648,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatName(chatId);
         message.setUserName(userId);
         message.setReplyToMessageId(data.get("id").getString());
+        message.setPlatformMessageId(data.get("id").getString());
         return message;
     }
 

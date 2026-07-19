@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.context.AsyncSkillLearningService;
 import com.jimuqu.solon.claw.context.BuiltinMemoryProvider;
+import com.jimuqu.solon.claw.context.CuratorStateStore;
 import com.jimuqu.solon.claw.context.DefaultMemoryManager;
 import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
@@ -14,12 +15,14 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.MemoryPromptSection;
+import com.jimuqu.solon.claw.core.model.MemorySnapshot;
 import com.jimuqu.solon.claw.core.model.MemoryTurnContext;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
+import com.jimuqu.solon.claw.core.service.MemoryService;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
@@ -30,6 +33,8 @@ import com.jimuqu.solon.claw.tool.runtime.MemoryTools;
 import com.jimuqu.solon.claw.tool.runtime.SkillTools;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -394,6 +399,126 @@ public class MemoryAndSkillsTest {
                 .hasMessageContaining("ops/write-failure-skill/references/token=***")
                 .hasMessageNotContaining(skillsDir)
                 .hasMessageNotContaining("ghp_skillwritefailure12345");
+    }
+
+    /** 后台任务读取后若人工已经修改技能，比较写入必须放弃且保留人工版本。 */
+    @Test
+    void shouldKeepManualEditWhenBackgroundSkillContentIsStale() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String original = skill("cas-skill", "original");
+        String manual = skill("cas-skill", "manual latest");
+        env.localSkillService.createSkill("cas-skill", null, original);
+        String expected = env.localSkillService.viewSkill("cas-skill", null).getContent();
+        env.localSkillService.editSkill("cas-skill", manual);
+
+        boolean updated =
+                env.localSkillService.editSkillIfUnchanged(
+                        "cas-skill", expected, skill("cas-skill", "background stale"));
+
+        assertThat(updated).isFalse();
+        assertThat(env.localSkillService.viewSkill("cas-skill", null).getContent())
+                .isEqualTo(manual)
+                .contains("manual latest")
+                .doesNotContain("background stale");
+    }
+
+    /** 新建技能发布时若人工文件已抢先出现，后台临时文件不得覆盖人工正文。 */
+    @Test
+    void shouldNotReplaceSkillFileCreatedDuringBackgroundPublish() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File skillDir =
+                FileUtil.file(env.appConfig.getRuntime().getSkillsDir(), "concurrent-create-skill");
+        File target = FileUtil.file(skillDir, "SKILL.md");
+        FileUtil.mkdir(skillDir);
+        String manualContent = skill("concurrent-create-skill", "human won create race");
+        FileUtil.writeUtf8String(manualContent, target);
+        Method publish =
+                env.localSkillService
+                        .getClass()
+                        .getDeclaredMethod(
+                                "writeNewSkillMainFileLocked",
+                                File.class,
+                                String.class,
+                                String.class);
+        publish.setAccessible(true);
+
+        assertThatThrownBy(
+                        () ->
+                                publish.invoke(
+                                        env.localSkillService,
+                                        skillDir,
+                                        skill("concurrent-create-skill", "background stale"),
+                                        "concurrent-create-skill/SKILL.md"))
+                .isInstanceOf(InvocationTargetException.class)
+                .hasCauseInstanceOf(IllegalStateException.class);
+        assertThat(FileUtil.readUtf8String(target))
+                .isEqualTo(manualContent)
+                .contains("human won create race")
+                .doesNotContain("background stale");
+    }
+
+    /** 人工删除 Agent 技能目录后通过管理入口同名重建，不得继承旧的自动写来源。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldClearStaleAgentProvenanceWhenSkillIsRecreated() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String skillName = "recreated-manual-skill";
+        env.localSkillService.createAgentSkill(
+                skillName, null, skill(skillName, "agent generated version"));
+        FileUtil.del(FileUtil.file(env.appConfig.getRuntime().getSkillsDir(), skillName));
+
+        String manualContent = skill(skillName, "human recreated version");
+        env.localSkillService.createSkill(skillName, null, manualContent);
+
+        Map<String, Object> state =
+                new CuratorStateStore(
+                                FileUtil.file(
+                                        env.appConfig.getRuntime().getSkillsDir(),
+                                        ".curator_state"))
+                        .read();
+        Map<String, Object> skills =
+                state.get("skills") instanceof Map
+                        ? (Map<String, Object>) state.get("skills")
+                        : java.util.Collections.<String, Object>emptyMap();
+        assertThat(skills).doesNotContainKey(skillName);
+        assertThat(env.localSkillService.viewSkill(skillName, null).getContent())
+                .isEqualTo(manualContent)
+                .contains("human recreated version");
+    }
+
+    /** 旧后台任务不得覆盖人工同名重建且正文恰好相同的新技能实体。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldRejectStaleAgentGenerationAfterSameContentRecreation() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String skillName = "same-content-recreated-skill";
+        String original = skill(skillName, "same visible content");
+        env.localSkillService.createAgentSkill(skillName, null, original);
+        File stateFile = FileUtil.file(env.appConfig.getRuntime().getSkillsDir(), ".curator_state");
+        Map<String, Object> before = new CuratorStateStore(stateFile).read();
+        Map<String, Object> beforeSkills = (Map<String, Object>) before.get("skills");
+        Map<String, Object> beforeRecord =
+                new LinkedHashMap<String, Object>(
+                        (Map<String, Object>) beforeSkills.get(skillName));
+        File skillDir = FileUtil.file(env.appConfig.getRuntime().getSkillsDir(), skillName);
+        File skillFile = FileUtil.file(skillDir, "SKILL.md");
+
+        FileUtil.del(skillDir);
+        FileUtil.mkdir(skillDir);
+        FileUtil.writeUtf8String(original, skillFile);
+
+        boolean updated =
+                env.localSkillService.editAgentSkillIfUnchanged(
+                        skillName,
+                        original,
+                        String.valueOf(beforeRecord.get("contentHash")),
+                        String.valueOf(beforeRecord.get("generation")),
+                        skill(skillName, "stale background overwrite"));
+
+        assertThat(updated).isFalse();
+        assertThat(FileUtil.readUtf8String(skillFile))
+                .isEqualTo(original)
+                .doesNotContain("stale background overwrite");
     }
 
     @Test
@@ -1562,7 +1687,7 @@ public class MemoryAndSkillsTest {
     void shouldPatchExistingLearnedSkillInsteadOfSkipping() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getLearning().setToolCallThreshold(1);
-        env.localSkillService.createSkill(
+        env.localSkillService.createAgentSkill(
                 "repeatable-task", null, skill("repeatable-task", "demo"));
 
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room:user");
@@ -1589,6 +1714,46 @@ public class MemoryAndSkillsTest {
         String content = waitSkillContent(env, "repeatable-task");
         assertThat(content).contains("已经验证的流程摘要");
         assertThat(content).contains("当前任务验证点");
+    }
+
+    /** 后台学习不得改写没有 Agent 来源标记的人工技能。 */
+    @Test
+    void shouldNotOverwriteHumanMaintainedSkillDuringBackgroundLearning() throws Exception {
+        ManualSkillUpdateGateway gateway = new ManualSkillUpdateGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        env.appConfig.getLearning().setToolCallThreshold(1);
+        String manualContent = skill("manual-learning-skill", "human maintained");
+        env.localSkillService.createSkill("manual-learning-skill", null, manualContent);
+
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room:user");
+        session.setTitle("manual learning skill");
+        session.setCompressedSummary("后台建议改写，但该技能由人工维护。");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Collections.singletonList(
+                                ChatMessage.ofTool("tool output", "tool", "1"))));
+        env.sessionRepository.save(session);
+
+        AsyncSkillLearningService learningService =
+                new AsyncSkillLearningService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        env.memoryService,
+                        env.localSkillService,
+                        env.checkpointService,
+                        gateway);
+        try {
+            learningService.schedulePostReplyLearning(
+                    session, env.message("room", "user", "更新人工技能"), GatewayReply.ok("done"));
+        } finally {
+            learningService.shutdown();
+        }
+
+        assertThat(env.localSkillService.viewSkill("manual-learning-skill", null).getContent())
+                .isEqualTo(manualContent)
+                .contains("human maintained")
+                .doesNotContain("模型总结出的发布流程");
+        assertThat(gateway.callCount.get()).isEqualTo(1);
     }
 
     @Test
@@ -1629,7 +1794,7 @@ public class MemoryAndSkillsTest {
         ThinkingSkillSummaryGateway gateway = new ThinkingSkillSummaryGateway();
         TestEnvironment env = TestEnvironment.withLlm(gateway);
         env.appConfig.getLearning().setToolCallThreshold(1);
-        env.localSkillService.createSkill(
+        env.localSkillService.createAgentSkill(
                 "safe-learning-task",
                 null,
                 skill("safe-learning-task", "<think>旧技能内部推理</think>已有流程"));
@@ -1812,6 +1977,56 @@ public class MemoryAndSkillsTest {
             String memory = waitMemoryContent(env, "用户偏好：回答先给结论，再补充必要理由。");
             assertThat(memory).contains("用户偏好：回答先给结论，再补充必要理由。").doesNotContain("原始任务敏感标记");
             assertThat(env.localSkillService.listSkillNames()).doesNotContain("memory-only-task");
+        } finally {
+            learningService.shutdown();
+        }
+    }
+
+    /** 临时记忆写入失败不得推进学习位点，后续调度必须重试同一批尚未消费的工具消息。 */
+    @Test
+    void shouldRetryMemoryOnlyLearningAfterTransientWriteFailure() throws Exception {
+        TestEnvironment env = TestEnvironment.withLlm(new MemoryOnlyGateway("memory_only"));
+        env.appConfig.getLearning().setToolCallThreshold(1);
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:retry-room:retry-user");
+        session.setTitle("memory retry task");
+        session.setCompressedSummary("用户多次要求回答先给结论，再补充必要理由。");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Collections.singletonList(
+                                ChatMessage.ofTool("tool output", "shell", "1"))));
+        env.sessionRepository.save(session);
+        FailOnceMemoryService memoryService = new FailOnceMemoryService(env.memoryService);
+        AsyncSkillLearningService learningService =
+                new AsyncSkillLearningService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        memoryService,
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.llmGateway);
+        try {
+            GatewayMessage message = env.message("retry-room", "retry-user", "沉淀长期偏好");
+            learningService.schedulePostReplyLearning(session, message, GatewayReply.ok("done"));
+
+            assertThat(memoryService.firstFailure.await(5L, TimeUnit.SECONDS)).isTrue();
+            assertThat(session.getLastLearningAt()).isZero();
+            assertThat(env.sessionRepository.findById(session.getSessionId()).getLastLearningAt())
+                    .isZero();
+
+            learningService.schedulePostReplyLearning(session, message, GatewayReply.ok("done"));
+            assertThat(memoryService.success.await(5L, TimeUnit.SECONDS)).isTrue();
+            assertThat(waitMemoryContent(env, "用户偏好：回答先给结论，再补充必要理由。"))
+                    .contains("用户偏好：回答先给结论，再补充必要理由。");
+
+            long deadline = System.currentTimeMillis() + 5000L;
+            SessionRecord persisted = env.sessionRepository.findById(session.getSessionId());
+            while (persisted.getLastLearningAt() <= 0L && System.currentTimeMillis() < deadline) {
+                Thread.sleep(20L);
+                persisted = env.sessionRepository.findById(session.getSessionId());
+            }
+            assertThat(memoryService.addCalls.get()).isEqualTo(2);
+            assertThat(persisted.getLastLearningAt()).isPositive();
         } finally {
             learningService.shutdown();
         }
@@ -2006,6 +2221,32 @@ public class MemoryAndSkillsTest {
         }
     }
 
+    /** 分类为更新人工技能，并统计是否错误进入正文生成阶段。 */
+    private static final class ManualSkillUpdateGateway extends SkillSummaryGateway {
+        /** 辅助模型调用次数。 */
+        private final AtomicInteger callCount = new AtomicInteger();
+
+        /** 返回固定更新决策；若保护失效，后续调用会生成标准技能正文。 */
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
+                throws Exception {
+            callCount.incrementAndGet();
+            if (systemPrompt.contains("rubric 分类器")) {
+                LlmResult decision = new LlmResult();
+                decision.setAssistantMessage(
+                        ChatMessage.ofAssistant("update_existing_skill|manual-learning-skill"));
+                decision.setRawResponse("update_existing_skill|manual-learning-skill");
+                decision.setNdjson("");
+                return decision;
+            }
+            return super.chat(session, systemPrompt, userMessage, toolObjects);
+        }
+    }
+
     /** 返回带内部思考块的技能正文，并记录写入模型前的学习提示。 */
     private static class ThinkingSkillSummaryGateway extends SkillSummaryGateway {
         private volatile String learningPrompt = "";
@@ -2065,6 +2306,62 @@ public class MemoryAndSkillsTest {
                 SessionRecord session, String systemPrompt, List<Object> toolObjects)
                 throws Exception {
             return chat(session, systemPrompt, "", toolObjects);
+        }
+    }
+
+    /** 首次写入抛出瞬时异常，后续调用转发真实记忆服务。 */
+    private static final class FailOnceMemoryService implements MemoryService {
+        /** 负责成功路径的真实记忆服务。 */
+        private final MemoryService delegate;
+
+        /** 记忆新增调用次数。 */
+        private final AtomicInteger addCalls = new AtomicInteger();
+
+        /** 首次失败已经发生。 */
+        private final CountDownLatch firstFailure = new CountDownLatch(1);
+
+        /** 后续重试已经成功。 */
+        private final CountDownLatch success = new CountDownLatch(1);
+
+        /** 创建首调失败的记忆服务。 */
+        private FailOnceMemoryService(MemoryService delegate) {
+            this.delegate = delegate;
+        }
+
+        /** 转发记忆快照读取。 */
+        @Override
+        public MemorySnapshot loadSnapshot() throws Exception {
+            return delegate.loadSnapshot();
+        }
+
+        /** 转发目标记忆读取。 */
+        @Override
+        public String read(String target) throws Exception {
+            return delegate.read(target);
+        }
+
+        /** 首次模拟瞬时 I/O 失败，后续真实写入并释放成功信号。 */
+        @Override
+        public String add(String target, String content) throws Exception {
+            if (addCalls.incrementAndGet() == 1) {
+                firstFailure.countDown();
+                throw new java.io.IOException("temporary memory write failure");
+            }
+            String result = delegate.add(target, content);
+            success.countDown();
+            return result;
+        }
+
+        /** 转发记忆替换。 */
+        @Override
+        public String replace(String target, String oldText, String newContent) throws Exception {
+            return delegate.replace(target, oldText, newContent);
+        }
+
+        /** 转发记忆删除。 */
+        @Override
+        public String remove(String target, String matchText) throws Exception {
+            return delegate.remove(target, matchText);
         }
     }
 

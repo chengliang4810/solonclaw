@@ -340,7 +340,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
         TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket);
         GatewayReply reply = runtime.send(sessionId, input, attachments, sink);
-        if (reply != null && reply.isError()) {
+        if (reply != null && reply.isError() && !sink.hasRunCompleted()) {
             sink.onRunFailed(sessionId, new IllegalStateException(reply.getContent()));
             return;
         }
@@ -429,7 +429,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket, true);
         try {
             GatewayReply reply = runtime.send(sessionId, input, attachments, sink);
-            if (reply != null && reply.isError()) {
+            if (reply != null && reply.isError() && !sink.hasRunCompleted()) {
                 sink.onRunFailed(sessionId, new IllegalStateException(reply.getContent()));
                 return;
             }
@@ -440,7 +440,9 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                 sink.onAssistantDelta(reply.getContent());
             }
         } catch (Throwable e) {
-            sink.onRunFailed(sessionId, new IllegalStateException(safeError(e), e));
+            if (!sink.hasRunCompleted()) {
+                sink.onRunFailed(sessionId, new IllegalStateException(safeError(e), e));
+            }
         }
     }
 

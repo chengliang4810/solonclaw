@@ -85,6 +85,10 @@ public class AdapterBackedDeliveryService implements DeliveryService {
         if (adapter == null) {
             throw new IllegalStateException("No adapter for platform: " + request.getPlatform());
         }
+        if (!adapter.isEnabled()) {
+            throw new IllegalStateException(
+                    "Adapter is disabled for platform: " + request.getPlatform());
+        }
 
         adapter.send(request);
         recordDeliveredMessage(request);

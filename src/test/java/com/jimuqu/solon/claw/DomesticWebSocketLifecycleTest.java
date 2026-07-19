@@ -1,9 +1,12 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
 import com.jimuqu.solon.claw.gateway.platform.qqbot.QQBotChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.wecom.WeComChannelAdapter;
 import com.jimuqu.solon.claw.gateway.platform.yuanbao.YuanbaoChannelAdapter;
@@ -28,6 +31,68 @@ import org.noear.snack4.ONode;
 
 /** 验证国内 WebSocket 渠道的 ready 状态与运行期重连边界。 */
 public class DomesticWebSocketLifecycleTest {
+    /** QQBot 业务 Dispatch 只有在入站准入正常结束后才能推进 Resume 序号。 */
+    @Test
+    void shouldAdvanceQqSequenceOnlyAfterInboundAdmission() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getChannels().getQqbot().setAllowAllUsers(true);
+        QQBotChannelAdapter adapter =
+                new QQBotChannelAdapter(
+                        config,
+                        config.getChannels().getQqbot(),
+                        new AttachmentCacheService(config),
+                        null);
+        setField(
+                adapter,
+                QQBotChannelAdapter.class,
+                "callbackExecutor",
+                Executors.newSingleThreadExecutor());
+        setField(adapter, QQBotChannelAdapter.class, "gatewaySequence", Long.valueOf(20L));
+        RecordingWebSocket socket = new RecordingWebSocket();
+        setField(adapter, QQBotChannelAdapter.class, "webSocket", socket);
+        AtomicInteger admissions = new AtomicInteger();
+        CountDownLatch handled = new CountDownLatch(1);
+        adapter.setInboundMessageHandler(
+                new InboundMessageHandler() {
+                    /** 首次模拟 SQLite 写入失败，第二次接受同一平台消息。 */
+                    @Override
+                    public boolean admit(GatewayMessage message) throws Exception {
+                        if (admissions.incrementAndGet() == 1) {
+                            throw new Exception("simulated persistence failure");
+                        }
+                        return true;
+                    }
+
+                    /** 记录第二次成功准入后的业务处理。 */
+                    @Override
+                    public void handle(GatewayMessage message) {
+                        handled.countDown();
+                    }
+                });
+        WebSocketListener socketListener = listener(QQBotChannelAdapter.class, adapter);
+        String frame =
+                "{\"op\":0,\"t\":\"C2C_MESSAGE_CREATE\",\"s\":21,\"d\":{"
+                        + "\"id\":\"qq-sequence-message\",\"openid\":\"qq-user\","
+                        + "\"content\":\"hello\"}}";
+
+        try {
+            assertThatThrownBy(() -> socketListener.onMessage(socket, frame))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("inbound admission failed");
+            assertThat(field(adapter, QQBotChannelAdapter.class, "gatewaySequence"))
+                    .isEqualTo(Long.valueOf(20L));
+
+            socketListener.onMessage(socket, frame);
+
+            assertThat(field(adapter, QQBotChannelAdapter.class, "gatewaySequence"))
+                    .isEqualTo(Long.valueOf(21L));
+            assertThat(handled.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(admissions.get()).isEqualTo(2);
+        } finally {
+            adapter.disconnect();
+        }
+    }
+
     /** 企微只有已订阅 ready 的当前连接断开时才请求一次重连。 */
     @Test
     void shouldRequestReconnectOnceWhenReadyWeComSocketFails() throws Exception {

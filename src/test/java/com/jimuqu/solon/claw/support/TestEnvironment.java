@@ -72,6 +72,7 @@ import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
+import com.jimuqu.solon.claw.storage.repository.SqliteChannelInboundMessageRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteChannelStateRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteCronJobRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -119,6 +120,11 @@ public class TestEnvironment {
     public final SessionRepository sessionRepository;
     public final AgentRunRepository agentRunRepository;
     public final CronJobRepository cronJobRepository;
+
+    /** 渠道入站消息总账仓储。 */
+    public final com.jimuqu.solon.claw.core.repository.ChannelInboundMessageRepository
+            channelInboundMessageRepository;
+
     public final LocalSkillService localSkillService;
     public final DefaultGatewayService gatewayService;
     public final ConversationOrchestrator conversationOrchestrator;
@@ -211,6 +217,9 @@ public class TestEnvironment {
         SqliteUsageEventRepository usageEventRepository = new SqliteUsageEventRepository(database);
         AgentRunRepository agentRunRepository = new SqliteAgentRunRepository(database);
         CronJobRepository cronJobRepository = new SqliteCronJobRepository(database);
+        com.jimuqu.solon.claw.core.repository.ChannelInboundMessageRepository
+                channelInboundMessageRepository =
+                        new SqliteChannelInboundMessageRepository(database);
         GatewayPolicyRepository gatewayPolicyRepository =
                 new SqliteGatewayPolicyRepository(database);
         ChannelStateRepository channelStateRepository = new SqliteChannelStateRepository(database);
@@ -502,6 +511,7 @@ public class TestEnvironment {
                         orchestrator,
                         deliveryService,
                         sessionRepository,
+                        channelInboundMessageRepository,
                         gatewayAuthorizationService,
                         skillLearningService,
                         attachmentCacheService);
@@ -511,6 +521,7 @@ public class TestEnvironment {
                 sessionRepository,
                 agentRunRepository,
                 cronJobRepository,
+                channelInboundMessageRepository,
                 localSkillService,
                 gatewayService,
                 orchestrator,

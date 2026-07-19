@@ -16,6 +16,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -39,6 +40,9 @@ public class FileMemoryService implements MemoryService {
 
     /** 批量处理全部待审批变更时使用的固定参数。 */
     private static final String ALL = "all";
+
+    /** 文件创建竞争时最多重读并重试三次。 */
+    private static final int APPEND_RETRY_ATTEMPTS = 3;
 
     /** 明显属于短期任务状态的关键词。 */
     private static final String[] TRANSIENT_PATTERNS =
@@ -262,10 +266,8 @@ public class FileMemoryService implements MemoryService {
             return appendTodayEntry(content);
         }
         String normalized = normalizeEntry(content);
-        List<String> entries = readEntries(target);
-        if (!containsEntry(entries, normalized)) {
-            entries.add(normalized);
-            writeEntries(target, entries);
+        if (!appendEntryPreservingRaw(target, normalized)) {
+            return "未执行：记忆文件持续被人工或外部编辑，后台追加未覆盖最新内容。";
         }
         return "已写入 " + normalizeTarget(target) + "。";
     }
@@ -303,8 +305,12 @@ public class FileMemoryService implements MemoryService {
     /** 绕过审批边界直接替换已校验的记忆内容。 */
     private String replaceDirect(String target, String oldText, String newContent)
             throws Exception {
+        MemoryRewriteSnapshot snapshot = prepareMemoryRewrite(target);
+        if (snapshot.failure != null) {
+            return snapshot.failure;
+        }
         String normalizedNew = normalizeEntry(newContent);
-        List<String> entries = readEntries(target);
+        List<String> entries = snapshot.entries;
         List<String> matches = normalizeMatchEntries(oldText);
         int matchIndex = findEntrySequence(entries, matches, 0);
         if (matchIndex < 0) {
@@ -316,7 +322,10 @@ public class FileMemoryService implements MemoryService {
         }
         entries.add(matchIndex, normalizedNew);
 
-        writeEntries(target, entries);
+        String concurrentFailure = writeEntriesIfUnchanged(target, snapshot.raw, entries);
+        if (concurrentFailure != null) {
+            return concurrentFailure;
+        }
         return "已更新 " + normalizeTarget(target) + "。";
     }
 
@@ -345,7 +354,11 @@ public class FileMemoryService implements MemoryService {
 
     /** 绕过审批边界直接删除匹配的记忆内容。 */
     private String removeDirect(String target, String matchText) throws Exception {
-        List<String> entries = readEntries(target);
+        MemoryRewriteSnapshot snapshot = prepareMemoryRewrite(target);
+        if (snapshot.failure != null) {
+            return snapshot.failure;
+        }
+        List<String> entries = snapshot.entries;
         List<String> matches = normalizeMatchEntries(matchText);
         boolean removed = false;
         int searchFrom = 0;
@@ -362,7 +375,10 @@ public class FileMemoryService implements MemoryService {
             return "未找到可删除的记忆条目。";
         }
 
-        writeEntries(target, entries);
+        String concurrentFailure = writeEntriesIfUnchanged(target, snapshot.raw, entries);
+        if (concurrentFailure != null) {
+            return concurrentFailure;
+        }
         return "已删除 " + normalizeTarget(target) + " 中的匹配条目。";
     }
 
@@ -373,7 +389,10 @@ public class FileMemoryService implements MemoryService {
         return withApprovalStateLock(
                 () -> {
                     ApprovalState state = readApprovalState();
-                    if (!state.enabled) {
+                    String normalizedOrigin = normalizeApprovalOrigin(origin);
+                    boolean backgroundRewrite =
+                            "background_review".equals(normalizedOrigin) && !"add".equals(action);
+                    if (!state.enabled && !backgroundRewrite) {
                         return applyDirect(action, target, content, oldText);
                     }
                     String normalizedTarget = normalizePendingTarget(target);
@@ -393,7 +412,7 @@ public class FileMemoryService implements MemoryService {
                     pending.target = normalizedTarget;
                     pending.content = content;
                     pending.oldText = oldText;
-                    pending.origin = normalizeApprovalOrigin(origin);
+                    pending.origin = normalizedOrigin;
                     pending.createdAt = Instant.now().getEpochSecond();
                     state.pending.add(pending);
                     writeApprovalState(state);
@@ -751,7 +770,13 @@ public class FileMemoryService implements MemoryService {
 
     /** 读取记忆条目列表。 */
     private List<String> readEntries(String target) throws Exception {
-        String raw = read(target);
+        File file = fileForTarget(target);
+        String raw = file.exists() ? FileUtil.readUtf8String(file) : "";
+        return parseEntries(raw);
+    }
+
+    /** 从当前工具支持的逐行列表格式解析记忆条目。 */
+    private List<String> parseEntries(String raw) {
         List<String> entries = new ArrayList<String>();
         if (StrUtil.isBlank(raw)) {
             return entries;
@@ -772,8 +797,135 @@ public class FileMemoryService implements MemoryService {
         return entries;
     }
 
-    /** 按统一格式写回记忆条目。 */
-    private void writeEntries(String target, List<String> entries) {
+    /** 追加条目时只向文件尾部写入新增字节，避免用旧快照替换人工维护的完整文件。 */
+    private boolean appendEntryPreservingRaw(String target, String entry) {
+        File file = fileForTarget(target);
+        for (int attempt = 0; attempt < APPEND_RETRY_ATTEMPTS; attempt++) {
+            boolean existed = file.exists();
+            String raw = existed ? FileUtil.readUtf8String(file) : "";
+            if (containsEntry(parseEntries(raw), entry)) {
+                return true;
+            }
+            try {
+                if (!existed) {
+                    createUtf8(file.toPath(), "- " + entry);
+                    return true;
+                }
+                appendUtf8(file.toPath(), detectLineSeparator(raw) + "- " + entry);
+                return true;
+            } catch (java.nio.file.FileAlreadyExistsException e) {
+                // 人工编辑器刚创建目标，重读新正文后再追加。
+            } catch (IOException e) {
+                throw new IllegalStateException("记忆文件追加失败。", e);
+            }
+        }
+        return false;
+    }
+
+    /** 沿用已有文件换行风格，未知时使用当前系统换行符。 */
+    private String detectLineSeparator(String raw) {
+        if (raw.contains("\r\n")) {
+            return "\r\n";
+        }
+        if (raw.contains("\n")) {
+            return "\n";
+        }
+        if (raw.contains("\r")) {
+            return "\r";
+        }
+        return System.lineSeparator();
+    }
+
+    /** 在 replace/remove 开始时读取一次原文，并从同一快照完成保护判断与条目解析。 */
+    private MemoryRewriteSnapshot prepareMemoryRewrite(String target) throws Exception {
+        File file = fileForTarget(target);
+        String raw = file.exists() && file.isFile() ? FileUtil.readUtf8String(file) : "";
+        List<String> entries = parseEntries(raw);
+        if (StrUtil.isBlank(raw) || isListOnlyMemoryMarkdown(raw)) {
+            return new MemoryRewriteSnapshot(raw, entries, null);
+        }
+        Path backup = backupDriftedMemory(file.toPath(), raw);
+        return new MemoryRewriteSnapshot(
+                raw,
+                entries,
+                "未执行：检测到人工或外部编辑的 Markdown，replace/remove 可能破坏原文；原文件保持不变，备份位于 "
+                        + backup.toAbsolutePath()
+                        + "。");
+    }
+
+    /** 仅包含空行和标准列表项的文件可无损按记忆条目语义改写。 */
+    private boolean isListOnlyMemoryMarkdown(String raw) {
+        for (String line : StrUtil.nullToEmpty(raw).split("\\R", -1)) {
+            String trimmed = line.trim();
+            if (StrUtil.isNotBlank(trimmed) && !trimmed.startsWith("- ")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** 为无法无损重写的记忆文件创建不覆盖旧备份的恢复副本。 */
+    private Path backupDriftedMemory(Path source, String raw) throws IOException {
+        long timestamp = System.currentTimeMillis();
+        int sequence = 0;
+        while (true) {
+            String suffix = ".bak." + timestamp + (sequence == 0 ? "" : "." + sequence);
+            Path backup = source.resolveSibling(source.getFileName().toString() + suffix);
+            try {
+                Files.write(
+                        backup,
+                        raw.getBytes(StandardCharsets.UTF_8),
+                        StandardOpenOption.CREATE_NEW,
+                        StandardOpenOption.WRITE);
+                return backup;
+            } catch (java.nio.file.FileAlreadyExistsException e) {
+                sequence++;
+            }
+        }
+    }
+
+    /** 仅当文件仍与保护检查时的原文一致时写回；漂移时备份最新人工内容并拒绝覆盖。 */
+    private String writeEntriesIfUnchanged(String target, String expectedRaw, List<String> entries)
+            throws Exception {
+        File file = fileForTarget(target);
+        String current = file.exists() && file.isFile() ? FileUtil.readUtf8String(file) : "";
+        if (!StrUtil.equals(current, expectedRaw)) {
+            Path backup = backupDriftedMemory(file.toPath(), current);
+            return "未执行：写入前检测到人工或外部编辑，原文件保持不变，备份位于 " + backup.toAbsolutePath() + "。";
+        }
+        try {
+            if (!writeRawIfUnchanged(file, expectedRaw, renderEntries(entries))) {
+                String latest = file.exists() && file.isFile() ? FileUtil.readUtf8String(file) : "";
+                Path backup = backupDriftedMemory(file.toPath(), latest);
+                return "未执行：写入前检测到人工或外部编辑，原文件保持不变，备份位于 " + backup.toAbsolutePath() + "。";
+            }
+            return null;
+        } catch (Exception e) {
+            throw new IllegalStateException("记忆文件写入失败。", e);
+        }
+    }
+
+    /** replace/remove 使用的原文、解析条目与保护失败结果。 */
+    private static final class MemoryRewriteSnapshot {
+        /** 保护检查时读取的完整原文。 */
+        private final String raw;
+
+        /** 从同一原文解析出的标准条目。 */
+        private final List<String> entries;
+
+        /** 发现人工结构时返回给调用方的拒绝说明。 */
+        private final String failure;
+
+        /** 创建不可变的记忆重写快照。 */
+        private MemoryRewriteSnapshot(String raw, List<String> entries, String failure) {
+            this.raw = raw;
+            this.entries = entries;
+            this.failure = failure;
+        }
+    }
+
+    /** 将条目序列化为本服务唯一可安全全量重写的标准列表格式。 */
+    private String renderEntries(List<String> entries) {
         StringBuilder buffer = new StringBuilder();
         for (String entry : entries) {
             if (buffer.length() > 0) {
@@ -781,11 +933,7 @@ public class FileMemoryService implements MemoryService {
             }
             buffer.append("- ").append(entry);
         }
-        try {
-            writeUtf8Atomically(fileForTarget(target).toPath(), buffer.toString());
-        } catch (Exception e) {
-            throw new IllegalStateException("记忆文件写入失败。", e);
-        }
+        return buffer.toString();
     }
 
     /** 解析目标文件。 */
@@ -953,27 +1101,79 @@ public class FileMemoryService implements MemoryService {
         }
 
         File file = todayMemoryFile();
-        String existing = file.exists() ? FileUtil.readUtf8String(file) : "";
-        if (existing.contains(normalized)) {
-            return "今日记忆已存在。";
-        }
+        for (int attempt = 0; attempt < APPEND_RETRY_ATTEMPTS; attempt++) {
+            String existing = file.exists() ? FileUtil.readUtf8String(file) : "";
+            if (existing.contains(normalized)) {
+                return "今日记忆已存在。";
+            }
 
-        StringBuilder updated = new StringBuilder(existing);
-        if (StrUtil.isBlank(existing)) {
-            updated.append("# ")
-                    .append(LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE))
-                    .append(System.lineSeparator())
-                    .append(System.lineSeparator());
-        } else if (!existing.endsWith(System.lineSeparator())) {
-            updated.append(System.lineSeparator());
+            try {
+                if (!file.exists()) {
+                    String initial =
+                            "# "
+                                    + LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+                                    + System.lineSeparator()
+                                    + System.lineSeparator()
+                                    + "- "
+                                    + normalized
+                                    + System.lineSeparator();
+                    createUtf8(file.toPath(), initial);
+                    return "已写入 " + MemoryConstants.TARGET_TODAY + "。";
+                }
+                StringBuilder suffix =
+                        new StringBuilder(detectLineSeparator(existing))
+                                .append("- ")
+                                .append(normalized)
+                                .append(detectLineSeparator(existing));
+                appendUtf8(file.toPath(), suffix.toString());
+                return "已写入 " + MemoryConstants.TARGET_TODAY + "。";
+            } catch (java.nio.file.FileAlreadyExistsException e) {
+                // 其他写者刚创建文件，重读后再判断重复并追加。
+            } catch (IOException e) {
+                throw new IllegalStateException("今日记忆文件写入失败。", e);
+            }
         }
-        updated.append("- ").append(normalized).append(System.lineSeparator());
-        try {
-            writeUtf8Atomically(file.toPath(), updated.toString());
-        } catch (IOException e) {
-            throw new IllegalStateException("今日记忆文件写入失败。", e);
+        return "未执行：今日记忆文件持续发生创建竞争，后台追加未覆盖最新内容。";
+    }
+
+    /** 使用操作系统追加模式写入新增内容，不读取后覆盖目标文件。 */
+    protected void appendUtf8(Path target, String content) throws IOException {
+        Path parent = target.toAbsolutePath().normalize().getParent();
+        if (parent == null) {
+            throw new IOException("记忆文件缺少父目录。");
         }
-        return "已写入 " + MemoryConstants.TARGET_TODAY + "。";
+        Files.createDirectories(parent);
+        Files.write(
+                target,
+                content.getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND,
+                StandardOpenOption.WRITE);
+    }
+
+    /** 仅在目标不存在时创建 UTF-8 文件，供追加路径识别人工抢先创建竞态。 */
+    protected void createUtf8(Path target, String content) throws IOException {
+        Path parent = target.toAbsolutePath().normalize().getParent();
+        if (parent == null) {
+            throw new IOException("记忆文件缺少父目录。");
+        }
+        Files.createDirectories(parent);
+        Files.write(
+                target,
+                content.getBytes(StandardCharsets.UTF_8),
+                StandardOpenOption.CREATE_NEW,
+                StandardOpenOption.WRITE);
+    }
+
+    /** 比较当前完整原文后执行原子替换，返回 false 表示外部编辑已经改变目标。 */
+    private boolean writeRawIfUnchanged(File file, String expectedRaw, String updated)
+            throws IOException {
+        String current = file.exists() && file.isFile() ? FileUtil.readUtf8String(file) : "";
+        if (!StrUtil.equals(current, expectedRaw)) {
+            return false;
+        }
+        writeUtf8Atomically(file.toPath(), updated);
+        return true;
     }
 
     /**

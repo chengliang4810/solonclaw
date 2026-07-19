@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -16,6 +17,9 @@ import lombok.Setter;
 public class GatewayMessage {
     /** 群聊访客来源键标记，用于在会话、上下文、记忆与工具层执行统一隐私隔离。 */
     private static final String GROUP_GUEST_SOURCE_MARKER = ":__group_guest__:";
+
+    /** 后台委派完成结果回流父会话时使用的内部运行类型。 */
+    public static final String RUN_KIND_DELEGATION_COMPLETION = "delegation_completion";
 
     /** 消息归属的 Profile；default 或空值保持单 Profile 旧会话键。 */
     private String profile;
@@ -46,6 +50,18 @@ public class GatewayMessage {
 
     /** 渠道原始消息 ID，仅用于把回复关联到本条入站消息，不参与会话来源键。 */
     private String replyToMessageId;
+
+    /** 平台分配的稳定入站消息 ID；仅用于跨进程幂等，不承担回复锚点或内部运行标识语义。 */
+    private String platformMessageId;
+
+    /** 入站总账标识，与平台消息 ID 和 Agent run ID 分离。 */
+    private String ingressId;
+
+    /** 已同步准入的原始消息总账标识；文本合批时按接收顺序保留，且不进入持久化消息载荷。 */
+    private transient List<String> inboundReceiptIds = new ArrayList<String>();
+
+    /** 真实网关回复的进程内终态提交器；由编排器在输出租约内调用，不进入任何持久化载荷。 */
+    private transient Function<GatewayReply, Boolean> replyCommitter;
 
     /** 来源键覆盖值，供逻辑子会话等场景复用同一消息模型。 */
     private String sourceKeyOverride;

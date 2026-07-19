@@ -40,8 +40,8 @@ public class WeixinInboundDispatchTest {
         config.getChannels().getWeixin().setEnabled(true);
         config.getChannels().getWeixin().setAccountId("wx-bot");
         config.getChannels().getWeixin().setGroupPolicy("open");
-        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.05D);
-        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.05D);
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.2D);
+        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.2D);
         return config;
     }
 
@@ -317,12 +317,22 @@ public class WeixinInboundDispatchTest {
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<String> handlerThread = new AtomicReference<String>();
+        final AtomicReference<String> admissionThread = new AtomicReference<String>();
+        final AtomicReference<String> platformMessageId = new AtomicReference<String>();
         final String callerThread = Thread.currentThread().getName();
         adapter.setInboundMessageHandler(
                 new InboundMessageHandler() {
+                    /** 同步记录准入发生的线程。 */
+                    @Override
+                    public boolean admit(GatewayMessage message) {
+                        admissionThread.set(Thread.currentThread().getName());
+                        return true;
+                    }
+
                     @Override
                     public void handle(com.jimuqu.solon.claw.core.model.GatewayMessage message) {
                         handlerThread.set(Thread.currentThread().getName());
+                        platformMessageId.set(message.getPlatformMessageId());
                         latch.countDown();
                     }
                 });
@@ -341,8 +351,10 @@ public class WeixinInboundDispatchTest {
                                 + "}"));
 
         assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(admissionThread.get()).isEqualTo(callerThread);
         assertThat(handlerThread.get()).isNotBlank();
         assertThat(handlerThread.get()).isNotEqualTo(callerThread);
+        assertThat(platformMessageId.get()).isEqualTo("msg-1");
 
         adapter.disconnect();
     }
@@ -366,10 +378,21 @@ public class WeixinInboundDispatchTest {
 
         final CountDownLatch latch = new CountDownLatch(1);
         final List<String> texts = Collections.synchronizedList(new ArrayList<String>());
+        final AtomicReference<GatewayMessage> received = new AtomicReference<GatewayMessage>();
+        final AtomicInteger receiptSequence = new AtomicInteger();
         adapter.setInboundMessageHandler(
                 new InboundMessageHandler() {
+                    /** 为每条原始消息模拟中央总账分配独立 receipt。 */
+                    @Override
+                    public boolean admit(GatewayMessage message) {
+                        message.getInboundReceiptIds()
+                                .add("receipt-" + receiptSequence.incrementAndGet());
+                        return true;
+                    }
+
                     @Override
                     public void handle(com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        received.set(message);
                         texts.add(message.getText());
                         latch.countDown();
                     }
@@ -385,8 +408,146 @@ public class WeixinInboundDispatchTest {
         assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
         TimeUnit.MILLISECONDS.sleep(250L);
         assertThat(texts).containsExactly("第一段\n第二段\n第三段");
+        assertThat(received.get().getPlatformMessageId()).isEqualTo("msg-1");
+        assertThat(received.get().getReplyToMessageId()).isEqualTo("msg-3");
+        assertThat(received.get().getInboundReceiptIds())
+                .containsExactly("receipt-1", "receipt-2", "receipt-3");
 
         adapter.disconnect();
+    }
+
+    /** 准入异常必须撤销进程内去重占位，使平台重投仍可成功落总账。 */
+    @Test
+    void shouldRetrySamePlatformMessageAfterAdmissionFailure() throws Exception {
+        AppConfig config = batchConfig();
+        WeiXinChannelAdapter adapter = batchAdapter(config);
+        AtomicInteger admissionCalls = new AtomicInteger();
+        CountDownLatch handled = new CountDownLatch(1);
+        adapter.setInboundMessageHandler(
+                new InboundMessageHandler() {
+                    /** 首次模拟 SQLite 准入失败，第二次允许进入异步处理。 */
+                    @Override
+                    public boolean admit(GatewayMessage message) {
+                        if (admissionCalls.incrementAndGet() == 1) {
+                            throw new IllegalStateException("simulated admission failure");
+                        }
+                        return true;
+                    }
+
+                    /** 记录重投消息最终进入处理器。 */
+                    @Override
+                    public void handle(GatewayMessage message) {
+                        handled.countDown();
+                    }
+                });
+        Method processInbound =
+                WeiXinChannelAdapter.class.getDeclaredMethod("processInboundMessage", ONode.class);
+        processInbound.setAccessible(true);
+        ONode raw = inboundText("retry-admission", "room-1", "wx-user", "重试准入");
+
+        assertThatThrownBy(() -> processInbound.invoke(adapter, raw))
+                .isInstanceOf(InvocationTargetException.class)
+                .hasCauseInstanceOf(IllegalStateException.class);
+        processInbound.invoke(adapter, raw);
+
+        assertThat(handled.await(5L, TimeUnit.SECONDS)).isTrue();
+        assertThat(admissionCalls.get()).isEqualTo(2);
+        adapter.disconnect();
+    }
+
+    /** 断连清空内存去抖批次后，下一次连接必须恢复已经准入的 pending receipt。 */
+    @Test
+    void shouldRecoverAdmittedBatchAfterReconnectWithoutApplicationRestart() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicInteger pollCalls = new AtomicInteger();
+        server.createContext(
+                "/ilink/bot/getupdates",
+                exchange -> {
+                    byte[] response =
+                            (pollCalls.incrementAndGet() % 2 == 1
+                                            ? "{\"errcode\":0,\"ret\":0,\"get_updates_buf\":\"next\",\"msgs\":[]}"
+                                            : "{\"errcode\":-14,\"ret\":-14}")
+                                    .getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.start();
+
+        AppConfig config = batchConfig();
+        config.getChannels().getWeixin().setToken("test-token-0123456789");
+        config.getChannels().getWeixin().setAccountId("wx-bot-reconnect");
+        config.getChannels()
+                .getWeixin()
+                .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(5.0D);
+        WeiXinChannelAdapter adapter = batchAdapter(config);
+        CountDownLatch initialRecovery = new CountDownLatch(1);
+        CountDownLatch reconnectRecovery = new CountDownLatch(1);
+        AtomicInteger pendingReceipts = new AtomicInteger();
+        AtomicInteger watermarkCaptures = new AtomicInteger();
+        AtomicInteger recoveryCalls = new AtomicInteger();
+        CountDownLatch reconnectRequested = new CountDownLatch(1);
+        adapter.setReconnectHandler(reconnectRequested::countDown);
+        adapter.setInboundMessageHandler(
+                new InboundMessageHandler() {
+                    /** 模拟中央总账同步写入一条 pending receipt。 */
+                    @Override
+                    public boolean admit(GatewayMessage message) {
+                        pendingReceipts.incrementAndGet();
+                        message.getInboundReceiptIds().add("reconnect-receipt");
+                        return true;
+                    }
+
+                    /** 本测试不等待五秒去抖任务进入常规处理。 */
+                    @Override
+                    public void handle(GatewayMessage message) {}
+
+                    /** 为每次连接返回单调递增的模拟恢复水位。 */
+                    @Override
+                    public long capturePendingRecoveryWatermark() {
+                        return watermarkCaptures.incrementAndGet();
+                    }
+
+                    /** 首次连接建立基线；重连时模拟中央服务消费遗留 receipt。 */
+                    @Override
+                    public void recoverPendingThrough(long maxSequence) {
+                        if (recoveryCalls.incrementAndGet() == 1) {
+                            initialRecovery.countDown();
+                            return;
+                        }
+                        if (pendingReceipts.compareAndSet(1, 0)) {
+                            reconnectRecovery.countDown();
+                        }
+                    }
+                });
+
+        try {
+            assertThat(adapter.connect()).isTrue();
+            assertThat(initialRecovery.await(3L, TimeUnit.SECONDS)).isTrue();
+            assertThat(reconnectRequested.await(3L, TimeUnit.SECONDS)).isTrue();
+            assertThat(adapter.isConnected()).isFalse();
+            assertThat(adapter.statusSnapshot().getSetupState()).isEqualTo("error");
+            assertThat(adapter.statusSnapshot().getLastErrorCode())
+                    .isEqualTo("weixin_session_expired");
+            Method processInbound =
+                    WeiXinChannelAdapter.class.getDeclaredMethod(
+                            "processInboundMessage", ONode.class);
+            processInbound.setAccessible(true);
+            processInbound.invoke(
+                    adapter, inboundText("reconnect-message", "room-1", "wx-user", "断连前消息"));
+            assertThat(pendingReceipts.get()).isEqualTo(1);
+
+            adapter.disconnect();
+            assertThat(adapter.connect()).isTrue();
+
+            assertThat(reconnectRecovery.await(3L, TimeUnit.SECONDS)).isTrue();
+            assertThat(pendingReceipts.get()).isZero();
+            assertThat(watermarkCaptures.get()).isEqualTo(2);
+        } finally {
+            adapter.disconnect();
+            server.stop(0);
+        }
     }
 
     @Test
@@ -846,6 +1007,12 @@ public class WeixinInboundDispatchTest {
                 .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
         config.getChannels().getWeixin().setTextBatchDelaySeconds(5.0D);
         WeiXinChannelAdapter adapter = newAdapter(config);
+        adapter.setInboundMessageHandler(
+                new InboundMessageHandler() {
+                    /** 本测试只观察去抖期间的 typing 上下文，不执行后续业务。 */
+                    @Override
+                    public void handle(GatewayMessage message) {}
+                });
 
         try {
             Method processInbound =

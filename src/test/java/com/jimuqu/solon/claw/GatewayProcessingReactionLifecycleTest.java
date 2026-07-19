@@ -68,7 +68,7 @@ public class GatewayProcessingReactionLifecycleTest {
         message.setThreadId("msg-cancel");
         GatewayReply reply = gatewayService.handle(message);
 
-        assertThat(reply.getContent()).contains("当前任务已停止");
+        assertThat(reply).as("被取消 run 的旧终态必须由单写者租约抑制，不能在外围补发").isNull();
         assertThat(adapter.events())
                 .containsExactly("start:msg-cancel", "complete:msg-cancel:CANCELLED");
     }

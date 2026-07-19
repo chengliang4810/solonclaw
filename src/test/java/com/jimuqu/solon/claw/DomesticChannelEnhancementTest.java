@@ -521,6 +521,17 @@ public class DomesticChannelEnhancementTest {
                 .isEqualTo("https://cdn.example.test/photo.jpg");
     }
 
+    /** 元宝内联附件必须在写入入站总账前按解码字节上限拒绝。 */
+    @Test
+    void shouldRejectOversizedYuanbaoInlineAttachmentBeforePersistence() {
+        AppConfig config = new AppConfig();
+        TestYuanbaoAdapter adapter = new TestYuanbaoAdapter(config);
+
+        assertThatThrownBy(() -> adapter.validateInline("QUJDREVGR0hJ", 8L))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("size limit");
+    }
+
     @Test
     void shouldParseFeishuDocumentCommentEvent() {
         AppConfig config = new AppConfig();
@@ -1303,6 +1314,11 @@ public class DomesticChannelEnhancementTest {
 
         private GatewayMessage parse(String raw) {
             return toGatewayMessage(raw);
+        }
+
+        /** 暴露可注入小上限的内联附件校验，避免测试分配超大字符串。 */
+        private void validateInline(String inlineData, long maxBytes) {
+            validateInlineAttachmentData(inlineData, maxBytes);
         }
     }
 
