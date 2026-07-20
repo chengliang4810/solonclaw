@@ -6,8 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.CronAutoDeliveryContext;
 import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
@@ -101,6 +103,7 @@ public class MessagingToolsAttachmentTest {
     @Test
     void shouldDeliverSendMessageToDifferentCronTarget() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord targetSession = env.sessionRepository.bindNewSession("MEMORY:chat-2:user-2");
         MessagingTools tools =
                 new MessagingTools(
                         env.deliveryService,
@@ -119,6 +122,14 @@ public class MessagingToolsAttachmentTest {
         assertThat(request.getChatId()).isEqualTo("chat-2");
         assertThat(request.getUserId()).isNull();
         assertThat(request.getText()).isEqualTo("额外投递");
+        assertThat(
+                        MessageSupport.loadMessages(
+                                env.sessionRepository
+                                        .findById(targetSession.getSessionId())
+                                        .getNdjson()))
+                .singleElement()
+                .extracting(message -> message.getContent())
+                .isEqualTo("额外投递");
     }
 
     /** 同源目标回写时必须保留来源用户和线程约束。 */
@@ -234,6 +245,7 @@ public class MessagingToolsAttachmentTest {
     @Test
     void shouldRedactSecretsFromSuccessfulMessagingToolResultOnly() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.sessionRepository.bindNewSession("MEMORY:room-ghp_messagingchat12345:target-user");
         MessagingTools tools =
                 new MessagingTools(
                         env.deliveryService,

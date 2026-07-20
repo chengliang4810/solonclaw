@@ -549,16 +549,73 @@ public class SqliteSessionRepository implements SessionRepository {
     public boolean appendBoundOriginAssistantMessage(
             PlatformType platform, String chatId, String threadId, String userId, String content)
             throws Exception {
+        return appendBoundOriginAssistantMessage(null, platform, chatId, threadId, userId, content);
+    }
+
+    /** 按 Profile 定位接收侧会话；首次绑定欢迎语可在目标明确时创建真实用户会话。 */
+    @Override
+    public boolean appendBoundOriginAssistantMessage(
+            String profile,
+            PlatformType platform,
+            String chatId,
+            String threadId,
+            String userId,
+            String content)
+            throws Exception {
+        return appendBoundOriginAssistantMessage(
+                null, profile, platform, chatId, threadId, userId, content);
+    }
+
+    /** 优先使用调用方已知的真实会话来源键，避免群聊路由被实际投递目标覆盖。 */
+    @Override
+    public boolean appendBoundOriginAssistantMessage(
+            String conversationSourceKey,
+            String profile,
+            PlatformType platform,
+            String chatId,
+            String threadId,
+            String userId,
+            String content)
+            throws Exception {
         if (platform == null || StrUtil.isBlank(chatId) || StrUtil.isBlank(content)) {
             return false;
         }
         Connection connection = database.openConnection();
         try {
             connection.setAutoCommit(false);
-            List<OriginSessionCandidate> candidates =
-                    findOriginSessionCandidates(
-                            connection, platform, chatId.trim(), StrUtil.trimToNull(threadId));
-            OriginSessionCandidate target = selectOriginSession(candidates, userId);
+            String exactUserId =
+                    StrUtil.isBlank(conversationSourceKey)
+                            ? null
+                            : StrUtil.trimToNull(SourceKeySupport.split(conversationSourceKey)[2]);
+            String effectiveUserId =
+                    StrUtil.blankToDefault(StrUtil.trimToNull(userId), exactUserId);
+            OriginSessionCandidate target =
+                    findExactOriginSession(connection, conversationSourceKey);
+            List<OriginSessionCandidate> candidates = Collections.emptyList();
+            if (target == null) {
+                candidates =
+                        findOriginSessionCandidates(
+                                connection,
+                                profile,
+                                platform,
+                                chatId.trim(),
+                                StrUtil.trimToNull(threadId));
+                target = selectOriginSession(candidates, effectiveUserId);
+            }
+            if (target == null && candidates.isEmpty() && StrUtil.isNotBlank(effectiveUserId)) {
+                String sourceKey =
+                        StrUtil.blankToDefault(
+                                StrUtil.trimToNull(conversationSourceKey),
+                                SourceKeySupport.build(
+                                        profile,
+                                        platform,
+                                        chatId.trim(),
+                                        StrUtil.trimToNull(threadId),
+                                        effectiveUserId.trim()));
+                target =
+                        createOriginSession(
+                                connection, sourceKey, SourceKeySupport.split(sourceKey)[2]);
+            }
             if (target == null) {
                 connection.rollback();
                 return false;
@@ -607,11 +664,114 @@ public class SqliteSessionRepository implements SessionRepository {
         }
     }
 
+    /** 发送前确认目标已有唯一绑定，或精确来源中包含可用于创建会话的用户身份。 */
+    @Override
+    public boolean canRecordDeliveredMessage(
+            String conversationSourceKey,
+            String profile,
+            PlatformType platform,
+            String chatId,
+            String threadId,
+            String userId)
+            throws Exception {
+        if (platform == null || StrUtil.isBlank(chatId)) {
+            return false;
+        }
+        Connection connection = database.openConnection();
+        try {
+            if (findExactOriginSession(connection, conversationSourceKey) != null) {
+                return true;
+            }
+            String exactUserId =
+                    StrUtil.isBlank(conversationSourceKey)
+                            ? null
+                            : StrUtil.trimToNull(SourceKeySupport.split(conversationSourceKey)[2]);
+            String effectiveUserId =
+                    StrUtil.blankToDefault(StrUtil.trimToNull(userId), exactUserId);
+            List<OriginSessionCandidate> candidates =
+                    findOriginSessionCandidates(
+                            connection,
+                            profile,
+                            platform,
+                            chatId.trim(),
+                            StrUtil.trimToNull(threadId));
+            return selectOriginSession(candidates, effectiveUserId) != null
+                    || candidates.isEmpty() && StrUtil.isNotBlank(effectiveUserId);
+        } finally {
+            connection.close();
+        }
+    }
+
+    /** 按绑定表精确查找普通来源会话；心跳派生来源不得作为接收侧上下文。 */
+    private OriginSessionCandidate findExactOriginSession(Connection connection, String sourceKey)
+            throws Exception {
+        if (StrUtil.isBlank(sourceKey) || SourceKeySupport.isHeartbeatSource(sourceKey)) {
+            return null;
+        }
+        PreparedStatement statement =
+                connection.prepareStatement("select session_id from bindings where source_key = ?");
+        try {
+            statement.setString(1, sourceKey.trim());
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next()
+                        ? new OriginSessionCandidate(
+                                resultSet.getString("session_id"),
+                                SourceKeySupport.split(sourceKey)[2])
+                        : null;
+            } finally {
+                resultSet.close();
+            }
+        } finally {
+            statement.close();
+        }
+    }
+
+    /** 在同一事务中创建首次外发对应的真实用户会话和来源绑定。 */
+    private OriginSessionCandidate createOriginSession(
+            Connection connection, String sourceKey, String userId) throws Exception {
+        String sessionId = IdSupport.newId();
+        long now = System.currentTimeMillis();
+        PreparedStatement session =
+                connection.prepareStatement(
+                        "insert into sessions (session_id, source_key, branch_name, ndjson, created_at, updated_at) values (?, ?, ?, ?, ?, ?)");
+        try {
+            session.setString(1, sessionId);
+            session.setString(2, sourceKey);
+            session.setString(3, "main");
+            session.setString(4, "");
+            session.setLong(5, now);
+            session.setLong(6, now);
+            session.executeUpdate();
+        } finally {
+            session.close();
+        }
+        PreparedStatement binding =
+                connection.prepareStatement(
+                        "insert into bindings (source_key, session_id) values (?, ?)");
+        try {
+            binding.setString(1, sourceKey);
+            binding.setString(2, sessionId);
+            binding.executeUpdate();
+        } finally {
+            binding.close();
+        }
+        return new OriginSessionCandidate(sessionId, userId);
+    }
+
     /** 查询与渠道来源匹配的当前绑定会话，结果按最近更新时间降序排列。 */
     private List<OriginSessionCandidate> findOriginSessionCandidates(
-            Connection connection, PlatformType platform, String chatId, String threadId)
+            Connection connection,
+            String profile,
+            PlatformType platform,
+            String chatId,
+            String threadId)
             throws Exception {
         List<OriginSessionCandidate> candidates = new ArrayList<OriginSessionCandidate>();
+        String expectedProfile = StrUtil.trimToNull(profile);
+        if ("default".equalsIgnoreCase(expectedProfile)) {
+            expectedProfile = null;
+        }
         PreparedStatement statement =
                 connection.prepareStatement(
                         "select b.source_key as binding_source_key, s.session_id, s.updated_at "
@@ -621,8 +781,15 @@ public class SqliteSessionRepository implements SessionRepository {
             ResultSet resultSet = statement.executeQuery();
             try {
                 while (resultSet.next()) {
-                    String[] parts =
-                            SourceKeySupport.split(resultSet.getString("binding_source_key"));
+                    String bindingSourceKey = resultSet.getString("binding_source_key");
+                    if (SourceKeySupport.isHeartbeatSource(bindingSourceKey)) {
+                        continue;
+                    }
+                    if (!StrUtil.equalsIgnoreCase(
+                            expectedProfile, SourceKeySupport.profile(bindingSourceKey))) {
+                        continue;
+                    }
+                    String[] parts = SourceKeySupport.split(bindingSourceKey);
                     if (PlatformType.fromName(parts[0]) != platform
                             || !chatId.equals(parts[1])
                             || (threadId != null && !threadId.equals(parts[3]))) {

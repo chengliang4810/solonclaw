@@ -37,10 +37,16 @@ public class DeliveryRequest {
     /** 回复目标消息 ID；与线程标识分离，避免普通消息被误判为独立话题。 */
     private String replyToMessageId;
 
+    /** 接收侧应写回的精确会话来源键；群聊主人复用私聊等场景不能由投递 chatId 反推。 */
+    private String conversationSourceKey;
+
     /** 要投递的文本内容。 */
     private String text;
 
-    /** 成功投递后是否把文本作为 Agent 消息回写到唯一匹配的普通会话。 */
+    /** 可选的会话回写内容；用于补记此前已发送但当时尚不能建立可信会话的系统消息。 */
+    private String conversationRecordText;
+
+    /** 成功投递后是否把用户可见内容作为 Agent 消息回写到普通会话。 */
     private boolean recordInConversation;
 
     /** 要投递的附件列表。 */

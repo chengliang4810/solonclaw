@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -41,6 +42,10 @@ public class GatewayErrorHandlingTest {
         assertThat(env.memoryChannelAdapter.getLastRequest()).isNotNull();
         assertThat(env.memoryChannelAdapter.getLastRequest().getText())
                 .isEqualTo("处理消息失败：当前操作被中断，请重试一次。");
+        SessionRecord session = env.sessionRepository.getBoundSession(message.sourceKey());
+        assertThat(MessageSupport.loadMessages(session.getNdjson()))
+                .extracting(chatMessage -> chatMessage.getContent())
+                .contains("处理消息失败：当前操作被中断，请重试一次。");
     }
 
     @Test

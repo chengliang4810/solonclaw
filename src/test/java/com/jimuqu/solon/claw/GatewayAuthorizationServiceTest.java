@@ -45,9 +45,9 @@ public class GatewayAuthorizationServiceTest {
         assertThat(preAuth).isNull();
     }
 
-    /** 同一用户在限流窗口内重复申请时必须获得包含剩余分钟数的明确提示。 */
+    /** 同一用户在限流窗口内重复申请时不得发送无法迁入未来主人会话的额外提示。 */
     @Test
-    void shouldReturnRemainingWaitWhenPairingRequestIsRateLimited() throws Exception {
+    void shouldSuppressRepeatedPairingRequestDuringRateLimit() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         GatewayMessage message =
                 new GatewayMessage(PlatformType.MEMORY, "pairing-chat", "pairing-user", "hello");
@@ -59,8 +59,7 @@ public class GatewayAuthorizationServiceTest {
         assertThat(first.getContent())
                 .contains("pairing code", "Dashboard", "绑定本人")
                 .doesNotContain("联系平台管理员", "/pairing approve");
-        assertThat(limited).isNotNull();
-        assertThat(limited.getContent()).contains("请求过于频繁").contains("10 分钟后再试");
+        assertThat(limited).isNull();
     }
 
     /** 平台已有主人后，陌生私聊必须静默忽略且不能再创建 pairing 请求。 */

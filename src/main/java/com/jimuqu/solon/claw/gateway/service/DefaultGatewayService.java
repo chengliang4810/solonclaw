@@ -609,6 +609,7 @@ public class DefaultGatewayService {
                     errorType(e),
                     safeMessage(e));
             GatewayReply errorReply = GatewayReply.error("处理消息失败：" + safeMessage(e));
+            errorReply.getRuntimeMetadata().put("record_in_conversation", Boolean.TRUE);
             processingOutcome = ProcessingOutcome.FAILURE;
             if (authorized || inboundClaimed) {
                 persistAndDeliverInboundReply(message, errorReply);
@@ -657,6 +658,7 @@ public class DefaultGatewayService {
             return;
         }
         GatewayReply notice = GatewayReply.ok(textMetadata(reply, "goal_message"));
+        notice.getRuntimeMetadata().put("record_in_conversation", Boolean.TRUE);
         safeDeliver(message, notice);
     }
 
@@ -887,6 +889,10 @@ public class DefaultGatewayService {
             request.setChatType(message.getChatType());
             request.setThreadId(message.getThreadId());
             request.setReplyToMessageId(message.getReplyToMessageId());
+            if (shouldRecordDeliveredReply(reply)) {
+                request.setConversationSourceKey(message.sourceKey());
+                request.setRecordInConversation(true);
+            }
             GatewayMediaDeliverySupport.DeliveryMedia media =
                     mediaDeliverySupport == null
                             ? null
@@ -912,6 +918,15 @@ public class DefaultGatewayService {
                     safeMessage(e));
             return false;
         }
+    }
+
+    /** 命令、忙碌提示和独立通知未由模型会话保存，渠道发送后需要显式回写。 */
+    private boolean shouldRecordDeliveredReply(GatewayReply reply) {
+        return reply != null
+                && (reply.isCommandHandled()
+                        || reply.getRuntimeMetadata().containsKey("busy_status")
+                        || Boolean.TRUE.equals(
+                                reply.getRuntimeMetadata().get("record_in_conversation")));
     }
 
     /** 真实入站消息先落库并进入处理态；唯一键冲突时禁止重复执行业务主链。 */

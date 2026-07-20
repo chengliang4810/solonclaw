@@ -108,6 +108,7 @@ public class GatewayRestartNotificationService {
             request.setUserId(blankToNull(asText(data.get("user_id"))));
             request.setChatType(blankToNull(asText(data.get("chat_type"))));
             request.setThreadId(blankToNull(asText(data.get("thread_id"))));
+            request.setConversationSourceKey(blankToNull(asText(data.get("source_key"))));
             request.setText(ONLINE_MESSAGE);
             request.setRecordInConversation(true);
             return request;

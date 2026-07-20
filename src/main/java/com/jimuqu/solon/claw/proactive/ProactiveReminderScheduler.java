@@ -291,6 +291,9 @@ public class ProactiveReminderScheduler {
         if (session == null || home == null || home.getPlatform() == null) {
             return false;
         }
+        if (SourceKeySupport.isHeartbeatSource(session.getSourceKey())) {
+            return false;
+        }
         String[] source = SourceKeySupport.split(session.getSourceKey());
         PlatformType platform = PlatformType.fromName(source[0]);
         return PlatformType.DOMESTIC_PLATFORMS.contains(platform)

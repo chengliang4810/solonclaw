@@ -272,7 +272,7 @@ public class GatewayAuthorizationService {
         PlatformType platform = message.getPlatform();
         long now = System.currentTimeMillis();
         if (isPlatformApprovalLocked(platform, now)) {
-            return GatewayReply.ok("pairing 失败次数过多，请稍后再试。");
+            return null;
         }
         PairingRequestRecord request = new PairingRequestRecord();
         request.setPlatform(platform);
@@ -289,27 +289,29 @@ public class GatewayAuthorizationService {
                         PairingConstants.MAX_PENDING_PER_PLATFORM,
                         PairingConstants.RATE_LIMIT_MILLIS);
         if (admission.getStatus() == PairingRequestAdmissionResult.Status.RATE_LIMITED) {
-            long remainingMinutes =
-                    Math.max(1L, (admission.getRetryAfterMillis() + 59_999L) / 60_000L);
-            return GatewayReply.ok("pairing 请求过于频繁，请 " + remainingMinutes + " 分钟后再试。");
+            return null;
         }
         if (admission.getStatus() == PairingRequestAdmissionResult.Status.CAPACITY_REACHED) {
-            return GatewayReply.ok("当前待处理的 pairing 请求过多，请稍后再试。");
+            return null;
         }
         return pairingPrompt(platform, request.getCode());
     }
 
     /** 格式化 pairing 提示文案。 */
     private GatewayReply pairingPrompt(PlatformType platform, String code) {
-        return GatewayReply.ok(
-                "当前 Profile 尚未绑定你的 "
-                        + platform.name().toLowerCase()
-                        + " 私聊。\n\n"
-                        + "这是你的 pairing code：`"
-                        + code
-                        + "`\n\n"
-                        + "请打开 Dashboard 的消息渠道页面，在当前 Profile 下选择该渠道，"
-                        + "然后在“绑定本人”中输入此配对码。");
+        return GatewayReply.ok(pairingPromptText(platform, code));
+    }
+
+    /** 返回 pairing 提示正文，供可信控制面在批准后补入主人会话上下文。 */
+    public String pairingPromptText(PlatformType platform, String code) {
+        return "当前 Profile 尚未绑定你的 "
+                + platform.name().toLowerCase()
+                + " 私聊。\n\n"
+                + "这是你的 pairing code：`"
+                + code
+                + "`\n\n"
+                + "请打开 Dashboard 的消息渠道页面，在当前 Profile 下选择该渠道，"
+                + "然后在“绑定本人”中输入此配对码。";
     }
 
     /** 判断平台是否因连续错误 pairing 审批而处于锁定期。 */

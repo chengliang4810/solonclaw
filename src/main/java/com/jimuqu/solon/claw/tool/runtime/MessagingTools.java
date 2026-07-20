@@ -130,6 +130,7 @@ public class MessagingTools {
         request.setChatId(targetChatId);
         request.setUserId(targetUserId);
         request.setThreadId(StrUtil.blankToDefault(targetThreadId, null));
+        request.setConversationSourceKey(sameSourceTarget ? sourceKey : null);
         request.setText(text);
         request.setAttachments(attachments);
         request.setChannelExtras(parseChannelExtras(channelExtrasJson));

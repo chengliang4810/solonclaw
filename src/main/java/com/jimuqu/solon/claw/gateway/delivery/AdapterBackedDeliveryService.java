@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
@@ -90,25 +91,56 @@ public class AdapterBackedDeliveryService implements DeliveryService {
                     "Adapter is disabled for platform: " + request.getPlatform());
         }
 
-        adapter.send(request);
-        recordDeliveredMessage(request);
+        String recordContent = conversationRecordText(request);
+        String recordSourceKey = resolveConversationSourceKey(request);
+        if (sessionRepository != null
+                && request.isRecordInConversation()
+                && StrUtil.isNotBlank(recordContent)
+                && !sessionRepository.canRecordDeliveredMessage(
+                        recordSourceKey,
+                        request.getProfile(),
+                        request.getPlatform(),
+                        request.getChatId(),
+                        request.getThreadId(),
+                        request.getUserId())) {
+            throw new IllegalStateException("消息目标尚未建立可识别的用户会话，已取消发送以避免上下文失联。");
+        }
+
+        try {
+            adapter.send(request);
+        } catch (Exception e) {
+            recordDeliveredMessage(request, true);
+            throw e;
+        }
+        recordDeliveredMessage(request, false);
     }
 
     /** 成功投递后台消息后，将正文回写到唯一匹配的普通会话。 */
-    private void recordDeliveredMessage(DeliveryRequest request) {
+    private void recordDeliveredMessage(DeliveryRequest request, boolean deliveryUncertain) {
+        String content = conversationRecordText(request);
         if (sessionRepository == null
                 || request == null
                 || !request.isRecordInConversation()
-                || StrUtil.isBlank(request.getText())) {
+                || StrUtil.isBlank(content)) {
             return;
         }
         try {
-            sessionRepository.appendBoundOriginAssistantMessage(
-                    request.getPlatform(),
-                    request.getChatId(),
-                    request.getThreadId(),
-                    request.getUserId(),
-                    request.getText());
+            String sourceKey = resolveConversationSourceKey(request);
+            boolean recorded =
+                    sessionRepository.appendBoundOriginAssistantMessage(
+                            sourceKey,
+                            request.getProfile(),
+                            request.getPlatform(),
+                            request.getChatId(),
+                            request.getThreadId(),
+                            request.getUserId(),
+                            deliveryUncertain ? "[投递失败，用户可能未收到或仅收到部分内容]\n" + content : content);
+            if (!recorded) {
+                log.warn(
+                        "Delivered message conversation target unresolved: platform={}, chatId={}",
+                        request.getPlatform(),
+                        request.getChatId());
+            }
         } catch (Exception e) {
             log.warn(
                     "Delivered message conversation write-back failed: platform={}, chatId={}, error={}",
@@ -116,6 +148,70 @@ public class AdapterBackedDeliveryService implements DeliveryService {
                     request.getChatId(),
                     e.getClass().getSimpleName());
         }
+    }
+
+    /** 优先使用调用方给出的真实上下文；缺失时把个人助手通知归入已绑定管理员私聊。 */
+    private String resolveConversationSourceKey(DeliveryRequest request) throws Exception {
+        if (StrUtil.isNotBlank(request.getConversationSourceKey())) {
+            return request.getConversationSourceKey().trim();
+        }
+        if (gatewayPolicyRepository == null || request.getPlatform() == null) {
+            return null;
+        }
+        com.jimuqu.solon.claw.core.model.PlatformAdminRecord admin =
+                gatewayPolicyRepository.getPlatformAdmin(request.getPlatform());
+        if (admin == null
+                || StrUtil.isBlank(admin.getChatId())
+                || StrUtil.isBlank(admin.getUserId())) {
+            return null;
+        }
+        boolean adminDirect = StrUtil.equals(admin.getChatId(), request.getChatId());
+        HomeChannelRecord home = gatewayPolicyRepository.getHomeChannel(request.getPlatform());
+        boolean homeTarget =
+                home != null
+                        && StrUtil.equals(home.getChatId(), request.getChatId())
+                        && StrUtil.equals(
+                                StrUtil.nullToEmpty(home.getThreadId()),
+                                StrUtil.nullToEmpty(request.getThreadId()));
+        if (!adminDirect && !homeTarget) {
+            return null;
+        }
+        return com.jimuqu.solon.claw.support.SourceKeySupport.build(
+                request.getProfile(),
+                request.getPlatform(),
+                admin.getChatId(),
+                null,
+                admin.getUserId());
+    }
+
+    /** 将实际投递的正文和附件整理为后续模型可识别的简短会话记录。 */
+    private String conversationRecordText(DeliveryRequest request) {
+        if (request == null) {
+            return "";
+        }
+        StringBuilder content =
+                new StringBuilder(
+                        StrUtil.nullToEmpty(
+                                        StrUtil.blankToDefault(
+                                                request.getConversationRecordText(),
+                                                request.getText()))
+                                .trim());
+        if (CollUtil.isNotEmpty(request.getAttachments())) {
+            for (MessageAttachment attachment : request.getAttachments()) {
+                if (attachment == null) {
+                    continue;
+                }
+                if (content.length() > 0) {
+                    content.append('\n');
+                }
+                content.append("[已发送附件] ")
+                        .append(
+                                StrUtil.blankToDefault(
+                                        attachment.getOriginalName(),
+                                        StrUtil.blankToDefault(attachment.getKind(), "file")));
+            }
+        }
+        return content.toString().trim();
     }
 
     /**

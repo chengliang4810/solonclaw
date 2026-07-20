@@ -228,6 +228,7 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         try {
             DeliveryRequest request = baseRequest();
             String templateId = displaySettingsService.dingtalkProgressCardTemplateId();
+            request.setText("【进度】" + summary);
             request.getChannelExtras().put("mode", "ai_card");
             request.getChannelExtras().put("cardTemplateId", templateId);
             request.getChannelExtras().put("cardBizId", ensureDingtalkCardBizId());
@@ -292,6 +293,8 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         request.setChatType(message.getChatType());
         request.setThreadId(message.getThreadId());
         request.setReplyToMessageId(message.getReplyToMessageId());
+        request.setConversationSourceKey(message.sourceKey());
+        request.setRecordInConversation(true);
         return request;
     }
 

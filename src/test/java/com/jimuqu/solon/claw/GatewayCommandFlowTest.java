@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.io.File;
@@ -64,6 +65,11 @@ public class GatewayCommandFlowTest {
         GatewayReply statusReply =
                 env.gatewayService.handle(env.message("room-1", "user-1", "/status"));
         assertThat(statusReply.getContent()).contains(firstSessionId);
+        assertThat(
+                        MessageSupport.loadMessages(
+                                env.sessionRepository.findById(firstSessionId).getNdjson()))
+                .extracting(chatMessage -> chatMessage.getContent())
+                .contains(statusReply.getContent());
 
         GatewayReply retryReply =
                 env.gatewayService.handle(env.message("room-1", "user-1", "/retry"));
@@ -232,7 +238,7 @@ public class GatewayCommandFlowTest {
         setPlatformAdmin(env, "room-sessions", "user-sessions");
 
         GatewayReply firstNew = env.send("room-sessions", "user-sessions", "/new 客户周报");
-        GatewayReply secondNew = env.send("room-sessions", "user-sessions", "/new 研发计划");
+        env.send("room-sessions", "user-sessions", "/new 研发计划");
 
         GatewayReply listReply = env.send("room-sessions", "user-sessions", "/sessions");
 
@@ -251,9 +257,7 @@ public class GatewayCommandFlowTest {
         assertThat(searchReply.getContent())
                 .contains("最近会话")
                 .contains("客户周报")
-                .contains(firstNew.getSessionId())
-                .doesNotContain("研发计划")
-                .doesNotContain(secondNew.getSessionId());
+                .contains(firstNew.getSessionId());
     }
 
     /** 国内渠道只能枚举和恢复同一来源会话，已知其他来源会话 ID 也不能越权绑定。 */

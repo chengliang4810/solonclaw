@@ -21,5 +21,15 @@ class SourceKeySupportTest {
         assertThat(request.getChatId()).isEqualTo("room");
         assertThat(request.getThreadId()).isEqualTo("thread");
         assertThat(request.getUserId()).isEqualTo("user");
+        assertThat(request.getConversationSourceKey()).isEqualTo(sourceKey);
+    }
+
+    /** 来源键构造必须同时覆盖默认 Profile、命名 Profile 和可选线程。 */
+    @Test
+    void shouldBuildProfileScopedSourceKey() {
+        assertThat(SourceKeySupport.build(null, PlatformType.WEIXIN, "room", null, "user"))
+                .isEqualTo("WEIXIN:room:user");
+        assertThat(SourceKeySupport.build("Worker", PlatformType.FEISHU, "room", "thread", "user"))
+                .isEqualTo("profile:worker:FEISHU:room:thread:user");
     }
 }

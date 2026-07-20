@@ -53,6 +53,8 @@ public class GatewayRestartNotificationServiceTest {
         assertThat(request.getUserId()).isEqualTo("admin-user");
         assertThat(request.getChatType()).isEqualTo("group");
         assertThat(request.getThreadId()).isEqualTo("topic-7");
+        assertThat(request.getConversationSourceKey())
+                .isEqualTo("MEMORY:admin-chat:topic-7:admin-user");
         assertThat(request.getText()).contains("网关已恢复").contains("solonclaw");
         assertThat(request.isRecordInConversation()).isTrue();
     }

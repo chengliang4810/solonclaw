@@ -240,7 +240,11 @@ public class PairingControlSecurityTest {
             assertThat(delivered.get().getChatType())
                     .isEqualTo(GatewayBehaviorConstants.CHAT_TYPE_DM);
             assertThat(delivered.get().getText()).contains("准备好了");
+            assertThat(delivered.get().getConversationRecordText())
+                    .contains("pairing code：`HELLO234`", "准备好了");
+            assertThat(delivered.get().isRecordInConversation()).isTrue();
             assertThat(welcome(result).get("status")).isEqualTo("sent");
+            assertThat(result).doesNotContainKey("pairing_prompt");
         } finally {
             database.shutdown();
         }
@@ -290,6 +294,9 @@ public class PairingControlSecurityTest {
             assertThat(delivered.get().getUserId()).isEqualTo("wx-user");
             assertThat(delivered.get().getChatType())
                     .isEqualTo(GatewayBehaviorConstants.CHAT_TYPE_DM);
+            assertThat(delivered.get().getConversationRecordText())
+                    .contains("此前已向该私聊发送 pairing code 绑定提示", "准备好了");
+            assertThat(retried).doesNotContainKey("pairing_prompt");
         } finally {
             database.shutdown();
         }
@@ -538,14 +545,16 @@ public class PairingControlSecurityTest {
             }
 
             List<GatewayReply> created = new ArrayList<GatewayReply>();
+            int suppressed = 0;
             for (GatewayReply reply : replies) {
-                if (reply.getContent().contains("pairing code")) {
+                if (reply == null) {
+                    suppressed++;
+                } else if (reply.getContent().contains("pairing code")) {
                     created.add(reply);
-                } else {
-                    assertThat(reply.getContent()).contains("请求过于频繁");
                 }
             }
             assertThat(created).hasSize(1);
+            assertThat(suppressed).isEqualTo(7);
             String code = pairingCode(created.get(0).getContent());
             SqliteGatewayPolicyRepository repository =
                     new SqliteGatewayPolicyRepository(databases.get(0));

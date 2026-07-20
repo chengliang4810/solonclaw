@@ -62,6 +62,78 @@ public interface SessionRepository {
         return false;
     }
 
+    /**
+     * 将指定 Profile 的外部投递内容作为 Agent 消息追加到接收侧普通会话。
+     *
+     * @param profile 目标 Profile；默认 Profile 可为空。
+     * @param platform 目标渠道。
+     * @param chatId 目标聊天标识。
+     * @param threadId 可选线程标识。
+     * @param userId 可选用户标识。
+     * @param content 用户实际看到的内容摘要。
+     * @return 成功写入返回 true。
+     * @throws Exception 会话读取或写入失败时抛出异常。
+     */
+    default boolean appendBoundOriginAssistantMessage(
+            String profile,
+            PlatformType platform,
+            String chatId,
+            String threadId,
+            String userId,
+            String content)
+            throws Exception {
+        return appendBoundOriginAssistantMessage(platform, chatId, threadId, userId, content);
+    }
+
+    /**
+     * 优先按精确来源键追加外发记录；来源键为空时回退到渠道目标解析。
+     *
+     * @param conversationSourceKey 接收侧精确来源键。
+     * @param profile 目标 Profile。
+     * @param platform 目标渠道。
+     * @param chatId 目标聊天标识。
+     * @param threadId 可选线程标识。
+     * @param userId 可选用户标识。
+     * @param content 用户实际看到或可能看到的内容摘要。
+     * @return 成功写入返回 true。
+     * @throws Exception 会话读取或写入失败时抛出异常。
+     */
+    default boolean appendBoundOriginAssistantMessage(
+            String conversationSourceKey,
+            String profile,
+            PlatformType platform,
+            String chatId,
+            String threadId,
+            String userId,
+            String content)
+            throws Exception {
+        return appendBoundOriginAssistantMessage(
+                profile, platform, chatId, threadId, userId, content);
+    }
+
+    /**
+     * 判断外发请求是否能在发送后可靠写入接收侧会话。
+     *
+     * @param conversationSourceKey 接收侧精确来源键。
+     * @param profile 目标 Profile。
+     * @param platform 目标渠道。
+     * @param chatId 目标聊天标识。
+     * @param threadId 可选线程标识。
+     * @param userId 可选用户标识。
+     * @return 已有唯一会话或具备创建新会话所需身份时返回 true。
+     * @throws Exception 会话查询失败时抛出异常。
+     */
+    default boolean canRecordDeliveredMessage(
+            String conversationSourceKey,
+            String profile,
+            PlatformType platform,
+            String chatId,
+            String threadId,
+            String userId)
+            throws Exception {
+        return true;
+    }
+
     /** 全文检索会话。 */
     List<SessionRecord> search(String keyword, int limit) throws Exception;
 

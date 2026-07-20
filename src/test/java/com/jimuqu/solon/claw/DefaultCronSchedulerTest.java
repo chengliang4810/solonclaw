@@ -770,6 +770,7 @@ public class DefaultCronSchedulerTest {
     @Test
     void shouldDeliverCronResultToOriginWithThread() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.sessionRepository.bindNewSession("MEMORY:origin-room:thread-1:origin-user");
         CronJobRecord job = job("job-origin", "MEMORY:source-room:source-user");
         job.setDeliverPlatform("origin");
         job.setOriginJson(
@@ -1042,6 +1043,8 @@ public class DefaultCronSchedulerTest {
     @Test
     void shouldDeliverCronResultToExplicitAndMultipleTargets() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.sessionRepository.bindNewSession("MEMORY:explicit-room:explicit-thread:explicit-user");
+        env.sessionRepository.bindNewSession("MEMORY:second-room:second-user");
         CronJobRecord job = job("job-multi", "MEMORY:source-room:source-user");
         job.setDeliverPlatform(
                 "MEMORY:explicit-room:explicit-thread,MEMORY:second-room,MEMORY:explicit-room:explicit-thread");

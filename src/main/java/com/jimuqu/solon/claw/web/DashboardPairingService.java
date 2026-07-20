@@ -82,11 +82,18 @@ public class DashboardPairingService {
         Map<String, Object> result =
                 withAuthorization(
                         scope,
-                        authorization ->
-                                ownerClaimMap(
-                                        scope.getName(),
-                                        authorization.claimPairingOwner(target, candidate)));
+                        authorization -> {
+                            Map<String, Object> claimed =
+                                    ownerClaimMap(
+                                            scope.getName(),
+                                            authorization.claimPairingOwner(target, candidate));
+                            claimed.put(
+                                    "pairing_prompt",
+                                    authorization.pairingPromptText(target, candidate));
+                            return claimed;
+                        });
         deliverWelcome(scope, result);
+        result.remove("pairing_prompt");
         return result;
     }
 
@@ -102,7 +109,9 @@ public class DashboardPairingService {
         }
         requireText(admin.getChatId(), "主人私聊 ID");
         Map<String, Object> result = ownerClaimMap(scope.getName(), admin);
+        result.put("pairing_prompt", "此前已向该私聊发送 pairing code 绑定提示。");
         deliverWelcome(scope, result);
+        result.remove("pairing_prompt");
         return result;
     }
 
@@ -208,6 +217,13 @@ public class DashboardPairingService {
             request.setUserId(String.valueOf(welcome.get("user_id")));
             request.setChatType(String.valueOf(welcome.get("chat_type")));
             request.setText(String.valueOf(welcome.get("text")));
+            if (claimResult.get("pairing_prompt") != null) {
+                request.setConversationRecordText(
+                        String.valueOf(claimResult.get("pairing_prompt"))
+                                + "\n\n"
+                                + request.getText());
+            }
+            request.setRecordInConversation(true);
             deliveryService.deliver(request);
             welcome.put("status", "sent");
         } catch (Exception e) {

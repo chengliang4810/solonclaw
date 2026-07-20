@@ -80,6 +80,8 @@ class ProactiveReminderSchedulerTest {
         matching.setSourceKey("FEISHU:chat-main:thread-main:user-1");
         SessionRecord otherChat = new SessionRecord();
         otherChat.setSourceKey("FEISHU:chat-other:thread-main:user-1");
+        SessionRecord heartbeat = new SessionRecord();
+        heartbeat.setSourceKey("FEISHU:chat-main:thread-main:__heartbeat__");
 
         Method matcher =
                 ProactiveReminderScheduler.class.getDeclaredMethod(
@@ -88,6 +90,8 @@ class ProactiveReminderSchedulerTest {
         org.assertj.core.api.Assertions.assertThat(matcher.invoke(null, matching, home))
                 .isEqualTo(Boolean.TRUE);
         org.assertj.core.api.Assertions.assertThat(matcher.invoke(null, otherChat, home))
+                .isEqualTo(Boolean.FALSE);
+        org.assertj.core.api.Assertions.assertThat(matcher.invoke(null, heartbeat, home))
                 .isEqualTo(Boolean.FALSE);
     }
 
