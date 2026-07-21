@@ -91,6 +91,8 @@ export interface ProfileHubSearchResponse {
 
 export interface ProfileModelChoice {
   provider: string
+  /** Provider 的界面显示名称。 */
+  providerLabel: string
   model: string
   label: string
 }
@@ -173,6 +175,7 @@ export async function fetchProfileModelChoices(): Promise<ProfileModelChoice[]> 
   return response.allProviders.flatMap(provider =>
     provider.models.map(model => ({
       provider: provider.providerKey || provider.provider,
+      providerLabel: provider.label,
       model,
       label: `${provider.label} · ${model}`,
     })),

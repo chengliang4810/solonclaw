@@ -2,10 +2,8 @@ package com.jimuqu.solon.claw.bootstrap;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.media.OpenAiImageProvider;
 import com.jimuqu.solon.claw.media.XaiImageProvider;
-import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.provider.BrowserProvider;
 import com.jimuqu.solon.claw.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.provider.SpeechProvider;
@@ -23,19 +21,24 @@ public class ProviderConfiguration {
     /** 注册当前内置的图片生成实现。 */
     @Bean
     public List<ImageGenProvider> imageGenProviders(AppConfig appConfig) {
-        RuntimeConfigResolver configResolver =
-                RuntimeConfigResolver.open(appConfig.getRuntime().getHome());
         return Arrays.<ImageGenProvider>asList(
-                new OpenAiImageProvider(
-                        () ->
-                                StrUtil.blankToDefault(
-                                        configResolver.get("providers.openai.apiKey"),
-                                        ProfileRuntimeScope.environmentValue("OPENAI_API_KEY"))),
-                new XaiImageProvider(
-                        () ->
-                                StrUtil.blankToDefault(
-                                        configResolver.get("providers.xai.apiKey"),
-                                        ProfileRuntimeScope.environmentValue("XAI_API_KEY"))));
+                new OpenAiImageProvider(() -> providerApiKey(appConfig, "openai")),
+                new XaiImageProvider(() -> providerApiKey(appConfig, "xai")));
+    }
+
+    /**
+     * 从当前运行时已经装配的全局 Provider 注册表读取图片能力密钥。
+     *
+     * @param appConfig 当前 Profile 配置快照。
+     * @param providerKey Provider 键。
+     * @return 已去除首尾空白的密钥；未配置时返回空文本。
+     */
+    private String providerApiKey(AppConfig appConfig, String providerKey) {
+        AppConfig.ProviderConfig provider =
+                appConfig == null || appConfig.getProviders() == null
+                        ? null
+                        : appConfig.getProviders().get(providerKey);
+        return provider == null ? "" : StrUtil.nullToEmpty(provider.getApiKey()).trim();
     }
 
     /** 浏览器提供方改由内置实现显式注册；当前没有可用实现。 */

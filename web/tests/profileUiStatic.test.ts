@@ -103,3 +103,13 @@ assert.ok(builder.includes('profilesStore.createProfile({'), 'the final Review a
 for (const earlyWrite of ['updateProfileModel(', 'saveMcpServer(', 'toggleSkill(']) {
   assert.equal(builder.includes(earlyWrite), false, `builder should not write early through ${earlyWrite}`)
 }
+assert.ok(api.includes('providerLabel: provider.label'), 'Profile model choices should retain the Provider display label')
+assert.ok(builder.includes('modelProviderOptions'), 'the Profile builder should expose a Provider select')
+assert.ok(builder.includes('handleModelProviderChange'), 'the Profile builder should reset models when Provider changes')
+assert.ok(builder.includes('v-model:value="modelName"'), 'the Profile builder should expose a Provider-scoped model select')
+assert.ok(!builder.includes('class="choice-list model-list"'), 'the Profile builder should not render models as an ungrouped button list')
+assert.ok(view.includes('v-model:value="createModelProvider"'), 'quick Profile creation should select a Provider first')
+assert.ok(view.includes('v-model:value="createModelName"'), 'quick Profile creation should select a Provider-scoped model')
+assert.ok(view.includes('v-model:value="editorModelProvider"'), 'Profile editing should select a Provider first')
+assert.ok(view.includes('v-model:value="editorModelName"'), 'Profile editing should select a Provider-scoped model')
+assert.ok(view.includes("t('models.unregisteredModel'"), 'Profile editing should preserve legacy models as disabled options')

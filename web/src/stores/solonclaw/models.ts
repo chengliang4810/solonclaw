@@ -10,6 +10,7 @@ import type {
   ProviderValidationResponse,
   ModelsHealthProvider,
   RuntimeModelStatus,
+  TaskModelRoutes,
 } from '@/api/solonclaw/system'
 import { LLM_DIALECT_OPTIONS, normalizeDialectCatalog } from '@/shared/providerDisplay'
 import { useAppStore } from './app'
@@ -21,6 +22,7 @@ export const useModelsStore = defineStore('models', () => {
   const fallbackProviders = ref<FallbackProvider[]>([])
   const defaultModel = ref('')
   const defaultProvider = ref('')
+  const taskModelRoutes = ref<TaskModelRoutes>(systemApi.emptyTaskModelRoutes())
   const loading = ref(false)
   const loadError = ref<string | null>(null)
   const providerHealth = ref<Record<string, ModelsHealthProvider>>({})
@@ -34,6 +36,7 @@ export const useModelsStore = defineStore('models', () => {
     fallbackProviders.value = []
     defaultModel.value = ''
     defaultProvider.value = ''
+    taskModelRoutes.value = systemApi.emptyTaskModelRoutes()
     loading.value = false
     loadError.value = null
     providerHealth.value = {}
@@ -51,7 +54,7 @@ export const useModelsStore = defineStore('models', () => {
         label: g.label,
         base_url: g.base_url,
         dialect: g.dialect,
-        isDefault: m === defaultModel.value,
+        isDefault: g.provider === defaultProvider.value && m === defaultModel.value,
       })),
     ),
   )
@@ -68,6 +71,7 @@ export const useModelsStore = defineStore('models', () => {
       defaultModel.value = res.default
       defaultProvider.value = res.default_provider
       fallbackProviders.value = res.fallbackProviders
+      taskModelRoutes.value = res.taskModelRoutes
       dialectCatalog.value = normalizeDialectCatalog(res.dialectCatalog)
     } catch (err) {
       if (profileContext.isCurrent(contextVersion)) {
@@ -84,6 +88,15 @@ export const useModelsStore = defineStore('models', () => {
     await systemApi.updateDefaultModel({ default: modelId, provider })
     if (!profileContext.isCurrent(contextVersion)) return
     defaultModel.value = modelId
+    defaultProvider.value = provider
+    providers.value = providers.value.map(item => ({
+      ...item,
+      isDefault: item.provider === provider,
+    }))
+    allProviders.value = allProviders.value.map(item => ({
+      ...item,
+      isDefault: item.provider === provider,
+    }))
     const appStore = useAppStore()
     appStore.loadModels()
   }
@@ -131,6 +144,7 @@ export const useModelsStore = defineStore('models', () => {
     baseUrl?: string
     apiKey?: string
     defaultModel?: string
+    models?: string[]
     dialect?: string
   }) {
     const contextVersion = profileContext.capture()
@@ -141,12 +155,25 @@ export const useModelsStore = defineStore('models', () => {
     appStore.loadModels()
   }
 
+  async function fetchTaskModelRoutes() {
+    const contextVersion = profileContext.capture()
+    const routes = await systemApi.fetchTaskModelRoutes()
+    if (!profileContext.isCurrent(contextVersion)) return
+    taskModelRoutes.value = routes
+  }
+
+  async function saveTaskModelRoutes(routes: TaskModelRoutes) {
+    const contextVersion = profileContext.capture()
+    const saved = await systemApi.updateTaskModelRoutes(routes)
+    if (!profileContext.isCurrent(contextVersion)) return
+    taskModelRoutes.value = saved
+  }
+
   async function saveFallbackProviders(next: FallbackProvider[]) {
     const contextVersion = profileContext.capture()
     await systemApi.updateFallbackProviders(next)
     if (!profileContext.isCurrent(contextVersion)) return
     fallbackProviders.value = next
-    await fetchProviders()
   }
 
   async function removeProvider(providerKey: string) {
@@ -164,6 +191,7 @@ export const useModelsStore = defineStore('models', () => {
     fallbackProviders,
     defaultModel,
     defaultProvider,
+    taskModelRoutes,
     loading,
     loadError,
     providerHealth,
@@ -178,6 +206,8 @@ export const useModelsStore = defineStore('models', () => {
     fetchRuntimeModels,
     validateProvider,
     updateProvider,
+    fetchTaskModelRoutes,
+    saveTaskModelRoutes,
     saveFallbackProviders,
     removeProvider,
   }

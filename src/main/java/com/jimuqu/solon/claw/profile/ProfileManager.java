@@ -635,6 +635,7 @@ public class ProfileManager {
                     }
                 }
             }
+            removeProfileProviders(target);
             Map<String, Object> metadata = new LinkedHashMap<String, Object>();
             metadata.put("name", name);
             metadata.put("aliases", new ArrayList<String>());
@@ -1393,6 +1394,9 @@ public class ProfileManager {
             }
             copyTree(source, stagedProfile, excluded, false, false, true, true);
             removeCredentialFiles(stagedProfile);
+            if (!"default".equals(name)) {
+                removeProfileProviders(stagedProfile);
+            }
             redactConfig(stagedProfile.resolve("config.yml"));
             if (!"default".equals(name)) {
                 Map<String, Object> metadata = portableMetadata(readMetadata(source), name);
@@ -1456,6 +1460,7 @@ public class ProfileManager {
                     false,
                     false);
             bootstrapProfile(target);
+            removeProfileProviders(target);
             Map<String, Object> metadata = readMetadata(target);
             metadata.put("name", name);
             metadata.put("aliases", new ArrayList<String>());
@@ -1532,6 +1537,7 @@ public class ProfileManager {
             applyDistribution(staged.directory, target, manifest, false);
             bootstrapProfile(target);
             redactConfig(target.resolve("config.yml"));
+            removeProfileProviders(target);
             manifest.put("name", name);
             manifest.put("version", valueOrDefault(manifest.get("version"), "0.1.0"));
             manifest.put("source", staged.provenance);
@@ -1612,6 +1618,7 @@ public class ProfileManager {
             if (forceConfig) {
                 redactConfig(target.resolve("config.yml"));
             }
+            removeProfileProviders(target);
             incoming.put("name", name);
             incoming.put("version", valueOrDefault(incoming.get("version"), "0.1.0"));
             incoming.put("source", source);
@@ -2113,6 +2120,102 @@ public class ProfileManager {
                 sanitized.getBytes(StandardCharsets.UTF_8),
                 StandardOpenOption.TRUNCATE_EXISTING,
                 StandardOpenOption.WRITE);
+    }
+
+    /**
+     * 从命名 Profile 配置中移除全局 Provider 注册表，只保留模型引用等 Profile 自有配置。
+     *
+     * @param home 命名 Profile 工作区。
+     * @throws IOException 配置读取或原子写入失败。
+     */
+    private void removeProfileProviders(Path home) throws IOException {
+        if (home.toAbsolutePath().normalize().equals(root.toAbsolutePath().normalize())) {
+            return;
+        }
+        removeProfileProviderCredentials(home);
+        Path config = home.resolve("config.yml");
+        if (Files.isSymbolicLink(config) || !Files.isRegularFile(config)) {
+            return;
+        }
+        Object parsed = new Yaml(new SafeConstructor(new LoaderOptions())).load(readText(config));
+        if (!(parsed instanceof Map)) {
+            return;
+        }
+        Map<String, Object> rootMap = stringMap((Map<?, ?>) parsed);
+        if (rootMap.remove("providers") == null) {
+            return;
+        }
+        DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setPrettyFlow(true);
+        options.setIndent(2);
+        writeAtomically(config, new Yaml(options).dump(rootMap));
+    }
+
+    /**
+     * 从命名 Profile 的环境文件移除模型 Provider 密钥，同时保留渠道、语音和其他 Profile 私有变量。
+     *
+     * @param home 命名 Profile 工作区。
+     * @throws IOException 环境文件读取或原子写入失败。
+     */
+    private void removeProfileProviderCredentials(Path home) throws IOException {
+        Path environment = home.resolve(".env");
+        if (Files.isSymbolicLink(environment) || !Files.isRegularFile(environment)) {
+            return;
+        }
+        List<String> retained = new ArrayList<String>();
+        boolean changed = false;
+        boolean hasSpeechCredential = false;
+        String openAiCredential = null;
+        for (String line : Files.readAllLines(environment, StandardCharsets.UTF_8)) {
+            String name = environmentName(line);
+            if ("SOLONCLAW_SPEECH_API_KEY".equals(name)) {
+                hasSpeechCredential = true;
+            } else if ("OPENAI_API_KEY".equals(name)) {
+                openAiCredential = environmentValue(line);
+            }
+            if (isProviderCredentialName(name)) {
+                changed = true;
+            } else {
+                retained.add(line);
+            }
+        }
+        if (changed) {
+            if (!hasSpeechCredential && openAiCredential != null) {
+                retained.add("SOLONCLAW_SPEECH_API_KEY=" + openAiCredential);
+            }
+            String content = join(retained, System.lineSeparator());
+            if (!retained.isEmpty()) {
+                content += System.lineSeparator();
+            }
+            writeAtomically(environment, content);
+        }
+    }
+
+    /** 从 dotenv 行提取变量名，无法识别时返回空文本。 */
+    private String environmentName(String rawLine) {
+        String line = rawLine == null ? "" : rawLine.trim();
+        if (line.startsWith("export ")) {
+            line = line.substring("export ".length()).trim();
+        }
+        int separator = line.indexOf('=');
+        return separator <= 0 ? "" : line.substring(0, separator).trim().toUpperCase(Locale.ROOT);
+    }
+
+    /** 从 dotenv 行提取等号后的原始值，供共享凭据迁移时保留原有引号和转义。 */
+    private String environmentValue(String rawLine) {
+        String line = rawLine == null ? "" : rawLine.trim();
+        int separator = line.indexOf('=');
+        return separator < 0 ? null : line.substring(separator + 1).trim();
+    }
+
+    /** 判断环境变量是否属于全局模型 Provider 凭据。 */
+    private boolean isProviderCredentialName(String name) {
+        return (name.startsWith("SOLONCLAW_PROVIDER_") && name.endsWith("_API_KEY"))
+                || "OPENAI_API_KEY".equals(name)
+                || "GEMINI_API_KEY".equals(name)
+                || "GOOGLE_API_KEY".equals(name)
+                || "ANTHROPIC_API_KEY".equals(name);
     }
 
     /** 解析配置中的 provider/model，只读取非密展示字段。 */

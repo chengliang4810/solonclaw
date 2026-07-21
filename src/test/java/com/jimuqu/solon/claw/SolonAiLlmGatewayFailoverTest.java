@@ -10,6 +10,10 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -169,6 +173,29 @@ public class SolonAiLlmGatewayFailoverTest {
         assertThat(gateway.resumeFlags).containsExactly(false, false);
         assertThat(gateway.backupNdjson).isBlank();
         assertThat(gateway.userMessages).containsExactly("原始问题", "原始问题");
+    }
+
+    /** 智能审批必须复用统一故障切换链，独立审批模型不可用时继续尝试备用模型。 */
+    @Test
+    void shouldUseFallbackChainForSmartApprovalJudge() throws Exception {
+        AppConfig config = config();
+        config.getReact().setRetryMax(0);
+        config.getApprovals().setModelProvider("primary");
+        config.getApprovals().setModel("approval-primary");
+        DangerousCommandApprovalService approvalService = new DangerousCommandApprovalService(null);
+        ApprovalFallbackGateway gateway = new ApprovalFallbackGateway(config, approvalService);
+        Field judgeField =
+                DangerousCommandApprovalService.class.getDeclaredField("smartApprovalJudge");
+        judgeField.setAccessible(true);
+        SmartApprovalJudge judge = (SmartApprovalJudge) judgeField.get(approvalService);
+
+        SmartApprovalDecision decision =
+                judge.judge("execute_shell", "pwd", "read current working directory");
+
+        assertThat(decision.isApproved()).isTrue();
+        assertThat(decision.getReason()).isEqualTo("read only");
+        assertThat(gateway.attempts)
+                .containsExactly("primary:approval-primary", "backup:claude-sonnet-4");
     }
 
     private AppConfig config() {
@@ -396,6 +423,43 @@ public class SolonAiLlmGatewayFailoverTest {
             result.setModel(resolved.getModel());
             result.setRawResponse("ok");
             result.setAssistantMessage(new AssistantMessage("done"));
+            return result;
+        }
+    }
+
+    /** 模拟审批主模型失败、备用模型返回结构化批准结果。 */
+    private static class ApprovalFallbackGateway extends SolonAiLlmGateway {
+        /** 记录智能审批实际尝试的 Provider 和模型。 */
+        private final List<String> attempts = new ArrayList<String>();
+
+        /** 创建并把网关内部审批 Judge 注册到审批服务。 */
+        private ApprovalFallbackGateway(
+                AppConfig config, DangerousCommandApprovalService approvalService) {
+            super(config, null, approvalService);
+        }
+
+        /** 主审批模型模拟服务端失败，备用模型返回批准 JSON。 */
+        @Override
+        protected LlmResult executeSingle(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                AgentRunContext runContext)
+                throws Exception {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            if ("primary".equals(resolved.getProvider())) {
+                throw new IllegalStateException("HTTP 500 provider unavailable");
+            }
+            LlmResult result = new LlmResult();
+            result.setProvider(resolved.getProvider());
+            result.setModel(resolved.getModel());
+            result.setAssistantMessage(
+                    new AssistantMessage("{\"decision\":\"approve\",\"reason\":\"read only\"}"));
             return result;
         }
     }

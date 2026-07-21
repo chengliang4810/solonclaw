@@ -494,6 +494,7 @@ public class MemoryArchiveService {
         }
         SessionRecord synthetic = new SessionRecord();
         synthetic.setSessionId("memory-archive-" + date);
+        applyBackgroundReviewModelRoute(synthetic);
         Future<LlmResult> future =
                 auxiliaryExecutor.submit(
                         () ->
@@ -520,6 +521,20 @@ public class MemoryArchiveService {
             output = MessageSupport.visibleText(result.getRawResponse());
         }
         return parseModelSummary(output);
+    }
+
+    /**
+     * 为记忆归档摘要应用 background_review 默认模型路由。
+     *
+     * @param session 记忆归档辅助会话。
+     */
+    private void applyBackgroundReviewModelRoute(SessionRecord session) {
+        if (StrUtil.isNotBlank(appConfig.getLearning().getModelProvider())) {
+            session.setTransientProviderOverride(appConfig.getLearning().getModelProvider().trim());
+        }
+        if (StrUtil.isNotBlank(appConfig.getLearning().getModel())) {
+            session.setTransientModelOverride(appConfig.getLearning().getModel().trim());
+        }
     }
 
     /** 严格解析模型 JSON，并对摘要和候选做二次安全校验。 */

@@ -11,7 +11,6 @@ import {
 import { useProfilesStore } from '@/stores/solonclaw/profiles'
 
 const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/
-const MODEL_KEY_SEPARATOR = '\u0000'
 
 type EditorKind = 'description' | 'model' | 'soul' | 'alias'
 type GatewayAction = 'start' | 'stop' | 'restart'
@@ -31,7 +30,8 @@ const createDescription = ref('')
 const cloneFrom = ref('default')
 const cloneAll = ref(false)
 const noSkills = ref(false)
-const createModelChoice = ref('')
+const createModelProvider = ref('')
+const createModelName = ref('')
 const renameFrom = ref('')
 const renameTo = ref('')
 const importName = ref('')
@@ -45,7 +45,8 @@ const editorProfile = ref<SolonClawProfile | null>(null)
 const editorDescription = ref('')
 const editorSoul = ref('')
 const editorAlias = ref('')
-const editorModelChoice = ref('')
+const editorModelProvider = ref('')
+const editorModelName = ref('')
 const editorLoading = ref(false)
 const descriptionGenerating = ref(false)
 const distributionMode = ref<'install' | 'update'>('install')
@@ -66,10 +67,9 @@ const cloneOptions = computed(() => [
   ...profilesStore.profiles.map(profile => ({ label: profile.name, value: profile.name })),
 ])
 
-const modelOptions = computed(() => [
-  { label: t('profiles.modelInherit'), value: '' },
-  ...(modelChoices.value || []).map(choice => ({ label: choice.label, value: modelKey(choice) })),
-])
+const registeredProviderOptions = computed(() => Array.from(
+  new Map((modelChoices.value || []).map(choice => [choice.provider, choice.providerLabel])).entries(),
+).map(([value, label]) => ({ value, label, disabled: false })))
 
 const surfaceRoutes = computed(() => [
   { label: t('profiles.surfaceConfig'), name: 'solonclaw.settings' },
@@ -101,12 +101,49 @@ watch(cloneFrom, source => {
   if (!source) cloneAll.value = false
 })
 
-function modelKey(choice: ProfileModelChoice): string {
-  return `${choice.provider}${MODEL_KEY_SEPARATOR}${choice.model}`
+/** 返回 Provider 下拉选项，并以禁用项保留历史未登记 Provider。 */
+function providerOptions(currentProvider = '') {
+  const options = [...registeredProviderOptions.value]
+  if (currentProvider && !options.some(option => option.value === currentProvider)) {
+    options.push({
+      label: t('models.unregisteredProvider', { provider: currentProvider }),
+      value: currentProvider,
+      disabled: true,
+    })
+  }
+  return options
 }
 
-function selectedModel(value: string): ProfileModelChoice | undefined {
-  return modelChoices.value?.find(choice => modelKey(choice) === value)
+/** 返回指定 Provider 的模型下拉选项，并保留历史未登记模型。 */
+function modelOptions(provider: string, currentModel = '') {
+  const models = (modelChoices.value || [])
+    .filter(choice => choice.provider === provider)
+    .map(choice => choice.model)
+  const options = Array.from(new Set(models)).map(model => ({ label: model, value: model, disabled: false }))
+  if (currentModel && !models.includes(currentModel)) {
+    options.push({
+      label: t('models.unregisteredModel', { model: currentModel }),
+      value: currentModel,
+      disabled: true,
+    })
+  }
+  return options
+}
+
+/** 切换快速创建使用的 Provider，并选择其首个模型。 */
+function handleCreateModelProviderChange(value?: string): void {
+  createModelProvider.value = value || ''
+  createModelName.value = createModelProvider.value
+    ? modelOptions(createModelProvider.value)[0]?.value || ''
+    : ''
+}
+
+/** 切换编辑器使用的 Provider，并选择其首个模型。 */
+function handleEditorModelProviderChange(value?: string): void {
+  editorModelProvider.value = value || ''
+  editorModelName.value = editorModelProvider.value
+    ? modelOptions(editorModelProvider.value)[0]?.value || ''
+    : ''
 }
 
 async function loadModelChoices(): Promise<void> {
@@ -128,7 +165,8 @@ function resetCreateForm(): void {
   cloneFrom.value = 'default'
   cloneAll.value = false
   noSkills.value = false
-  createModelChoice.value = ''
+  createModelProvider.value = ''
+  createModelName.value = ''
 }
 
 function openCreate(): void {
@@ -147,7 +185,7 @@ async function submitCreate(): Promise<void> {
     message.warning(t('profiles.invalidName'))
     return
   }
-  const picked = selectedModel(createModelChoice.value)
+  const hasModelOverride = Boolean(createModelProvider.value && createModelName.value)
   try {
     const result = await profilesStore.createProfile({
       name,
@@ -155,12 +193,12 @@ async function submitCreate(): Promise<void> {
       clone_all: !!cloneFrom.value && cloneAll.value,
       no_skills: !cloneFrom.value && noSkills.value,
       description: createDescription.value.trim() || undefined,
-      provider: picked?.provider,
-      model: picked?.model,
+      provider: hasModelOverride ? createModelProvider.value : undefined,
+      model: hasModelOverride ? createModelName.value : undefined,
     })
     createOpen.value = false
     message.success(t('profiles.createSuccess', { name }))
-    if (picked && result.model_set === false) message.warning(t('profiles.modelCreateWarning'))
+    if (hasModelOverride && result.model_set === false) message.warning(t('profiles.modelCreateWarning'))
   } catch (error) {
     message.error(error instanceof Error ? error.message : t('profiles.createFailed'))
   }
@@ -297,14 +335,18 @@ async function openEditor(profile: SolonClawProfile, kind: EditorKind): Promise<
   editorDescription.value = profile.description || ''
   editorSoul.value = ''
   editorAlias.value = ''
-  editorModelChoice.value = ''
+  editorModelProvider.value = ''
+  editorModelName.value = ''
   editorOpen.value = true
   if (kind === 'model') {
     await loadModelChoices()
     const exact = modelChoices.value?.find(choice =>
       choice.model === profile.model && (!profile.provider || choice.provider === profile.provider),
     )
-    if (requestId === editorRequestId && exact) editorModelChoice.value = modelKey(exact)
+    if (requestId === editorRequestId) {
+      editorModelProvider.value = exact?.provider || profile.provider || ''
+      editorModelName.value = exact?.model || profile.model || ''
+    }
   }
   if (kind === 'soul') {
     editorLoading.value = true
@@ -356,12 +398,11 @@ async function saveEditor(): Promise<void> {
       return
     }
     if (kind === 'model') {
-      const model = selectedModel(editorModelChoice.value)
-      if (!model) {
+      if (!editorModelProvider.value || !editorModelName.value) {
         message.warning(t('profiles.modelSelect'))
         return
       }
-      await profilesStore.updateModel(profileName, model.provider, model.model)
+      await profilesStore.updateModel(profileName, editorModelProvider.value, editorModelName.value)
       if (isCurrentEditorRequest(requestId, profileName, kind)) {
         message.success(t('profiles.modelSaved'))
         closeEditor()
@@ -692,13 +733,24 @@ function distributionLabel(profile: SolonClawProfile): string {
           <TextArea v-model:value="createDescription" :autosize="{ minRows: 2, maxRows: 5 }" :placeholder="t('profiles.descriptionPlaceholder')" />
         </FormItem>
         <FormItem :label="t('profiles.modelOptional')">
-          <Select
-            v-model:value="createModelChoice"
-            show-search
-            :loading="modelChoicesLoading"
-            :options="modelOptions"
-            :placeholder="modelChoicesLoading ? t('profiles.modelLoading') : t('profiles.modelSelect')"
-          />
+          <div class="model-picker">
+            <Select
+              v-model:value="createModelProvider"
+              show-search
+              :loading="modelChoicesLoading"
+              :options="providerOptions()"
+              :placeholder="modelChoicesLoading ? t('profiles.modelLoading') : t('models.chooseProvider')"
+              allow-clear
+              @change="handleCreateModelProviderChange"
+            />
+            <Select
+              v-model:value="createModelName"
+              show-search
+              :options="modelOptions(createModelProvider, createModelName)"
+              :placeholder="t('profiles.modelInherit')"
+              :disabled="!createModelProvider"
+            />
+          </div>
         </FormItem>
         <div class="option-list">
           <label v-if="cloneFrom">
@@ -766,13 +818,23 @@ function distributionLabel(profile: SolonClawProfile): string {
         </div>
         <div v-else-if="editorKind === 'model'" class="editor-form">
           <label>{{ t('profiles.modelSelect') }}</label>
-          <Select
-            v-model:value="editorModelChoice"
-            show-search
-            :loading="modelChoicesLoading"
-            :options="modelOptions.slice(1)"
-            :placeholder="modelChoicesLoading ? t('profiles.modelLoading') : t('profiles.modelSelect')"
-          />
+          <div class="model-picker">
+            <Select
+              v-model:value="editorModelProvider"
+              show-search
+              :loading="modelChoicesLoading"
+              :options="providerOptions(editorModelProvider)"
+              :placeholder="modelChoicesLoading ? t('profiles.modelLoading') : t('models.chooseProvider')"
+              @change="handleEditorModelProviderChange"
+            />
+            <Select
+              v-model:value="editorModelName"
+              show-search
+              :options="modelOptions(editorModelProvider, editorModelName)"
+              :placeholder="t('models.selectModel')"
+              :disabled="!editorModelProvider"
+            />
+          </div>
           <p v-if="!modelChoicesLoading && modelChoices?.length === 0" class="field-help">{{ t('profiles.modelNone') }}</p>
         </div>
         <div v-else-if="editorKind === 'soul'" class="editor-form">
@@ -1124,6 +1186,12 @@ function distributionLabel(profile: SolonClawProfile): string {
   gap: 12px;
 }
 
+.model-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .option-list label {
   display: flex;
   align-items: center;
@@ -1222,6 +1290,10 @@ function distributionLabel(profile: SolonClawProfile): string {
     .wide {
       grid-column: auto;
     }
+  }
+
+  .model-picker {
+    grid-template-columns: 1fr;
   }
 }
 </style>

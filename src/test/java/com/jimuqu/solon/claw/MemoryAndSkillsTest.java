@@ -1950,8 +1950,11 @@ public class MemoryAndSkillsTest {
 
     @Test
     void shouldWriteSanitizedStableMemoryForMemoryOnlyDecision() throws Exception {
-        TestEnvironment env = TestEnvironment.withLlm(new MemoryOnlyGateway("memory_only"));
+        MemoryOnlyGateway gateway = new MemoryOnlyGateway("memory_only");
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
         env.appConfig.getLearning().setToolCallThreshold(1);
+        env.appConfig.getLearning().setModelProvider("review-provider");
+        env.appConfig.getLearning().setModel("review-model");
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room:user");
         session.setTitle("memory only task");
         session.setCompressedSummary("用户多次要求回答先给结论，再补充必要理由。");
@@ -1976,6 +1979,8 @@ public class MemoryAndSkillsTest {
 
             String memory = waitMemoryContent(env, "用户偏好：回答先给结论，再补充必要理由。");
             assertThat(memory).contains("用户偏好：回答先给结论，再补充必要理由。").doesNotContain("原始任务敏感标记");
+            assertThat(gateway.lastProvider).isEqualTo("review-provider");
+            assertThat(gateway.lastModel).isEqualTo("review-model");
             assertThat(env.localSkillService.listSkillNames()).doesNotContain("memory-only-task");
         } finally {
             learningService.shutdown();
@@ -2278,7 +2283,14 @@ public class MemoryAndSkillsTest {
 
     /** 先返回学习分类，再为 memory_only 分支返回稳定记忆候选。 */
     private static class MemoryOnlyGateway implements LlmGateway {
+        /** 固定学习分类。 */
         private final String decision;
+
+        /** 最近一次辅助调用的 Provider 路由。 */
+        private volatile String lastProvider;
+
+        /** 最近一次辅助调用的模型路由。 */
+        private volatile String lastModel;
 
         /** 创建指定学习分类的模型桩。 */
         private MemoryOnlyGateway(String decision) {
@@ -2292,6 +2304,8 @@ public class MemoryAndSkillsTest {
                 String userMessage,
                 List<Object> toolObjects)
                 throws Exception {
+            lastProvider = session.getTransientProviderOverride();
+            lastModel = session.getTransientModelOverride();
             String content =
                     systemPrompt.contains("rubric 分类器") ? decision : "用户偏好：回答先给结论，再补充必要理由。";
             LlmResult result = new LlmResult();

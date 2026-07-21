@@ -378,7 +378,6 @@ public class AsyncSkillLearningService implements SkillLearningService {
                             + StrUtil.blankToDefault(session.getSessionId(), "session")
                             + "-"
                             + System.currentTimeMillis());
-            rubricSession.setSourceKey(session.getSourceKey());
             String userMessage =
                     "请判断本轮是否值得沉淀，并只输出以下格式之一：\n"
                             + "no_change\n"
@@ -776,7 +775,6 @@ public class AsyncSkillLearningService implements SkillLearningService {
                             + StrUtil.blankToDefault(session.getSessionId(), "session")
                             + "-"
                             + System.currentTimeMillis());
-            learningSession.setSourceKey(session.getSourceKey());
 
             LlmResult result =
                     callAuxiliaryChat(
@@ -813,7 +811,6 @@ public class AsyncSkillLearningService implements SkillLearningService {
                             + StrUtil.blankToDefault(session.getSessionId(), "session")
                             + "-"
                             + System.currentTimeMillis());
-            memorySession.setSourceKey(session.getSourceKey());
             LlmResult result =
                     callAuxiliaryChat(
                             memorySession,
@@ -907,6 +904,7 @@ public class AsyncSkillLearningService implements SkillLearningService {
     private LlmResult callAuxiliaryChat(
             final SessionRecord session, final String systemPrompt, final String userMessage)
             throws Exception {
+        applyBackgroundReviewModelRoute(session);
         Future<LlmResult> future =
                 auxiliaryExecutorService.submit(
                         ProfileRuntimeScope.capture(
@@ -930,6 +928,23 @@ public class AsyncSkillLearningService implements SkillLearningService {
         } catch (TimeoutException e) {
             future.cancel(true);
             throw e;
+        }
+    }
+
+    /**
+     * 为对话后复盘、记忆和技能维护的辅助会话应用统一模型路由。
+     *
+     * @param session 后台辅助会话。
+     */
+    private void applyBackgroundReviewModelRoute(SessionRecord session) {
+        if (session == null) {
+            return;
+        }
+        if (StrUtil.isNotBlank(appConfig.getLearning().getModelProvider())) {
+            session.setTransientProviderOverride(appConfig.getLearning().getModelProvider().trim());
+        }
+        if (StrUtil.isNotBlank(appConfig.getLearning().getModel())) {
+            session.setTransientModelOverride(appConfig.getLearning().getModel().trim());
         }
     }
 

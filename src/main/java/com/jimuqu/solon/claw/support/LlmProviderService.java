@@ -137,11 +137,9 @@ public class LlmProviderService {
         if (provider == null) {
             throw new IllegalStateException("未找到 provider：" + key);
         }
-        RuntimeProvider runtimeProvider = runtimeProvider(key, provider);
-
         String model = StrUtil.nullToEmpty(explicitModel).trim();
         if (StrUtil.isBlank(model)) {
-            model = StrUtil.nullToEmpty(runtimeProvider.defaultModel).trim();
+            model = StrUtil.nullToEmpty(provider.getDefaultModel()).trim();
         }
         if (StrUtil.isBlank(model)) {
             model = StrUtil.nullToEmpty(configResolver().get("model.default")).trim();
@@ -152,12 +150,12 @@ public class LlmProviderService {
 
         ResolvedProvider resolved = new ResolvedProvider();
         resolved.setProviderKey(key);
-        resolved.setLabel(StrUtil.blankToDefault(runtimeProvider.name, key));
-        resolved.setDialect(LlmProviderSupport.normalizeDialect(runtimeProvider.dialect));
-        resolved.setBaseUrl(StrUtil.nullToEmpty(runtimeProvider.baseUrl).trim());
+        resolved.setLabel(StrUtil.blankToDefault(provider.getName(), key));
+        resolved.setDialect(LlmProviderSupport.normalizeDialect(provider.getDialect()));
+        resolved.setBaseUrl(StrUtil.nullToEmpty(provider.getBaseUrl()).trim());
         resolved.setApiUrl(
-                LlmProviderSupport.buildApiUrl(runtimeProvider.baseUrl, runtimeProvider.dialect));
-        resolved.setApiKey(StrUtil.nullToEmpty(runtimeProvider.apiKey).trim());
+                LlmProviderSupport.buildApiUrl(provider.getBaseUrl(), provider.getDialect()));
+        resolved.setApiKey(StrUtil.nullToEmpty(provider.getApiKey()).trim());
         resolved.setModel(model);
         resolveContextWindow(resolved, allowConfiguredContextWindow);
         return resolved;
@@ -279,57 +277,6 @@ public class LlmProviderService {
     /** 返回当前 workspace/config.yml 解析器，保证模型请求能读取 TUI 和配置命令的即时写入。 */
     private RuntimeConfigResolver configResolver() {
         return RuntimeConfigResolverSupport.fromAppConfig(appConfig);
-    }
-
-    /**
-     * 合并启动配置与工作区配置中的 provider 字段。
-     *
-     * @param providerKey provider 键。
-     * @param provider 启动时 provider 配置。
-     * @return 返回模型请求最终使用的 provider 字段。
-     */
-    private RuntimeProvider runtimeProvider(String providerKey, AppConfig.ProviderConfig provider) {
-        RuntimeConfigResolver resolver = configResolver();
-        RuntimeProvider result = new RuntimeProvider();
-        String prefix = "providers." + providerKey + ".";
-        result.name = runtimeValue(resolver, prefix + "name", provider.getName());
-        result.baseUrl = runtimeValue(resolver, prefix + "baseUrl", provider.getBaseUrl());
-        result.apiKey = runtimeValue(resolver, prefix + "apiKey", provider.getApiKey());
-        result.defaultModel =
-                runtimeValue(resolver, prefix + "defaultModel", provider.getDefaultModel());
-        result.dialect = runtimeValue(resolver, prefix + "dialect", provider.getDialect());
-        return result;
-    }
-
-    /**
-     * 读取 workspace/config.yml 覆盖值；空白值视为未覆盖，避免清空启动时的必填配置。
-     *
-     * @param resolver 工作区配置解析器。
-     * @param key 配置键。
-     * @param fallback 启动配置中的回退值。
-     * @return 返回合并后的字符串值。
-     */
-    private String runtimeValue(RuntimeConfigResolver resolver, String key, String fallback) {
-        String value = resolver.get(key);
-        return StrUtil.isNotBlank(value) ? value.trim() : StrUtil.nullToEmpty(fallback).trim();
-    }
-
-    /** provider 字段运行时快照，避免把可变配置散落在请求链路中。 */
-    private static class RuntimeProvider {
-        /** provider 展示名称。 */
-        private String name;
-
-        /** provider 基础地址。 */
-        private String baseUrl;
-
-        /** provider API 密钥。 */
-        private String apiKey;
-
-        /** provider 默认模型。 */
-        private String defaultModel;
-
-        /** provider 协议方言。 */
-        private String dialect;
     }
 
     /** 提供Resolved能力的扩展入口，屏蔽具体实现差异。 */

@@ -1,5 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
+import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
 import com.jimuqu.solon.claw.profile.ProfileCreateOptions;
 import com.jimuqu.solon.claw.profile.ProfileDescriptionService;
@@ -23,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.noear.solon.core.Props;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,13 +63,16 @@ public class DashboardProfileService {
     /** default 进程内的命名 Profile 子运行时；删除前用于释放数据库和渠道资源。 */
     private final ProfileMultiplexRuntimeManager profileRuntimeManager;
 
+    /** default Profile 的配置热刷新服务；模型保存后只更新配置对象，不重连渠道。 */
+    private final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
+
     /**
      * 创建 Dashboard Profile 服务。
      *
      * @param profileManager Profile 核心管理器。
      */
     public DashboardProfileService(ProfileManager profileManager) {
-        this(profileManager, null, null, null);
+        this(profileManager, null, null, null, null);
     }
 
     /**
@@ -80,7 +86,7 @@ public class DashboardProfileService {
             ProfileManager profileManager,
             DashboardMcpService mcpService,
             DashboardSkillsService skillsService) {
-        this(profileManager, mcpService, skillsService, null);
+        this(profileManager, mcpService, skillsService, null, null);
     }
 
     /** 创建同时支持 Profile 子运行时释放的 Dashboard 管理服务。 */
@@ -89,10 +95,29 @@ public class DashboardProfileService {
             DashboardMcpService mcpService,
             DashboardSkillsService skillsService,
             ProfileMultiplexRuntimeManager profileRuntimeManager) {
+        this(profileManager, mcpService, skillsService, profileRuntimeManager, null);
+    }
+
+    /**
+     * 创建同时支持 default 与命名 Profile 配置热刷新的 Dashboard 管理服务。
+     *
+     * @param profileManager Profile 核心管理器。
+     * @param mcpService 跨 Profile MCP 服务。
+     * @param skillsService 跨 Profile 技能服务。
+     * @param profileRuntimeManager 命名 Profile 子运行时管理器。
+     * @param gatewayRuntimeRefreshService default Profile 配置刷新服务。
+     */
+    public DashboardProfileService(
+            ProfileManager profileManager,
+            DashboardMcpService mcpService,
+            DashboardSkillsService skillsService,
+            ProfileMultiplexRuntimeManager profileRuntimeManager,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
         this.profileManager = profileManager;
         this.mcpService = mcpService;
         this.skillsService = skillsService;
         this.profileRuntimeManager = profileRuntimeManager;
+        this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
     }
 
     /**
@@ -454,6 +479,7 @@ public class DashboardProfileService {
             throws Exception {
         String providerKey = requiredText(provider, "Profile provider is required.");
         String modelName = requiredText(model, "Profile model is required.");
+        ensureGlobalProviderModelExists(providerKey, modelName);
         Path home = profileManager.requireProfileHome(name);
         DashboardProfileConfigFile config =
                 new DashboardProfileConfigFile(home.resolve("config.yml"));
@@ -462,16 +488,69 @@ public class DashboardProfileService {
         modelConfig.put("providerKey", providerKey);
         modelConfig.put("default", modelName);
         root.put("model", modelConfig);
+        if (!home.toAbsolutePath()
+                .normalize()
+                .equals(profileManager.root().toAbsolutePath().normalize())) {
+            root.remove("providers");
+        }
         Map<String, Object> application = stringObjectMap(root.get("solonclaw"));
         Map<String, Object> llm = stringObjectMap(application.get("llm"));
         llm.put("contextWindowTokens", Integer.valueOf(0));
         application.put("llm", llm);
         root.put("solonclaw", application);
         config.writeRoot(root);
+        refreshModelConfig(name, home);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("provider", providerKey);
         result.put("model", modelName);
         return result;
+    }
+
+    /**
+     * 模型保存后只刷新目标 Profile 的配置对象，不替换运行时或重连渠道。
+     *
+     * @param name 目标 Profile 名。
+     * @param home 目标 Profile 工作区。
+     */
+    private void refreshModelConfig(String name, Path home) {
+        Path root = profileManager.root().toAbsolutePath().normalize();
+        if (home.toAbsolutePath().normalize().equals(root)) {
+            if (gatewayRuntimeRefreshService != null) {
+                gatewayRuntimeRefreshService.refreshConfigOnly();
+            }
+            return;
+        }
+        if (profileRuntimeManager != null) {
+            profileRuntimeManager.refreshRunningConfigOnly(name);
+        }
+    }
+
+    /**
+     * 校验 Profile 引用的 Provider 与模型已登记在根工作区唯一注册表中。
+     *
+     * @param providerKey 待引用的 Provider 键。
+     * @param modelName 待引用的模型名。
+     */
+    private void ensureGlobalProviderModelExists(String providerKey, String modelName) {
+        Props props = new Props();
+        props.put("solonclaw.workspace", profileManager.root().toAbsolutePath().toString());
+        AppConfig.ProviderConfig provider =
+                AppConfig.loadDetached(props).getProviders().get(providerKey);
+        if (provider == null) {
+            throw new IllegalArgumentException("Provider 不存在：" + providerKey);
+        }
+        if (modelName.equals(text(provider.getDefaultModel()))) {
+            return;
+        }
+        List<String> models = provider.getModels();
+        if (models != null) {
+            for (String configuredModel : models) {
+                if (modelName.equals(text(configuredModel))) {
+                    return;
+                }
+            }
+        }
+        throw new IllegalArgumentException("模型未加入 Provider " + providerKey + " 的模型列表：" + modelName);
     }
 
     /** 校验终端工作目录仍是管理器解析出的直接 Profile 目录，拒绝命名 Profile 符号链接。 */

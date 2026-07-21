@@ -2420,12 +2420,9 @@ public class CronJobService {
         String normalizedModel = CronJobSupport.normalizeBlank(model);
         String normalizedProvider = CronJobSupport.normalizeBlank(provider);
         String normalizedBaseUrl = normalizeBaseUrl(baseUrl);
+        validateModelPinPair(normalizedProvider, normalizedModel);
         if ("custom".equals(normalizedProvider)) {
             normalizedProvider = null;
-        }
-        if (StrUtil.isNotBlank(normalizedProvider)
-                && !appConfig.getProviders().containsKey(normalizedProvider)) {
-            throw new IllegalStateException("provider not found: " + normalizedProvider);
         }
         if (StrUtil.isNotBlank(normalizedModel) && StrUtil.isBlank(normalizedProvider)) {
             normalizedProvider = StrUtil.nullToEmpty(appConfig.getModel().getProviderKey()).trim();
@@ -2435,9 +2432,59 @@ public class CronJobService {
                 && appConfig.getProviders().size() == 1) {
             normalizedProvider = appConfig.getProviders().keySet().iterator().next();
         }
+        if (StrUtil.isNotBlank(normalizedProvider)
+                && !appConfig.getProviders().containsKey(normalizedProvider)) {
+            throw new IllegalStateException("provider not found: " + normalizedProvider);
+        }
+        validateRegisteredModel(normalizedProvider, normalizedModel);
         record.setModel(normalizedModel);
         record.setProvider(normalizedProvider);
         record.setBaseUrl(normalizedBaseUrl);
+    }
+
+    /**
+     * 校验 Cron 固定模型必须同时包含 Provider 与模型，避免保存后被默认路由静默改写。
+     *
+     * @param provider 模型提供方。
+     * @param model 模型名称。
+     */
+    private void validateModelPinPair(String provider, String model) {
+        if (StrUtil.isBlank(provider) && StrUtil.isBlank(model)) {
+            return;
+        }
+        if (StrUtil.isBlank(provider) || StrUtil.isBlank(model)) {
+            throw new IllegalStateException("cron model pin requires both provider and model");
+        }
+    }
+
+    /**
+     * 校验 Cron 固定模型已登记在最终 Provider 的模型清单中，避免定时执行时才暴露拼写错误。
+     *
+     * @param providerKey 最终 Provider 键。
+     * @param model 模型名称。
+     */
+    private void validateRegisteredModel(String providerKey, String model) {
+        if (StrUtil.isBlank(providerKey) || StrUtil.isBlank(model)) {
+            return;
+        }
+        AppConfig.ProviderConfig provider = appConfig.getProviders().get(providerKey);
+        if (provider == null) {
+            throw new IllegalStateException("provider not found: " + providerKey);
+        }
+        String normalizedModel = model.trim();
+        if (normalizedModel.equals(StrUtil.nullToEmpty(provider.getDefaultModel()).trim())) {
+            return;
+        }
+        List<String> models = provider.getModels();
+        if (models != null) {
+            for (String configuredModel : models) {
+                if (normalizedModel.equals(StrUtil.nullToEmpty(configuredModel).trim())) {
+                    return;
+                }
+            }
+        }
+        throw new IllegalStateException(
+                "模型未加入 Provider " + providerKey + " 的模型列表：" + normalizedModel);
     }
 
     /**

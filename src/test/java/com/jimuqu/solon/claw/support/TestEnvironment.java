@@ -108,6 +108,7 @@ import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.AccessLevel;
@@ -602,6 +603,7 @@ public class TestEnvironment {
         provider.setBaseUrl("http://127.0.0.1:1/v1");
         provider.setApiKey("");
         provider.setDefaultModel("gpt-5.4");
+        provider.setModels(Arrays.asList("gpt-5.4", "gpt-5.2", "gpt-5.3", "claude-sonnet-4"));
         provider.setDialect("openai");
         config.getProviders().put("default", provider);
         config.getModel().setProviderKey("default");

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Button, Checkbox, Input, Spin, Tag, message } from 'antdv-next'
+import { Button, Checkbox, Input, Select, Spin, Tag, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
@@ -14,7 +14,6 @@ import { fetchSkills } from '@/api/solonclaw/skills'
 import { useProfilesStore } from '@/stores/solonclaw/profiles'
 
 const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/
-const MODEL_KEY_SEPARATOR = '\u0000'
 
 type BuilderStep = 'identity' | 'model' | 'skills' | 'mcp' | 'review'
 
@@ -35,8 +34,8 @@ const name = ref('')
 const description = ref('')
 const modelChoices = ref<ProfileModelChoice[] | null>(null)
 const modelLoading = ref(false)
-const modelChoice = ref('')
-const modelFilter = ref('')
+const modelProvider = ref('')
+const modelName = ref('')
 const skills = ref<BuilderSkill[] | null>(null)
 const skillsLoading = ref(false)
 const keepAllSkills = ref(true)
@@ -56,14 +55,17 @@ const steps = computed(() => stepOrder.map(id => ({ id, label: t(`profiles.build
 const currentStepIndex = computed(() => stepOrder.indexOf(currentStep.value))
 const nameValid = computed(() => PROFILE_NAME_RE.test(name.value.trim()))
 const selectedModel = computed(() => {
-  if (!modelChoice.value) return undefined
-  return modelChoices.value?.find(choice => modelKey(choice) === modelChoice.value)
+  if (!modelProvider.value || !modelName.value) return undefined
+  return modelChoices.value?.find(choice =>
+    choice.provider === modelProvider.value && choice.model === modelName.value,
+  )
 })
-const filteredModels = computed(() => {
-  const filter = modelFilter.value.trim().toLowerCase()
-  if (!filter) return modelChoices.value || []
-  return (modelChoices.value || []).filter(choice => choice.label.toLowerCase().includes(filter))
-})
+const modelProviderOptions = computed(() => Array.from(
+  new Map((modelChoices.value || []).map(choice => [choice.provider, choice.providerLabel])).entries(),
+).map(([value, label]) => ({ value, label })))
+const modelOptions = computed(() => (modelChoices.value || [])
+  .filter(choice => choice.provider === modelProvider.value)
+  .map(choice => ({ label: choice.model, value: choice.model })))
 const filteredSkills = computed(() => {
   const filter = skillFilter.value.trim().toLowerCase()
   if (!filter) return skills.value || []
@@ -74,8 +76,10 @@ const filteredSkills = computed(() => {
   )
 })
 
-function modelKey(choice: ProfileModelChoice): string {
-  return `${choice.provider}${MODEL_KEY_SEPARATOR}${choice.model}`
+/** 切换 Provider 后默认选择其第一个已登记模型。 */
+function handleModelProviderChange(value?: string): void {
+  modelProvider.value = value || ''
+  modelName.value = modelProvider.value ? modelOptions.value[0]?.value || '' : ''
 }
 
 async function loadModels(): Promise<void> {
@@ -265,21 +269,21 @@ function cancel(): void {
 
       <div v-else-if="currentStep === 'model'" class="builder-section">
         <p class="section-hint">{{ t('profiles.builder.modelHint') }}</p>
-        <Input v-model:value="modelFilter" allow-clear :placeholder="t('profiles.builder.modelFilter')" />
         <Spin :spinning="modelLoading">
-          <div class="choice-list model-list">
-            <button type="button" :class="{ selected: !modelChoice }" @click="modelChoice = ''">
-              {{ t('profiles.builder.modelDefault') }}
-            </button>
-            <button
-              v-for="choice in filteredModels"
-              :key="modelKey(choice)"
-              type="button"
-              :class="{ selected: modelChoice === modelKey(choice) }"
-              @click="modelChoice = modelKey(choice)"
-            >
-              {{ choice.label }}
-            </button>
+          <div class="model-picker">
+            <Select
+              v-model:value="modelProvider"
+              :options="modelProviderOptions"
+              :placeholder="t('models.chooseProvider')"
+              allow-clear
+              @change="handleModelProviderChange"
+            />
+            <Select
+              v-model:value="modelName"
+              :options="modelOptions"
+              :placeholder="t('profiles.builder.modelDefault')"
+              :disabled="!modelProvider"
+            />
             <p v-if="!modelLoading && modelChoices?.length === 0" class="empty-copy">
               {{ t('profiles.builder.modelEmpty') }}
             </p>
@@ -545,6 +549,12 @@ function cancel(): void {
   }
 }
 
+.model-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .checkbox-row {
   gap: 8px;
   font-size: 13px;
@@ -711,6 +721,7 @@ function cancel(): void {
     padding: 16px;
   }
 
+  .model-picker,
   .mcp-fields {
     grid-template-columns: 1fr;
   }

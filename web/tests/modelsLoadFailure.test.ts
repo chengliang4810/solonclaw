@@ -24,15 +24,25 @@ export interface AvailableModelGroup {
   label: string
   base_url: string
   models: string[]
+  defaultModel: string
   dialect: string
   has_api_key: boolean
   isDefault: boolean
 }
 export type FallbackProvider = { provider: string; model: string }
+export type TaskModelCategory = 'monitor' | 'background_review' | 'curator' | 'approval' | 'compression' | 'cron'
+export type TaskModelRoutes = Record<TaskModelCategory, { provider: string; model: string }>
 export type ProviderValidationRequest = Record<string, unknown>
 export type ProviderValidationResponse = Record<string, unknown>
 export type ModelsHealthProvider = { provider: string; status: string; checked_at: number }
 export type RuntimeModelStatus = Record<string, unknown>
+
+export function emptyTaskModelRoutes(): TaskModelRoutes {
+  return Object.fromEntries(
+    ['monitor', 'background_review', 'curator', 'approval', 'compression', 'cron']
+      .map(category => [category, { provider: '', model: '' }]),
+  ) as TaskModelRoutes
+}
 
 type AvailableModelsResponse = {
   default: string
@@ -40,9 +50,12 @@ type AvailableModelsResponse = {
   groups: AvailableModelGroup[]
   allProviders: AvailableModelGroup[]
   fallbackProviders: FallbackProvider[]
+  taskModelRoutes: TaskModelRoutes
 }
 
 const queuedResponses: Array<() => Promise<AvailableModelsResponse>> = []
+let providersFetchCount = 0
+let lastDefaultUpdate: { default: string; provider: string } | null = null
 
 export function queueProvidersSuccess(groups: AvailableModelGroup[]): void {
   queuedResponses.push(async () => ({
@@ -51,6 +64,7 @@ export function queueProvidersSuccess(groups: AvailableModelGroup[]): void {
     groups,
     allProviders: groups,
     fallbackProviders: [],
+    taskModelRoutes: emptyTaskModelRoutes(),
   }))
 }
 
@@ -61,12 +75,15 @@ export function queueProvidersFailure(message: string): void {
 }
 
 export async function fetchAvailableModels(): Promise<AvailableModelsResponse> {
+  providersFetchCount += 1
   const next = queuedResponses.shift()
   if (!next) throw new Error('No mock provider response queued')
   return next()
 }
 
-export async function updateDefaultModel(): Promise<void> {}
+export function getProvidersFetchCount(): number { return providersFetchCount }
+export function getLastDefaultUpdate(): { default: string; provider: string } | null { return lastDefaultUpdate }
+export async function updateDefaultModel(data: { default: string; provider: string }): Promise<void> { lastDefaultUpdate = data }
 export async function addCustomProvider(): Promise<void> {}
 export async function fetchProviderModels(): Promise<{ url: string; models: string[] }> { return { url: '', models: [] } }
 export async function fetchModelsHealth(): Promise<{ providers: ModelsHealthProvider[] }> { return { providers: [] } }
@@ -74,6 +91,8 @@ export async function fetchRuntimeModels(): Promise<{ models: RuntimeModelStatus
 export async function validateProvider(): Promise<ProviderValidationResponse> { return {} }
 export async function updateProvider(): Promise<void> {}
 export async function updateFallbackProviders(): Promise<void> {}
+export async function fetchTaskModelRoutes(): Promise<TaskModelRoutes> { return emptyTaskModelRoutes() }
+export async function updateTaskModelRoutes(routes: TaskModelRoutes): Promise<TaskModelRoutes> { return routes }
 export async function removeCustomProvider(): Promise<void> {}
 `)
   writeFileSync(mockAppStorePath, `
@@ -110,14 +129,22 @@ export function normalizeDialectCatalog(value) {
     label: 'OpenAI',
     base_url: 'https://api.example',
     models: ['mimo-v2.5'],
+    defaultModel: 'mimo-v2.5',
     dialect: 'openai',
     has_api_key: true,
     isDefault: true,
   }
+  const secondProvider = {
+    ...staleProvider,
+    provider: 'backup',
+    providerKey: 'backup',
+    label: 'Backup',
+    isDefault: false,
+  }
 
-  mockSystemApi.queueProvidersSuccess([staleProvider])
+  mockSystemApi.queueProvidersSuccess([staleProvider, secondProvider])
   await modelsStore.fetchProviders()
-  assert.deepEqual(modelsStore.providers, [staleProvider], 'Given an initial load, providers should be present')
+  assert.deepEqual(modelsStore.providers, [staleProvider, secondProvider], 'Given an initial load, providers should be present')
   assert.equal(modelsStore.loadError, null, 'A successful load should not keep an error')
 
   mockSystemApi.queueProvidersFailure('provider API unavailable')
@@ -128,9 +155,41 @@ export function normalizeDialectCatalog(value) {
   await modelsStore.fetchProviders()
   console.error = originalConsoleError
 
-  assert.deepEqual(modelsStore.providers, [staleProvider], 'When loading providers fails, stale providers should remain visible')
+  assert.deepEqual(modelsStore.providers, [staleProvider, secondProvider], 'When loading providers fails, stale providers should remain visible')
   assert.equal(modelsStore.loadError, 'provider API unavailable', 'When loading providers fails, the error should remain visible')
   assert.equal(modelsStore.loading, false, 'When loading providers fails, loading should be reset')
+
+  await modelsStore.setDefaultModel('mimo-v2.5', 'backup')
+  assert.deepEqual(
+    mockSystemApi.getLastDefaultUpdate(),
+    { default: 'mimo-v2.5', provider: 'backup' },
+    'default model updates should send both the Provider and model',
+  )
+  assert.equal(modelsStore.defaultProvider, 'backup', 'saving the default model should update the local default Provider')
+  assert.equal(modelsStore.defaultModel, 'mimo-v2.5', 'saving the default model should update the local model')
+  assert.deepEqual(
+    modelsStore.providers.map(provider => [provider.provider, provider.isDefault]),
+    [['openai', false], ['backup', true]],
+    'saving the default should synchronize Provider badges',
+  )
+  assert.deepEqual(
+    modelsStore.allProviders.map(provider => [provider.provider, provider.isDefault]),
+    [['openai', false], ['backup', true]],
+    'saving the default should synchronize the full Provider catalog',
+  )
+  assert.deepEqual(
+    modelsStore.allModels.filter(model => model.isDefault).map(model => [model.provider, model.id]),
+    [['backup', 'mimo-v2.5']],
+    'same-named models should only mark the selected Provider as default',
+  )
+
+  const fetchCountBeforeFallbackSave = mockSystemApi.getProvidersFetchCount()
+  await modelsStore.saveFallbackProviders([{ provider: 'openai', model: 'mimo-v2.5' }])
+  assert.equal(
+    mockSystemApi.getProvidersFetchCount(),
+    fetchCountBeforeFallbackSave,
+    'saving fallbacks should not reload unrelated model settings',
+  )
 
   const panelSource = readFileSync(new URL('../src/components/solonclaw/models/ProvidersPanel.vue', import.meta.url), 'utf8')
   const { descriptor } = parse(panelSource)
@@ -168,6 +227,14 @@ export function normalizeDialectCatalog(value) {
   assert.doesNotMatch(html, /No providers found/, 'ProvidersPanel should not show the empty state while loadError is visible')
 
   const settingsSource = readFileSync(new URL('../src/components/solonclaw/settings/ModelSettings.vue', import.meta.url), 'utf8')
+  assert.ok(settingsSource.includes('function syncDefaultProviderForm()'), 'default provider draft should have an isolated synchronizer')
+  assert.ok(settingsSource.includes('function syncDefaultModelForm()'), 'default model draft should have an isolated synchronizer')
+  assert.ok(settingsSource.includes('function syncFallbackForm()'), 'fallback drafts should have an isolated synchronizer')
+  assert.ok(settingsSource.includes('function syncTaskRoutesForm()'), 'task route drafts should have an isolated synchronizer')
+  assert.ok(!settingsSource.includes('function syncForms()'), 'one settings save must not overwrite every model draft')
+  assert.ok(!settingsSource.includes("() => [modelsStore.defaultProvider, modelsStore.defaultModel]"), 'default Provider and model should not share one watcher')
+  assert.ok(settingsSource.includes("t('models.unregisteredProvider'"), 'legacy unregistered Providers should remain visible as disabled options')
+  assert.ok(settingsSource.includes("t('models.unregisteredModel'"), 'legacy unregistered models should remain visible as disabled options')
   const settingsTemplateSource = parse(settingsSource).descriptor.template?.content
   assert.ok(settingsTemplateSource, 'ModelSettings should have a renderable template')
 
@@ -198,10 +265,17 @@ export function normalizeDialectCatalog(value) {
         defaultProvider: 'openai',
         defaultModel: 'mimo-v2.5',
         fallbackRows: [],
+        taskCategories: ['monitor', 'background_review', 'curator', 'approval', 'compression', 'cron'],
+        taskRoutes: mockSystemApi.emptyTaskModelRoutes(),
         providerOptions: [{ label: 'OpenAI', value: 'openai' }],
+        modelOptions: () => [{ label: 'mimo-v2.5', value: 'mimo-v2.5' }],
         savingKey: null,
+        handleDefaultProviderChange: () => {},
         handleSaveDefault: () => {},
+        handleTaskProviderChange: () => {},
+        handleSaveTaskRoutes: () => {},
         addFallbackRow: () => {},
+        handleFallbackProviderChange: () => {},
         removeFallbackRow: () => {},
         handleSaveFallbacks: () => {},
         t: (key: string) => {

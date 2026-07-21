@@ -19,6 +19,9 @@ providers:
     apiKey: ""
     # 该提供方默认使用的模型。
     defaultModel: gpt-5.4
+    # 可在 Profile、Cron 和后台任务中选择的模型；支持一个 Provider 配置多个模型。
+    models:
+      - gpt-5.4
     # 协议类型，可选 openai、openai-responses、ollama、gemini、anthropic。
     dialect: openai-responses
     # 显式模型能力元数据；未填写的字段才会回退到协议或模型家族推断。
@@ -44,6 +47,9 @@ providers:
     apiKey: ""
     # Ollama 默认模型名。
     defaultModel: qwen3
+    # 该 Provider 可选择的模型清单，也可在 Dashboard 中远程拉取或手动添加。
+    models:
+      - qwen3
     # 协议类型。
     dialect: ollama
 
@@ -111,6 +117,10 @@ approvals:
   # /reload-mcp 会让下一轮模型请求重新发送完整工具 schema，默认需要确认。
   # 设为 false 后，/reload-mcp 将直接执行。
   mcpReloadConfirm: true
+  # 危险操作智能审批专用 Provider；留空时沿用当前 Profile 主模型。
+  modelProvider: ""
+  # 危险操作智能审批专用模型；留空时沿用当前 Profile 主模型。
+  model: ""
   # 用户自定义不可绕过的命令 deny 列表，支持 glob 通配（* 和 ?）。
   # 即使 guardrailMode 设为 bypass 也不放过，用于补充内置 hardline 规则。
   # 例如：禁止 git push --force 和 docker 容器停止。
@@ -169,6 +179,10 @@ solonclaw:
     # 未设置 job.enabled_toolsets 时，cron 平台默认启用的工具集；空列表表示沿用全部默认工具。
     # cron 运行时始终会额外禁用 cronjob / messaging / clarify，避免无人值守递归调度或主动发消息。
     enabledToolsets: []
+    # Cron 任务未单独绑定模型时使用的 Provider；留空时沿用当前 Profile 主模型。
+    defaultProvider: ""
+    # Cron 任务未单独绑定模型时使用的模型；留空时沿用当前 Profile 主模型。
+    defaultModel: ""
 
   # MCP 工具适配配置。
   mcp:
@@ -247,6 +261,8 @@ solonclaw:
     enabled: true
     # 触发压缩的上下文占用比例。
     thresholdPercent: 0.5
+    # 压缩摘要专用 Provider；留空时使用当前 Profile 主模型。
+    summaryProvider: ""
     # 可选压缩摘要模型；留空时使用当前默认模型。
     summaryModel: ""
     # 压缩时保护开头消息数量。
@@ -262,6 +278,10 @@ solonclaw:
     toolCallThreshold: 5
     # 自动学习分类/技能总结等辅助模型调用的总超时，单位秒。
     auxiliaryTimeoutSeconds: 60
+    # 对话后复盘、记忆和技能维护专用 Provider；留空时沿用当前 Profile 主模型。
+    modelProvider: ""
+    # 对话后复盘、记忆和技能维护专用模型；留空时沿用当前 Profile 主模型。
+    model: ""
 
   # 旧每日记忆生命周期配置。
   memory:
@@ -530,6 +550,10 @@ solonclaw:
     # 免打扰起止时间，格式为 HH:mm。
     quietStart: "22:00"
     quietEnd: "08:00"
+    # 主动监控和重要性分类专用 Provider；留空时沿用当前 Profile 主模型。
+    modelProvider: ""
+    # 主动监控和重要性分类专用模型；留空时沿用当前 Profile 主模型。
+    model: ""
 
   # 国内消息渠道配置。
   channels:

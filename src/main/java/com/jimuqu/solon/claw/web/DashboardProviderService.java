@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
 import com.jimuqu.solon.claw.support.HttpRedirectSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
@@ -24,14 +25,18 @@ import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.io.File;
 import java.math.BigDecimal;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
+import org.noear.solon.core.Props;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
@@ -42,6 +47,17 @@ public class DashboardProviderService {
 
     /** 模型列表缓存最大ENTRIES的统一常量值。 */
     private static final int MODEL_LIST_CACHE_MAX_ENTRIES = 64;
+
+    /** Dashboard 支持配置默认模型的后台任务类别，顺序同时用于稳定展示。 */
+    private static final List<String> TASK_MODEL_ROUTE_CATEGORIES =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            "monitor",
+                            "background_review",
+                            "curator",
+                            "approval",
+                            "compression",
+                            "cron"));
 
     /** 注入应用配置，用于控制台提供方。 */
     private final AppConfig appConfig;
@@ -227,6 +243,7 @@ public class DashboardProviderService {
         result.put("defaultProviderKey", appConfig.getModel().getProviderKey());
         result.put("defaultModel", appConfig.getModel().getDefault());
         result.put("fallbackProviders", cloneFallbackProviders(appConfig.getFallbackProviders()));
+        result.put("taskModelRoutes", taskModelRoutes());
         result.put("dialectCatalog", dialectCatalog());
         result.put("providerProfiles", providerProfileService.listProfiles());
         return result;
@@ -237,6 +254,68 @@ public class DashboardProviderService {
      */
     public Map<String, Object> listProviders(String profile) {
         return forProfile(profile).listProviders();
+    }
+
+    /**
+     * 列出主动监控、后台复盘、技能整理、审批、压缩和 Cron 的默认模型路由。
+     *
+     * @return 六类默认模型路由。
+     */
+    public Map<String, Object> listTaskModelRoutes() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("routes", taskModelRoutes());
+        return result;
+    }
+
+    /**
+     * 列出指定 Profile 的后台任务默认模型路由。
+     *
+     * @param profile Profile 名。
+     * @return 六类默认模型路由。
+     */
+    public Map<String, Object> listTaskModelRoutes(String profile) {
+        return forProfile(profile).listTaskModelRoutes();
+    }
+
+    /**
+     * 更新六类后台任务默认模型路由；空 provider/model 表示沿用 Profile 主模型。
+     *
+     * @param data Dashboard 请求体。
+     * @return 更新结果。
+     */
+    public Map<String, Object> updateTaskModelRoutes(Map<String, Object> data) {
+        Object rawRoutes = data == null ? null : data.get("routes");
+        if (!(rawRoutes instanceof Map)) {
+            throw new IllegalArgumentException("routes 必须是对象。");
+        }
+        Map<String, Object> routes = sanitizeMap((Map<?, ?>) rawRoutes);
+        synchronized (configFileLock()) {
+            Map<String, Object> normalized = new LinkedHashMap<String, Object>();
+            for (String category : TASK_MODEL_ROUTE_CATEGORIES) {
+                Map<String, Object> route = sanitizeMap(asMap(routes.get(category)));
+                String provider = readString(route, "provider");
+                String model = readString(route, "model");
+                validateTaskModelRoute(category, provider, model);
+                normalized.put(category, taskModelRoute(provider, model));
+            }
+            Map<String, Object> root = loadRootForMutation();
+            writeTaskModelRoutes(root, normalized);
+            write(root);
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("routes", normalized);
+            return result;
+        }
+    }
+
+    /**
+     * 更新指定 Profile 的后台任务默认模型路由。
+     *
+     * @param data Dashboard 请求体。
+     * @param profile Profile 名。
+     * @return 更新结果。
+     */
+    public Map<String, Object> updateTaskModelRoutes(Map<String, Object> data, String profile) {
+        return forProfile(profile).updateTaskModelRoutes(data);
     }
 
     /**
@@ -482,6 +561,9 @@ public class DashboardProviderService {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> createProvider(Map<String, Object> data) {
+        if (isNamedProfileConfig()) {
+            return globalProviderService().createProvider(data);
+        }
         synchronized (configFileLock()) {
             String providerKey = readString(data, "providerKey");
             ensureProviderKey(providerKey);
@@ -504,7 +586,8 @@ public class DashboardProviderService {
 
     /** 在指定 Profile 创建 Provider。 */
     public Map<String, Object> createProvider(Map<String, Object> data, String profile) {
-        return forProfile(profile).createProvider(data);
+        validateRequestedProfile(profile);
+        return createProvider(data);
     }
 
     /**
@@ -516,6 +599,9 @@ public class DashboardProviderService {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> updateProvider(String providerKey, Map<String, Object> data) {
+        if (isNamedProfileConfig()) {
+            return globalProviderService().updateProvider(providerKey, data);
+        }
         synchronized (configFileLock()) {
             ensureProviderKey(providerKey);
             Map<String, Object> root = loadRootForMutation();
@@ -533,7 +619,8 @@ public class DashboardProviderService {
     /** 在指定 Profile 更新 Provider。 */
     public Map<String, Object> updateProvider(
             String providerKey, Map<String, Object> data, String profile) {
-        return forProfile(profile).updateProvider(providerKey, data);
+        validateRequestedProfile(profile);
+        return updateProvider(providerKey, data);
     }
 
     /**
@@ -543,6 +630,9 @@ public class DashboardProviderService {
      * @return 返回提供方结果。
      */
     public Map<String, Object> deleteProvider(String providerKey) {
+        if (isNamedProfileConfig()) {
+            return globalProviderService().deleteProvider(providerKey);
+        }
         synchronized (configFileLock()) {
             ensureProviderKey(providerKey);
             if (StrUtil.equals(providerKey, appConfig.getModel().getProviderKey())) {
@@ -553,6 +643,10 @@ public class DashboardProviderService {
                     throw new IllegalArgumentException("该 provider 正在 fallbackProviders 中使用，不能删除。");
                 }
             }
+            if (taskModelRoutesReferenceProvider(providerKey)) {
+                throw new IllegalArgumentException("该 provider 正在后台任务默认模型中使用，不能删除。");
+            }
+            ensureProviderNotReferencedByProfiles(providerKey);
 
             Map<String, Object> root = loadRootForMutation();
             Map<String, Object> providers = getOrCreateMap(root, "providers");
@@ -562,9 +656,86 @@ public class DashboardProviderService {
         }
     }
 
+    /**
+     * 删除全局 Provider 前检查全部命名 Profile 的主模型和备用链引用。
+     *
+     * @param providerKey 待删除的全局 Provider 键。
+     */
+    private void ensureProviderNotReferencedByProfiles(String providerKey) {
+        Path profilesHome = globalRootHome().resolve("profiles");
+        if (!Files.isDirectory(profilesHome)) {
+            return;
+        }
+        try (java.util.stream.Stream<Path> profiles = Files.list(profilesHome)) {
+            java.util.Iterator<Path> iterator = profiles.filter(Files::isDirectory).iterator();
+            while (iterator.hasNext()) {
+                Path profileHome = iterator.next();
+                Map<String, Object> root =
+                        new DashboardProfileConfigFile(profileHome.resolve("config.yml"))
+                                .readRoot();
+                Map<String, Object> model = sanitizeMap(asMap(root.get("model")));
+                if (StrUtil.equals(providerKey, readString(model, "providerKey"))
+                        || fallbackReferencesProvider(root.get("fallbackProviders"), providerKey)
+                        || taskModelRoutesReferenceProvider(root, providerKey)) {
+                    throw new IllegalArgumentException(
+                            "Provider 正被 Profile 使用：" + profileHome.getFileName());
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("读取 Profile Provider 引用失败。", e);
+        }
+    }
+
+    /** 返回全局 Provider 配置所在的根工作区。 */
+    private Path globalRootHome() {
+        if (profileContext != null) {
+            return profileContext.profileManager().root().toAbsolutePath().normalize();
+        }
+        Path home =
+                new File(appConfig.getRuntime().getHome()).toPath().toAbsolutePath().normalize();
+        Path parent = home.getParent();
+        if (parent != null && "profiles".equals(String.valueOf(parent.getFileName()))) {
+            Path root = parent.getParent();
+            return root == null ? home : root;
+        }
+        return home;
+    }
+
+    /** 判断备用链是否引用指定全局 Provider。 */
+    private boolean fallbackReferencesProvider(Object rawFallbacks, String providerKey) {
+        if (!(rawFallbacks instanceof List)) {
+            return false;
+        }
+        for (Object item : (List<?>) rawFallbacks) {
+            if (item instanceof Map
+                    && StrUtil.equals(
+                            providerKey, readString(sanitizeMap((Map<?, ?>) item), "provider"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 把映射对象安全转换为通用映射，非映射值返回空映射。 */
+    private Map<?, ?> asMap(Object value) {
+        return value instanceof Map ? (Map<?, ?>) value : Collections.emptyMap();
+    }
+
     /** 从指定 Profile 删除 Provider。 */
     public Map<String, Object> deleteProvider(String providerKey, String profile) {
-        return forProfile(profile).deleteProvider(providerKey);
+        validateRequestedProfile(profile);
+        return deleteProvider(providerKey);
+    }
+
+    /**
+     * 校验 Dashboard 请求携带的 Profile 仍然存在；Provider 虽为全局资源，也不能忽略失效作用域。
+     *
+     * @param profile Dashboard 请求选择的 Profile。
+     */
+    private void validateRequestedProfile(String profile) {
+        if (profileContext != null) {
+            profileContext.resolve(profile);
+        }
     }
 
     /**
@@ -583,6 +754,7 @@ public class DashboardProviderService {
             if (!llmProviderService.hasProvider(nextProviderKey)) {
                 throw new IllegalArgumentException("未找到 provider：" + nextProviderKey);
             }
+            validateProviderModel(nextProviderKey, model, true);
 
             Map<String, Object> root = loadRootForMutation();
             Map<String, Object> modelNode = getOrCreateMap(root, "model");
@@ -622,6 +794,7 @@ public class DashboardProviderService {
                     node.put("provider", provider);
                     String model = readString(item, "model");
                     if (StrUtil.isNotBlank(model)) {
+                        validateProviderModel(provider, model, false);
                         node.put("model", model);
                     }
                     next.add(node);
@@ -764,7 +937,7 @@ public class DashboardProviderService {
         AppConfig scopedConfig = scope.getConfig();
         return new DashboardProviderService(
                 scopedConfig,
-                null,
+                gatewayRuntimeRefreshService,
                 DashboardProfileContext.snapshotProviderService(scopedConfig),
                 new SecurityPolicyService(scopedConfig),
                 new ModelMetadataService(scopedConfig),
@@ -1137,6 +1310,7 @@ public class DashboardProviderService {
         item.put("name", StrUtil.blankToDefault(provider.getName(), providerKey));
         item.put("baseUrl", SecretRedactor.maskUrl(StrUtil.nullToEmpty(provider.getBaseUrl())));
         item.put("defaultModel", StrUtil.nullToEmpty(provider.getDefaultModel()));
+        item.put("models", configuredModels(provider));
         item.put("dialect", StrUtil.nullToEmpty(provider.getDialect()));
         item.put("hasApiKey", SecretValueGuard.hasUsableSecret(provider.getApiKey()));
         item.put("isDefault", StrUtil.equals(providerKey, appConfig.getModel().getProviderKey()));
@@ -1271,6 +1445,7 @@ public class DashboardProviderService {
         result.put("baseUrl", StrUtil.nullToEmpty(provider.getBaseUrl()).trim());
         result.put("apiKey", StrUtil.nullToEmpty(provider.getApiKey()).trim());
         result.put("defaultModel", StrUtil.nullToEmpty(provider.getDefaultModel()).trim());
+        result.put("models", configuredModels(provider));
         result.put("dialect", StrUtil.nullToEmpty(provider.getDialect()).trim());
         if (provider.getSupportsVision() != null) {
             result.put("supportsVision", provider.getSupportsVision());
@@ -1337,6 +1512,12 @@ public class DashboardProviderService {
                         ? readString(source, "apiKey")
                         : readString(base, "apiKey");
         String defaultModel = readString(source, "defaultModel");
+        List<String> models =
+                normalizeModels(
+                        defaultModel,
+                        source.containsKey("models")
+                                ? source.get("models")
+                                : (base == null ? null : base.get("models")));
         String dialect = LlmProviderSupport.normalizeDialect(readString(source, "dialect"));
         Boolean supportsVision = readBooleanValue(source, "supportsVision", base, "supportsVision");
         Map<String, Boolean> capabilities = readCapabilities(source, base);
@@ -1365,6 +1546,7 @@ public class DashboardProviderService {
         result.put("baseUrl", StrUtil.nullToEmpty(baseUrl).trim());
         result.put("apiKey", StrUtil.nullToEmpty(apiKey).trim());
         result.put("defaultModel", StrUtil.nullToEmpty(defaultModel).trim());
+        result.put("models", models);
         result.put("dialect", dialect);
         if (supportsVision != null) {
             result.put("supportsVision", supportsVision);
@@ -1377,6 +1559,262 @@ public class DashboardProviderService {
         putIfNotBlank(result, "groupDescription", groupDescription);
         putIfNotBlank(result, "displayDescription", displayDescription);
         return result;
+    }
+
+    /**
+     * 返回 Provider 可选模型，默认模型始终排在首位且列表不含空值和重复项。
+     *
+     * @param provider Provider 配置。
+     * @return 规范化模型列表。
+     */
+    private List<String> configuredModels(AppConfig.ProviderConfig provider) {
+        return normalizeModels(
+                provider == null ? "" : provider.getDefaultModel(),
+                provider == null ? null : provider.getModels());
+    }
+
+    /**
+     * 规范化请求或配置中的模型清单。
+     *
+     * @param defaultModel Provider 默认模型。
+     * @param rawModels 原始模型列表或逗号分隔文本。
+     * @return 默认模型优先的去重列表。
+     */
+    private List<String> normalizeModels(String defaultModel, Object rawModels) {
+        LinkedHashSet<String> result = new LinkedHashSet<String>();
+        if (StrUtil.isNotBlank(defaultModel)) {
+            result.add(defaultModel.trim());
+        }
+        if (rawModels instanceof List) {
+            for (Object item : (List<?>) rawModels) {
+                addNormalizedModel(result, item);
+            }
+        } else if (rawModels != null) {
+            for (String item : String.valueOf(rawModels).split(",")) {
+                addNormalizedModel(result, item);
+            }
+        }
+        return new ArrayList<String>(result);
+    }
+
+    /**
+     * 向模型集合加入一项非空模型。
+     *
+     * @param target 目标集合。
+     * @param rawModel 原始模型值。
+     */
+    private void addNormalizedModel(LinkedHashSet<String> target, Object rawModel) {
+        String model = rawModel == null ? "" : String.valueOf(rawModel).trim();
+        if (StrUtil.isNotBlank(model)) {
+            target.add(model);
+        }
+    }
+
+    /**
+     * 校验模型是否属于指定 Provider 的可选模型列表。
+     *
+     * @param providerKey Provider 键。
+     * @param model 模型名。
+     * @param allowBlank 是否允许模型留空。
+     */
+    private void validateProviderModel(String providerKey, String model, boolean allowBlank) {
+        String normalizedModel = StrUtil.nullToEmpty(model).trim();
+        if (StrUtil.isBlank(normalizedModel)) {
+            if (allowBlank) {
+                return;
+            }
+            throw new IllegalArgumentException("模型不能为空。");
+        }
+        AppConfig.ProviderConfig provider = appConfig.getProviders().get(providerKey);
+        if (provider == null) {
+            throw new IllegalArgumentException("未找到 provider：" + providerKey);
+        }
+        if (!configuredModels(provider).contains(normalizedModel)) {
+            throw new IllegalArgumentException(
+                    "模型未加入 provider " + providerKey + " 的模型列表：" + normalizedModel);
+        }
+    }
+
+    /** 返回六类后台任务当前生效的显式模型路由。 */
+    private Map<String, Object> taskModelRoutes() {
+        Map<String, Object> routes = new LinkedHashMap<String, Object>();
+        routes.put(
+                "monitor",
+                taskModelRoute(
+                        appConfig.getProactive().getModelProvider(),
+                        appConfig.getProactive().getModel()));
+        routes.put(
+                "background_review",
+                taskModelRoute(
+                        appConfig.getLearning().getModelProvider(),
+                        appConfig.getLearning().getModel()));
+        routes.put(
+                "curator",
+                taskModelRoute(
+                        appConfig.getCurator().getAiProvider(),
+                        appConfig.getCurator().getAiModel()));
+        routes.put(
+                "approval",
+                taskModelRoute(
+                        appConfig.getApprovals().getModelProvider(),
+                        appConfig.getApprovals().getModel()));
+        routes.put(
+                "compression",
+                taskModelRoute(
+                        appConfig.getCompression().getSummaryProvider(),
+                        appConfig.getCompression().getSummaryModel()));
+        routes.put(
+                "cron",
+                taskModelRoute(
+                        appConfig.getScheduler().getDefaultProvider(),
+                        appConfig.getScheduler().getDefaultModel()));
+        return routes;
+    }
+
+    /**
+     * 创建一项模型路由响应。
+     *
+     * @param provider Provider 键。
+     * @param model 模型名。
+     * @return 路由响应。
+     */
+    private Map<String, Object> taskModelRoute(String provider, String model) {
+        Map<String, Object> route = new LinkedHashMap<String, Object>();
+        route.put("provider", StrUtil.nullToEmpty(provider).trim());
+        route.put("model", StrUtil.nullToEmpty(model).trim());
+        return route;
+    }
+
+    /**
+     * 校验后台任务路由同时指定 Provider 和模型，并要求模型已登记。
+     *
+     * @param category 任务类别。
+     * @param provider Provider 键。
+     * @param model 模型名。
+     */
+    private void validateTaskModelRoute(String category, String provider, String model) {
+        if (StrUtil.isBlank(provider) && StrUtil.isBlank(model)) {
+            return;
+        }
+        if (StrUtil.isBlank(provider) || StrUtil.isBlank(model)) {
+            throw new IllegalArgumentException(category + " 必须同时指定 provider 和 model。");
+        }
+        validateProviderModel(provider, model, false);
+    }
+
+    /**
+     * 把统一 Dashboard 路由写回各业务已有配置段。
+     *
+     * @param root config.yml 根节点。
+     * @param routes 已校验路由。
+     */
+    private void writeTaskModelRoutes(Map<String, Object> root, Map<String, Object> routes) {
+        Map<String, Object> solonclaw = getOrCreateMap(root, "solonclaw");
+        writeModelRoute(
+                getOrCreateMap(solonclaw, "proactive"),
+                sanitizeMap(asMap(routes.get("monitor"))),
+                "modelProvider",
+                "model");
+        writeModelRoute(
+                getOrCreateMap(solonclaw, "learning"),
+                sanitizeMap(asMap(routes.get("background_review"))),
+                "modelProvider",
+                "model");
+        Map<String, Object> skills = getOrCreateMap(solonclaw, "skills");
+        writeModelRoute(
+                getOrCreateMap(skills, "curator"),
+                sanitizeMap(asMap(routes.get("curator"))),
+                "aiProvider",
+                "aiModel");
+        writeModelRoute(
+                getOrCreateMap(root, "approvals"),
+                sanitizeMap(asMap(routes.get("approval"))),
+                "modelProvider",
+                "model");
+        writeModelRoute(
+                getOrCreateMap(solonclaw, "compression"),
+                sanitizeMap(asMap(routes.get("compression"))),
+                "summaryProvider",
+                "summaryModel");
+        writeModelRoute(
+                getOrCreateMap(solonclaw, "scheduler"),
+                sanitizeMap(asMap(routes.get("cron"))),
+                "defaultProvider",
+                "defaultModel");
+    }
+
+    /**
+     * 写入或清除一项业务配置中的 Provider/模型字段。
+     *
+     * @param target 目标配置段。
+     * @param route 路由值。
+     * @param providerField Provider 字段名。
+     * @param modelField 模型字段名。
+     */
+    private void writeModelRoute(
+            Map<String, Object> target,
+            Map<String, Object> route,
+            String providerField,
+            String modelField) {
+        putOrRemove(target, providerField, readString(route, "provider"));
+        putOrRemove(target, modelField, readString(route, "model"));
+    }
+
+    /**
+     * 非空字符串写入配置，空字符串删除配置键以恢复继承语义。
+     *
+     * @param target 目标配置段。
+     * @param key 配置键。
+     * @param value 配置值。
+     */
+    private void putOrRemove(Map<String, Object> target, String key, String value) {
+        if (StrUtil.isBlank(value)) {
+            target.remove(key);
+        } else {
+            target.put(key, value.trim());
+        }
+    }
+
+    /** 判断当前运行配置的六类后台任务是否引用指定 Provider。 */
+    private boolean taskModelRoutesReferenceProvider(String providerKey) {
+        for (Object value : taskModelRoutes().values()) {
+            if (value instanceof Map
+                    && StrUtil.equals(
+                            providerKey, readString(sanitizeMap((Map<?, ?>) value), "provider"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** 判断原始 Profile 配置中的六类后台任务是否引用指定 Provider。 */
+    private boolean taskModelRoutesReferenceProvider(Map<String, Object> root, String providerKey) {
+        Map<String, Object> solonclaw = sanitizeMap(asMap(root.get("solonclaw")));
+        Map<String, Object> skills = sanitizeMap(asMap(solonclaw.get("skills")));
+        return routeReferencesProvider(
+                        sanitizeMap(asMap(solonclaw.get("proactive"))),
+                        "modelProvider",
+                        providerKey)
+                || routeReferencesProvider(
+                        sanitizeMap(asMap(solonclaw.get("learning"))), "modelProvider", providerKey)
+                || routeReferencesProvider(
+                        sanitizeMap(asMap(skills.get("curator"))), "aiProvider", providerKey)
+                || routeReferencesProvider(
+                        sanitizeMap(asMap(root.get("approvals"))), "modelProvider", providerKey)
+                || routeReferencesProvider(
+                        sanitizeMap(asMap(solonclaw.get("compression"))),
+                        "summaryProvider",
+                        providerKey)
+                || routeReferencesProvider(
+                        sanitizeMap(asMap(solonclaw.get("scheduler"))),
+                        "defaultProvider",
+                        providerKey);
+    }
+
+    /** 判断一个业务配置段的 Provider 字段是否匹配目标 Provider。 */
+    private boolean routeReferencesProvider(
+            Map<String, Object> node, String field, String providerKey) {
+        return StrUtil.equals(providerKey, readString(node, field));
     }
 
     /**
@@ -1516,6 +1954,10 @@ public class DashboardProviderService {
             }
         }
 
+        if (isNamedProfileConfig()) {
+            root.remove("providers");
+            return root;
+        }
         if (!(root.get("providers") instanceof Map)) {
             Map<String, Object> providers = new LinkedHashMap<String, Object>();
             for (Map.Entry<String, AppConfig.ProviderConfig> entry :
@@ -1537,6 +1979,39 @@ public class DashboardProviderService {
                             cloneFallbackProviders(appConfig.getFallbackProviders())));
         }
         return root;
+    }
+
+    /**
+     * 判断当前写入目标是否为命名 Profile；命名 Profile 只能保存 Provider/模型引用，不能复制全局注册表。
+     *
+     * @return 当前配置文件位于根工作区 profiles 目录下时返回 true。
+     */
+    private boolean isNamedProfileConfig() {
+        Path home =
+                new File(appConfig.getRuntime().getHome()).toPath().toAbsolutePath().normalize();
+        return !home.equals(globalRootHome());
+    }
+
+    /**
+     * 创建绑定根工作区 Provider 注册表的服务，供命名 Profile 上的 Provider 增删改复用。
+     *
+     * @return 根工作区 Provider 管理服务；当前已是根工作区时返回自身。
+     */
+    private DashboardProviderService globalProviderService() {
+        if (!isNamedProfileConfig()) {
+            return this;
+        }
+        Props props = new Props();
+        props.put("solonclaw.workspace", globalRootHome().toString());
+        AppConfig globalConfig = AppConfig.loadDetached(props);
+        return new DashboardProviderService(
+                globalConfig,
+                gatewayRuntimeRefreshService,
+                new LlmProviderService(globalConfig),
+                new SecurityPolicyService(globalConfig),
+                new ModelMetadataService(globalConfig),
+                profileContext,
+                priceCatalog);
     }
 
     /**
@@ -1574,7 +2049,13 @@ public class DashboardProviderService {
             }
         }
         if (gatewayRuntimeRefreshService != null) {
-            gatewayRuntimeRefreshService.refreshConfigOnly();
+            if (isNamedProfileConfig()) {
+                gatewayRuntimeRefreshService.refreshProfileConfigOnly(
+                        ProfileRuntimeIdentity.resolve(appConfig));
+            } else {
+                gatewayRuntimeRefreshService.refreshConfigOnly();
+                gatewayRuntimeRefreshService.refreshProfileConfigsOnly();
+            }
         }
     }
 

@@ -163,7 +163,8 @@ public class ProactiveReminderScheduler {
         }
         state.setObservedUserMessageCount(userMessageCount);
         MemorySnapshot memory = memoryService.loadSnapshot();
-        analyzeActivity(session, memory, state);
+        SessionRecord modelSession = routedModelSession(session, config);
+        analyzeActivity(modelSession, memory, state);
         state.setActivityCredit(Math.min(1D, state.getActivityCredit() + state.getActivityLevel()));
         if (state.getActivityCredit() < 1D) {
             finish(
@@ -172,7 +173,7 @@ public class ProactiveReminderScheduler {
                     "当前活跃度累计额度不足，已保留额度供后续检查继续累计。");
             return;
         }
-        String message = generateMessage(session, memory, state);
+        String message = generateMessage(modelSession, memory, state);
         if (StrUtil.isBlank(message) || MessageSupport.isSilentResponse(message)) {
             finish(state, ProactiveReminderState.OUTCOME_MODEL_SILENT, "模型判断本次没有适合发送的内容。");
             return;
@@ -203,6 +204,28 @@ public class ProactiveReminderScheduler {
                         : 1);
         state.setLastContactDate(currentDateKey());
         finish(state, ProactiveReminderState.OUTCOME_DELIVERED, "主动提醒已成功投递到主对话。");
+    }
+
+    /**
+     * 创建只供主动提醒模型调用的会话副本，避免临时路由并发污染真实用户会话。
+     *
+     * @param source 主对话会话。
+     * @param config 主动提醒配置。
+     * @return 携带主对话历史和主动提醒模型路由的临时会话。
+     */
+    private SessionRecord routedModelSession(
+            SessionRecord source, AppConfig.ProactiveConfig config) {
+        SessionRecord routed = new SessionRecord();
+        routed.setSessionId("proactive-" + StrUtil.blankToDefault(source.getSessionId(), "main"));
+        routed.setNdjson(source.getNdjson());
+        routed.setCompressedSummary(source.getCompressedSummary());
+        if (StrUtil.isNotBlank(config.getModelProvider())) {
+            routed.setTransientProviderOverride(config.getModelProvider().trim());
+        }
+        if (StrUtil.isNotBlank(config.getModel())) {
+            routed.setTransientModelOverride(config.getModel().trim());
+        }
+        return routed;
     }
 
     /** 使用活跃度分析 MD 调整后续检查的发送概率额度，并保存模型给出的审计理由。 */

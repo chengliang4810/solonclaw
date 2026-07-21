@@ -174,6 +174,35 @@ class ProactiveReminderSchedulerTest {
         assertThat(status.get("last_sent_at")).isNotNull();
     }
 
+    /** 主动监控模型路由必须只作用于临时副本，不能污染主对话会话。 */
+    @Test
+    void shouldUseMonitorModelRouteWithoutMutatingMainSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bindHome(env);
+        env.appConfig.getProactive().setModelProvider("fast");
+        env.appConfig.getProactive().setModel("flash-model");
+        ScenarioLlmGateway llmGateway =
+                new ScenarioLlmGateway("{\"new_level\":1,\"reason\":\"可以联系\"}", "这是一次主动提醒。");
+
+        scheduler(env, llmGateway, new CountingDeliveryService()).tick();
+
+        assertThat(llmGateway.sessions).hasSize(2);
+        assertThat(llmGateway.sessions)
+                .allSatisfy(
+                        session -> {
+                            assertThat(session.getTransientProviderOverride()).isEqualTo("fast");
+                            assertThat(session.getTransientModelOverride())
+                                    .isEqualTo("flash-model");
+                            assertThat(session.getSessionId()).startsWith("proactive-");
+                        });
+        assertThat(env.sessionRepository.listRecent(10))
+                .allSatisfy(
+                        session -> {
+                            assertThat(session.getTransientProviderOverride()).isNull();
+                            assertThat(session.getTransientModelOverride()).isNull();
+                        });
+    }
+
     /** 没有主渠道会话时应记录明确跳过原因，而不是静默返回。 */
     @Test
     void shouldPersistMissingMainConversationOutcome() throws Exception {
@@ -529,6 +558,9 @@ class ProactiveReminderSchedulerTest {
         /** 收到的用户提示。 */
         private final List<String> userPrompts = new ArrayList<String>();
 
+        /** 收到的模型会话，用于验证任务路由覆盖。 */
+        private final List<SessionRecord> sessions = new ArrayList<SessionRecord>();
+
         /** 创建没有预设返回值的场景模型。 */
         private ScenarioLlmGateway() {
             this.responses = Collections.emptyList();
@@ -546,6 +578,7 @@ class ProactiveReminderSchedulerTest {
                 String systemPrompt,
                 String userMessage,
                 List<Object> toolObjects) {
+            sessions.add(session);
             userPrompts.add(userMessage);
             int index = userPrompts.size() - 1;
             String content = index < responses.size() ? responses.get(index) : "";

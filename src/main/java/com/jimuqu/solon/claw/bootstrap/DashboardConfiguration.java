@@ -111,6 +111,8 @@ public class DashboardConfiguration {
      * @param profileManager Profile 核心管理器。
      * @param dashboardMcpService 跨 Profile MCP 配置服务。
      * @param dashboardSkillsService 跨 Profile 技能服务。
+     * @param profileMultiplexRuntimeManager 命名 Profile 子运行时管理器。
+     * @param gatewayRuntimeRefreshService default Profile 配置刷新服务。
      * @return Dashboard Profile 服务。
      */
     @Bean
@@ -118,12 +120,14 @@ public class DashboardConfiguration {
             ProfileManager profileManager,
             DashboardMcpService dashboardMcpService,
             DashboardSkillsService dashboardSkillsService,
-            ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager) {
+            ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
         return new DashboardProfileService(
                 profileManager,
                 dashboardMcpService,
                 dashboardSkillsService,
-                profileMultiplexRuntimeManager);
+                profileMultiplexRuntimeManager,
+                gatewayRuntimeRefreshService);
     }
 
     /**

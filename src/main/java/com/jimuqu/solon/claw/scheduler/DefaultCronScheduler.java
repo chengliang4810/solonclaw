@@ -2018,16 +2018,27 @@ public class DefaultCronScheduler {
      * @return 返回模型Override结果。
      */
     private String modelOverride(CronJobRecord job) {
-        if (job == null || StrUtil.isBlank(job.getModel())) {
+        if (job == null) {
+            return null;
+        }
+        String model = StrUtil.nullToEmpty(job.getModel()).trim();
+        String provider = StrUtil.nullToEmpty(job.getProvider()).trim();
+        String baseUrl = StrUtil.nullToEmpty(job.getBaseUrl()).trim();
+        if (StrUtil.isBlank(model) || StrUtil.isBlank(provider)) {
+            model = StrUtil.nullToEmpty(appConfig.getScheduler().getDefaultModel()).trim();
+            provider = StrUtil.nullToEmpty(appConfig.getScheduler().getDefaultProvider()).trim();
+            baseUrl = "";
+        }
+        if (StrUtil.isBlank(model) || StrUtil.isBlank(provider)) {
             return null;
         }
         StringBuilder override = new StringBuilder();
-        if (StrUtil.isNotBlank(job.getProvider())) {
-            override.append(job.getProvider().trim()).append(':');
+        if (StrUtil.isNotBlank(provider)) {
+            override.append(provider).append(':');
         }
-        override.append(job.getModel().trim());
-        if (StrUtil.isNotBlank(job.getBaseUrl())) {
-            override.append(':').append(job.getBaseUrl().trim());
+        override.append(model);
+        if (StrUtil.isNotBlank(baseUrl)) {
+            override.append(':').append(baseUrl);
         }
         return override.toString();
     }

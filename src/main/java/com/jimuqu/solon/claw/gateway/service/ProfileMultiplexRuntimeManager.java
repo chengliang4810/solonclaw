@@ -272,6 +272,55 @@ public class ProfileMultiplexRuntimeManager implements ProfileMessageRouter, Aut
     }
 
     /**
+     * 只刷新全部已启动命名 Profile 的配置对象，不关闭子容器，也不重连渠道。
+     *
+     * @return 成功刷新配置的命名 Profile 数量。
+     */
+    public int refreshRunningConfigsOnly() {
+        lifecycleLock.readLock().lock();
+        try {
+            int refreshed = 0;
+            for (ProfileRuntimeBundle bundle : bundles.values()) {
+                if (refreshBundleConfigOnly(bundle)) {
+                    refreshed++;
+                }
+            }
+            return refreshed;
+        } finally {
+            lifecycleLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * 只刷新一个已经启动的命名 Profile 配置；未启动时保持无操作。
+     *
+     * @param profile 命名 Profile。
+     * @return 目标运行时存在且刷新成功时返回 true。
+     */
+    public boolean refreshRunningConfigOnly(String profile) {
+        String normalized = normalizeProfile(profile);
+        lifecycleLock.readLock().lock();
+        try {
+            return refreshBundleConfigOnly(bundles.get(normalized));
+        } finally {
+            lifecycleLock.readLock().unlock();
+        }
+    }
+
+    /** 通过子容器自己的刷新服务更新配置，避免替换运行时包或触发渠道重连。 */
+    private boolean refreshBundleConfigOnly(ProfileRuntimeBundle bundle) {
+        if (closed || bundle == null) {
+            return false;
+        }
+        GatewayRuntimeRefreshService refreshService =
+                bundle.appContext().getBean(GatewayRuntimeRefreshService.class);
+        if (refreshService == null) {
+            return false;
+        }
+        return refreshService.refreshConfigOnly().isSuccess();
+    }
+
+    /**
      * 读取命名 Profile 子运行时的真实渠道状态；未由 multiplex 承载时返回 null。
      *
      * @param profile 命名 Profile。

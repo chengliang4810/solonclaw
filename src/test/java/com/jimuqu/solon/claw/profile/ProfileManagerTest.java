@@ -49,11 +49,15 @@ class ProfileManagerTest {
         manager = new ProfileManager(root, wrapperDir, "solonclaw");
     }
 
-    /** `--clone` 复制配置、凭据、人格和技能，但不继承会话数据库与网关运行文件。 */
+    /** `--clone` 复制 Profile 配置、凭据、人格和技能，但全局 Provider 注册表只保留在根工作区。 */
     @Test
     void cloneCopiesIdentityWithoutRuntimeHistory() throws Exception {
-        write(root.resolve("config.yml"), "providers:\n  default:\n    apiKey: clone-secret\n");
-        write(root.resolve(".env"), "TOKEN=clone-secret\n");
+        write(
+                root.resolve("config.yml"),
+                "providers:\n  default:\n    apiKey: clone-secret\nmodel:\n  providerKey: default\n  default: clone-model\n");
+        write(
+                root.resolve(".env"),
+                "TOKEN=clone-secret\nOPENAI_API_KEY=model-secret\nSOLONCLAW_PROVIDER_DEFAULT_API_KEY=provider-secret\n");
         write(root.resolve("SOUL.md"), "# source soul\n");
         write(root.resolve("MEMORY.md"), "# source memory\n");
         write(root.resolve("skills/demo/SKILL.md"), "# demo\n");
@@ -63,8 +67,14 @@ class ProfileManagerTest {
         runOk("default", "create", "work", "--clone", "--no-alias");
 
         Path work = manager.profileHome("work");
-        assertThat(work.resolve("config.yml")).hasSameTextualContentAs(root.resolve("config.yml"));
-        assertThat(work.resolve(".env")).hasSameTextualContentAs(root.resolve(".env"));
+        assertThat(work.resolve("config.yml"))
+                .content()
+                .contains("providerKey: default", "default: clone-model")
+                .doesNotContain("providers:", "clone-secret");
+        assertThat(work.resolve(".env"))
+                .content()
+                .contains("TOKEN=clone-secret", "SOLONCLAW_SPEECH_API_KEY=model-secret")
+                .doesNotContain("OPENAI_API_KEY", "SOLONCLAW_PROVIDER_DEFAULT_API_KEY");
         assertThat(work.resolve("SOUL.md")).exists();
         assertThat(work.resolve("MEMORY.md")).exists();
         assertThat(work.resolve("skills/demo/SKILL.md")).exists();
@@ -75,7 +85,9 @@ class ProfileManagerTest {
     /** `--clone-all` 复制 Profile 用户状态，但仍为新 Profile 清除会话历史和运行时网关状态。 */
     @Test
     void cloneAllKeepsProfileFilesButStartsWithFreshRuntimeState() throws Exception {
-        write(root.resolve("config.yml"), "model:\n  default: source-model\n");
+        write(
+                root.resolve("config.yml"),
+                "providers:\n  default:\n    apiKey: clone-all-secret\nmodel:\n  providerKey: default\n  default: source-model\n");
         write(root.resolve("memory/2026-07-11.md"), "source memory\n");
         write(root.resolve("logs/gateway.log"), "source log\n");
         write(root.resolve("forensics/shutdown.json"), "runtime history\n");
@@ -106,6 +118,10 @@ class ProfileManagerTest {
 
         Path backup = manager.profileHome("backup");
         assertThat(backup.resolve("config.yml")).exists();
+        assertThat(backup.resolve("config.yml"))
+                .content()
+                .contains("default: source-model")
+                .doesNotContain("providers:", "clone-all-secret");
         assertThat(backup.resolve("memory/2026-07-11.md")).exists();
         assertThat(backup.resolve("logs")).doesNotExist();
         assertThat(backup.resolve("forensics")).doesNotExist();
@@ -301,8 +317,7 @@ class ProfileManagerTest {
         assertThat(Files.readString(wrapperDir.resolve("restored")))
                 .contains("solonclaw --profile restored");
         assertThat(Files.readString(restored.resolve("config.yml")))
-                .contains("***")
-                .doesNotContain("Sk-Profile-Export-Secret-12345");
+                .doesNotContain("providers:", "Sk-Profile-Export-Secret-12345");
         assertThat(Files.readString(restored.resolve(".env")))
                 .doesNotContain("Sk-Env-Export-Secret-12345");
         assertThat(restored.resolve(".env.example")).hasContent("TOKEN=\n");
@@ -689,6 +704,37 @@ class ProfileManagerTest {
                 .contains("Version: 2.0.0")
                 .contains("Installed:")
                 .contains("Updated:");
+    }
+
+    /** 更新 default Profile 时必须保留根工作区的全局 Provider 注册表和模型凭据。 */
+    @Test
+    void updatingDefaultProfilePreservesGlobalProvidersAndCredentials() throws Exception {
+        Path distribution = tempDir.resolve("default-distribution");
+        write(
+                distribution.resolve("distribution.yaml"),
+                "name: default\nversion: 2.0.0\ndistribution_owned:\n  - SOUL.md\n");
+        write(distribution.resolve("SOUL.md"), "updated default soul\n");
+        write(
+                root.resolve("distribution.yaml"),
+                "name: default\nversion: 1.0.0\nsource: '" + distribution.toAbsolutePath() + "'\n");
+        write(
+                root.resolve("config.yml"),
+                "providers:\n  default:\n    defaultModel: root-model\nmodel:\n  providerKey: default\n  default: root-model\n");
+        write(
+                root.resolve(".env"),
+                "OPENAI_API_KEY=root-openai-secret\nSOLONCLAW_PROVIDER_DEFAULT_API_KEY=root-provider-secret\n");
+
+        runOk("default", "update", "default", "-y");
+
+        assertThat(root.resolve("config.yml"))
+                .content()
+                .contains("providers:", "defaultModel: root-model");
+        assertThat(root.resolve(".env"))
+                .content()
+                .contains(
+                        "OPENAI_API_KEY=root-openai-secret",
+                        "SOLONCLAW_PROVIDER_DEFAULT_API_KEY=root-provider-secret");
+        assertThat(root.resolve("SOUL.md")).hasContent("updated default soul\n");
     }
 
     /** distribution_owned 仅替换声明路径，且即使显式声明也不能导入凭据或会话状态。 */

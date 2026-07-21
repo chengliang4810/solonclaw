@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
+import com.jimuqu.solon.claw.support.RuntimeConfigResolverSupport;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -59,6 +60,88 @@ public class AppConfigLoaderProfileScopeTest {
 
         assertThat(config.getSecurity().isAllowPrivateUrls()).isEqualTo(expectedAllowPrivate);
         assertThat(config.getGateway().isMultiplexProfiles()).isEqualTo(expectedMultiplex);
+    }
+
+    /** 命名 Profile 必须引用根工作区 Provider，且本地重复注册表不能覆盖全局定义。 */
+    @Test
+    void shouldUseRootProviderRegistryForNamedProfile() throws Exception {
+        Path root = Files.createTempDirectory("profile-global-providers");
+        Path profile = root.resolve("profiles/writer");
+        Files.createDirectories(profile);
+        Files.writeString(
+                root.resolve("config.yml"),
+                "providers:\n"
+                        + "  dwf:\n"
+                        + "    baseUrl: https://global.example/v1\n"
+                        + "    defaultModel: qwen3.7-plus\n"
+                        + "    dialect: openai\n"
+                        + "model:\n"
+                        + "  providerKey: dwf\n"
+                        + "  default: qwen3.7-plus\n");
+        Files.writeString(root.resolve(".env"), "SOLONCLAW_PROVIDER_DWF_API_KEY=root-secret\n");
+        Files.writeString(
+                profile.resolve("config.yml"),
+                "providers:\n"
+                        + "  evil:\n"
+                        + "    baseUrl: https://profile.example/v1\n"
+                        + "    defaultModel: wrong-model\n"
+                        + "    dialect: openai\n"
+                        + "model:\n"
+                        + "  providerKey: dwf\n"
+                        + "  default: qwen3.7-plus\n");
+        Files.writeString(
+                profile.resolve(".env"), "SOLONCLAW_PROVIDER_DWF_API_KEY=profile-secret\n");
+
+        AppConfig config = AppConfig.loadDetached(props(profile, false, true));
+
+        assertThat(config.getProviders()).containsKey("dwf").doesNotContainKey("evil");
+        assertThat(config.getProviders().get("dwf").getBaseUrl())
+                .isEqualTo("https://global.example/v1");
+        assertThat(config.getProviders().get("dwf").getApiKey()).isEqualTo("root-secret");
+        assertThat(config.getModel().getProviderKey()).isEqualTo("dwf");
+    }
+
+    /** 每个 Profile 的运行时解析器必须独立重载自己的配置，并且不能替换进程全局解析器。 */
+    @Test
+    void shouldKeepRuntimeConfigResolversIndependentAcrossProfiles() throws Exception {
+        Path previousHome =
+                RuntimeConfigResolver.getInstance()
+                        .configFile()
+                        .toPath()
+                        .toAbsolutePath()
+                        .normalize()
+                        .getParent();
+        Path root = Files.createTempDirectory("profile-runtime-resolvers");
+        Path profileA = root.resolve("profiles/a");
+        Path profileB = root.resolve("profiles/b");
+        Files.createDirectories(profileA);
+        Files.createDirectories(profileB);
+        Files.writeString(profileA.resolve("config.yml"), "model:\n  default: model-a\n");
+        Files.writeString(profileB.resolve("config.yml"), "model:\n  default: model-b\n");
+
+        try {
+            RuntimeConfigResolver global = RuntimeConfigResolver.initialize(profileA.toString());
+            AppConfig configB = new AppConfig();
+            configB.getRuntime().setHome(profileB.toString());
+            RuntimeConfigResolver independent = RuntimeConfigResolverSupport.fromAppConfig(configB);
+
+            assertThat(global.get("model.default")).isEqualTo("model-a");
+            assertThat(independent.get("model.default")).isEqualTo("model-b");
+            assertThat(RuntimeConfigResolver.getInstance()).isSameAs(global);
+
+            Files.writeString(
+                    profileA.resolve("config.yml"), "model:\n  default: model-a-reloaded\n");
+            Files.writeString(
+                    profileB.resolve("config.yml"), "model:\n  default: model-b-reloaded\n");
+            global.reload();
+            independent.reload();
+
+            assertThat(global.get("model.default")).isEqualTo("model-a-reloaded");
+            assertThat(independent.get("model.default")).isEqualTo("model-b-reloaded");
+            assertThat(RuntimeConfigResolver.getInstance()).isSameAs(global);
+        } finally {
+            RuntimeConfigResolver.initialize(previousHome.toString());
+        }
     }
 
     /** 创建只声明本测试两个配置开关的独立 Props。 */

@@ -108,10 +108,12 @@ public class CommandEnhancementTest {
         assertThat(rollbackReply.getContent()).contains("checkpoint");
         assertThat(rollbackReply.getRuntimeMetadata()).containsEntry("history_removed", 2);
         assertThat(FileUtil.readUtf8String(file)).isEqualTo("v1");
-        assertThat(
-                        MessageSupport.countMessages(
-                                env.sessionRepository.findById(bound.getSessionId()).getNdjson()))
-                .isZero();
+        List<ChatMessage> rolledBackMessages =
+                MessageSupport.loadMessages(
+                        env.sessionRepository.findById(bound.getSessionId()).getNdjson());
+        assertThat(rolledBackMessages).hasSize(1);
+        assertThat(rolledBackMessages.get(0).getRole()).isEqualTo(ChatRole.ASSISTANT);
+        assertThat(rolledBackMessages.get(0).getContent()).isEqualTo(rollbackReply.getContent());
 
         GatewayReply pruneReply = env.send("admin-chat", "admin-user", "/rollback prune");
         assertThat(pruneReply.getContent()).contains("deleted_missing=0").contains("remaining=2");
@@ -792,6 +794,10 @@ public class CommandEnhancementTest {
     @Test
     void shouldSupportJimuquCronFlagSyntaxAndSkillEditing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig
+                .getProviders()
+                .get("default")
+                .setModels(Arrays.asList("gpt-5.4", "gpt-test-cron"));
         createCronScript(env, "collect.py");
         bootstrapAdmin(env);
 
@@ -1361,6 +1367,7 @@ public class CommandEnhancementTest {
     @Test
     void shouldShowJimuquCronListRuntimeDetails() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getProviders().get("default").setModels(Arrays.asList("gpt-5.4", "gpt-cron"));
         createCronScript(env, "collect.py");
         bootstrapAdmin(env);
 
@@ -1521,7 +1528,10 @@ public class CommandEnhancementTest {
         List<ChatMessage> reloadedMessages =
                 com.jimuqu.solon.claw.support.MessageSupport.loadMessages(
                         reloadedSession.getNdjson());
-        ChatMessage reloadNotice = reloadedMessages.get(reloadedMessages.size() - 1);
+        ChatMessage reloadReply = reloadedMessages.get(reloadedMessages.size() - 1);
+        assertThat(reloadReply.getRole()).isEqualTo(ChatRole.ASSISTANT);
+        assertThat(reloadReply.getContent()).contains("MCP reload completed");
+        ChatMessage reloadNotice = reloadedMessages.get(reloadedMessages.size() - 2);
         assertThat(reloadNotice.getRole()).isEqualTo(ChatRole.USER);
         assertThat(reloadNotice.getContent())
                 .contains("[IMPORTANT: MCP servers have been reloaded.")

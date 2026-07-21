@@ -85,6 +85,8 @@ class MemoryArchiveServiceTest {
     @Test
     void shouldRedactModelInputAndDeduplicatePendingCandidateOnRetry() throws Exception {
         AppConfig config = config(true);
+        config.getLearning().setModelProvider("review-provider");
+        config.getLearning().setModel("review-model");
         FileMemoryService memory = new FileMemoryService(config);
         memory.setApprovalEnabled(true);
         Path source = tempDir.resolve("memory/2026-05-02.md");
@@ -107,6 +109,8 @@ class MemoryArchiveServiceTest {
                 .contains("用户要求先测试")
                 .contains("token=***")
                 .doesNotContain("sk-test-archive1234567890");
+        assertThat(gateway.lastSession.getTransientProviderOverride()).isEqualTo("review-provider");
+        assertThat(gateway.lastSession.getTransientModelOverride()).isEqualTo("review-model");
         assertThat(read(summary)).contains("归纳方式：AI").contains("长期偏好：提交前先运行相关测试");
 
         Files.write(summary, "corrupt-summary".getBytes(StandardCharsets.UTF_8));
@@ -448,6 +452,9 @@ class MemoryArchiveServiceTest {
         /** 最近一次用户提示。 */
         private String lastUserMessage;
 
+        /** 最近一次辅助模型会话。 */
+        private SessionRecord lastSession;
+
         /** 创建固定模型网关。 */
         private RecordingGateway(String response) {
             this.response = response;
@@ -461,6 +468,7 @@ class MemoryArchiveServiceTest {
                 String userMessage,
                 List<Object> toolObjects) {
             calls.incrementAndGet();
+            lastSession = session;
             lastUserMessage = userMessage;
             LlmResult result = new LlmResult();
             result.setAssistantMessage(new AssistantMessage(response));

@@ -51,3 +51,15 @@ assert.ok(jobForm.includes('options.push({ label: value, value, disabled: false 
 const toolsetSelect = jobForm.match(/<FormItem :label="t\('jobs\.enabledToolsets'\)">[\s\S]*?<Select([\s\S]*?)\/>/)
 assert.ok(toolsetSelect, 'job form should render the enabled toolsets select')
 assert.ok(toolsetSelect[1]?.includes(':virtual="false"'), 'enabled toolsets select should avoid hidden zero-size virtual ARIA options')
+
+assert.ok(jobForm.includes('const hasCompleteModelBinding = Boolean(storedProvider && storedModel)'), 'legacy partial Cron model bindings should be cleared')
+assert.ok(jobForm.includes("base_url: ''"), 'editing a Cron job should clear the legacy direct base URL')
+assert.ok(jobForm.includes("['base_url', formData.value.base_url]"), 'Cron updates should submit null for the cleared legacy base URL')
+assert.ok(
+  jobForm.includes('hasText(formData.value.provider) !== hasText(formData.value.model)'),
+  'Cron should reject partial Provider/model bindings',
+)
+assert.ok(jobForm.includes("t('models.unregisteredModel'"), 'legacy unregistered Cron models should remain visible as disabled options')
+const cronModelSelect = jobForm.match(/<FormItem :label="t\('jobs\.model'\)">[\s\S]*?<Select([\s\S]*?)\/>/)
+assert.ok(cronModelSelect, 'Cron form should render a model select')
+assert.ok(!cronModelSelect[1]?.includes('allow-clear'), 'Cron model must be cleared together with its Provider')

@@ -51,6 +51,8 @@ class CrossSessionReflectionServiceTest {
         assertThat(second.getLastOutcome()).isEqualTo(ReflectionState.OUTCOME_UNCHANGED);
         assertThat(calls).hasValue(1);
         assertThat(gateway.lastUserMessage).contains("先运行测试再提交").contains("修复后要给验证证据");
+        assertThat(gateway.lastSession.getTransientProviderOverride()).isEqualTo("review-provider");
+        assertThat(gateway.lastSession.getTransientModelOverride()).isEqualTo("review-model");
         assertThat(read(tempDir.resolve("REFLECTION.md")))
                 .contains("派生假设")
                 .contains("用户在多个项目中偏好先验证再提交")
@@ -132,6 +134,8 @@ class CrossSessionReflectionServiceTest {
         config.getRuntime().setHome(tempDir.toString());
         config.getReflection().setEnabled(true);
         config.getReflection().setLookbackDays(7);
+        config.getLearning().setModelProvider("review-provider");
+        config.getLearning().setModel("review-model");
         return new CrossSessionReflectionService(
                 config, new FixedSessionRepository(sessions), gateway, settings);
     }
@@ -170,6 +174,9 @@ class CrossSessionReflectionServiceTest {
         /** 最近一次用户提示。 */
         private String lastUserMessage;
 
+        /** 最近一次辅助模型会话。 */
+        private SessionRecord lastSession;
+
         /** 创建固定回复模型网关。 */
         private RecordingGateway(AtomicInteger calls, String response) {
             this.calls = calls;
@@ -184,6 +191,7 @@ class CrossSessionReflectionServiceTest {
                 String userMessage,
                 List<Object> toolObjects) {
             calls.incrementAndGet();
+            lastSession = session;
             lastUserMessage = userMessage;
             LlmResult result = new LlmResult();
             result.setAssistantMessage(new AssistantMessage(response));

@@ -72,6 +72,27 @@ public class GatewayRuntimeRefreshService {
     }
 
     /**
+     * 只刷新全部已经启动的命名 Profile 配置，不重建运行时或渠道连接。
+     *
+     * @return 成功刷新的命名 Profile 数量。
+     */
+    public int refreshProfileConfigsOnly() {
+        ProfileMultiplexRuntimeManager manager = profileMultiplexRuntimeManager;
+        return manager == null ? 0 : manager.refreshRunningConfigsOnly();
+    }
+
+    /**
+     * 只刷新一个已经启动的命名 Profile 配置；未启动时保持无操作。
+     *
+     * @param profile 命名 Profile。
+     * @return 目标运行时存在且刷新成功时返回 true。
+     */
+    public boolean refreshProfileConfigOnly(String profile) {
+        ProfileMultiplexRuntimeManager manager = profileMultiplexRuntimeManager;
+        return manager != null && manager.refreshRunningConfigOnly(profile);
+    }
+
+    /**
      * 刷新If Needed。
      *
      * @return 返回If Needed结果。

@@ -24,7 +24,7 @@ assert.ok(
 )
 assert.equal(
   (settings.match(/\{ type: 'text', field: '[^']+'/g) || []).length,
-  11,
+  12,
   'Primary domestic platform text fields should stay covered by the config',
 )
 assert.equal(

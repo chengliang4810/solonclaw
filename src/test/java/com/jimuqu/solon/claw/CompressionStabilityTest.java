@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
+import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.engine.DefaultContextCompressionService;
 import com.jimuqu.solon.claw.engine.ToolCallArgumentSanitizer;
+import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import java.lang.reflect.Field;
@@ -16,6 +18,9 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.AssistantMessage;
@@ -409,6 +414,74 @@ public class CompressionStabilityTest {
         assertThat(session.getLastCompressionFailedAt()).isGreaterThan(0L);
     }
 
+    /** 压缩模型必须使用独立路由，并在返回完整结构时替换确定性摘要。 */
+    @Test
+    void shouldUseConfiguredCompressionModelRoute() throws Exception {
+        AppConfig config = config();
+        config.getCompression().setSummaryProvider("fast");
+        config.getCompression().setSummaryModel("flash-model");
+        RecordingCompressionGateway gateway =
+                new RecordingCompressionGateway(
+                        "Goal\n模型目标\n\nProgress\n模型进展\n\nDecisions\n模型决策\n\nFiles\n文件清单\n\nRemaining Work\n模型待办");
+        DefaultContextCompressionService service =
+                new DefaultContextCompressionService(config, gateway);
+        SessionRecord session = compressibleSession("s-model-compression");
+
+        SessionRecord compressed = service.compressNow(session, "system prompt");
+
+        assertThat(gateway.provider).isEqualTo("fast");
+        assertThat(gateway.model).isEqualTo("flash-model");
+        assertThat(gateway.sessionId).startsWith("context-compression-");
+        assertThat(compressed.getCompressedSummary()).contains("模型目标", "模型进展", "模型决策", "模型待办");
+    }
+
+    /** 压缩辅助模型异常时必须继续使用确定性摘要，不能让主会话压缩失败。 */
+    @Test
+    void shouldFallbackToDeterministicSummaryWhenCompressionModelFails() throws Exception {
+        DefaultContextCompressionService service =
+                new DefaultContextCompressionService(
+                        config(),
+                        new RecordingCompressionGateway(new IllegalStateException("down")));
+        SessionRecord session = compressibleSession("s-model-compression-fallback");
+
+        CompressionOutcome outcome = service.compressNowWithOutcome(session, "system prompt", null);
+
+        assertThat(outcome.isFailed()).isFalse();
+        assertThat(outcome.isCompressed()).isTrue();
+        assertThat(session.getCompressedSummary())
+                .contains("Goal", "Progress", "Decisions", "Files", "Remaining Work")
+                .doesNotContain("模型目标");
+    }
+
+    /** 压缩模型超过辅助任务预算时必须取消模型线程，并立即使用确定性摘要完成压缩。 */
+    @Test
+    void shouldCancelTimedOutCompressionModelAndUseDeterministicSummary() throws Exception {
+        AppConfig config = config();
+        config.getLearning().setAuxiliaryTimeoutSeconds(1);
+        InterruptibleCompressionGateway gateway = new InterruptibleCompressionGateway();
+        DefaultContextCompressionService service =
+                new DefaultContextCompressionService(config, gateway);
+        SessionRecord session = compressibleSession("s-model-compression-timeout");
+        long startedAt = System.nanoTime();
+
+        try {
+            CompressionOutcome outcome =
+                    service.compressNowWithOutcome(session, "system prompt", null);
+            long elapsedMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+
+            assertThat(outcome.isFailed()).isFalse();
+            assertThat(outcome.isCompressed()).isTrue();
+            assertThat(elapsedMillis).isLessThan(3000L);
+            assertThat(session.getCompressedSummary())
+                    .contains("Goal", "Progress", "Decisions", "Files", "Remaining Work");
+            assertThat(gateway.started.await(1, TimeUnit.SECONDS)).isTrue();
+            assertThat(gateway.interrupted.await(1, TimeUnit.SECONDS)).isTrue();
+            assertThat(gateway.wasInterrupted).isTrue();
+        } finally {
+            service.shutdown();
+        }
+    }
+
     @Test
     void shouldAlwaysProtectLatestUserMessage() throws Exception {
         AppConfig config = config();
@@ -703,6 +776,21 @@ public class CompressionStabilityTest {
         return session;
     }
 
+    /** 创建包含可压缩中间历史和受保护尾部的会话。 */
+    private SessionRecord compressibleSession(String sessionId) throws Exception {
+        SessionRecord session = new SessionRecord();
+        session.setSessionId(sessionId);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser("完成模型路由"),
+                                ChatMessage.ofAssistant(repeat("中间执行记录", 500)),
+                                ChatMessage.ofUser("继续完成验证"),
+                                ChatMessage.ofAssistant("处理中"))));
+        return session;
+    }
+
     /** 在测试元数据中模拟等待提供方 usage 验证的上一轮压缩。 */
     @SuppressWarnings("unchecked")
     private void markPendingCompression(
@@ -800,5 +888,85 @@ public class CompressionStabilityTest {
         List<ToolCall> toolCalls = new ArrayList<ToolCall>();
         toolCalls.add(new ToolCall("0", callId, name, arguments, null));
         return new AssistantMessage("", false, null, rawCalls, toolCalls, null);
+    }
+
+    /** 记录压缩辅助会话路由并返回预设结果。 */
+    private static class RecordingCompressionGateway extends FakeLlmGateway {
+        /** 预设模型正文。 */
+        private final String response;
+
+        /** 预设模型异常。 */
+        private final RuntimeException failure;
+
+        /** 收到的 Provider 路由。 */
+        private String provider;
+
+        /** 收到的模型路由。 */
+        private String model;
+
+        /** 收到的辅助会话标识。 */
+        private String sessionId;
+
+        /** 创建返回文本的压缩模型替身。 */
+        private RecordingCompressionGateway(String response) {
+            this.response = response;
+            this.failure = null;
+        }
+
+        /** 创建抛出异常的压缩模型替身。 */
+        private RecordingCompressionGateway(RuntimeException failure) {
+            this.response = null;
+            this.failure = failure;
+        }
+
+        /** 记录独立路由并返回或抛出预设结果。 */
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects) {
+            provider = session.getTransientProviderOverride();
+            model = session.getTransientModelOverride();
+            sessionId = session.getSessionId();
+            if (failure != null) {
+                throw failure;
+            }
+            LlmResult result = new LlmResult();
+            result.setAssistantMessage(ChatMessage.ofAssistant(response));
+            return result;
+        }
+    }
+
+    /** 模拟永不主动返回但能响应线程中断的压缩模型。 */
+    private static class InterruptibleCompressionGateway extends FakeLlmGateway {
+        /** 标记模型线程已经开始执行。 */
+        private final CountDownLatch started = new CountDownLatch(1);
+
+        /** 标记模型线程已经收到取消中断。 */
+        private final CountDownLatch interrupted = new CountDownLatch(1);
+
+        /** 记录模型线程是否按预期被中断。 */
+        private final AtomicBoolean wasInterrupted = new AtomicBoolean(false);
+
+        /** 阻塞模型调用，直到压缩服务超时后通过 Future.cancel(true) 中断。 */
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
+                throws Exception {
+            started.countDown();
+            try {
+                new CountDownLatch(1).await();
+                throw new IllegalStateException("阻塞模型不应自然返回");
+            } catch (InterruptedException e) {
+                wasInterrupted.set(true);
+                interrupted.countDown();
+                Thread.currentThread().interrupt();
+                throw e;
+            }
+        }
     }
 }

@@ -326,6 +326,7 @@ public class CrossSessionReflectionService {
     private List<ReflectionInsight> evaluate(EvidenceWindow window) throws Exception {
         final SessionRecord synthetic = new SessionRecord();
         synthetic.setSessionId("cross-session-reflection");
+        applyBackgroundReviewModelRoute(synthetic);
         Future<LlmResult> future =
                 auxiliaryExecutor.submit(
                         () ->
@@ -346,6 +347,20 @@ public class CrossSessionReflectionService {
             raw = MessageSupport.visibleText(result.getRawResponse());
         }
         return parseInsights(raw, window.validRefs, window.userRefs);
+    }
+
+    /**
+     * 为跨会话反思应用 background_review 默认模型路由。
+     *
+     * @param session 反思辅助会话。
+     */
+    private void applyBackgroundReviewModelRoute(SessionRecord session) {
+        if (StrUtil.isNotBlank(appConfig.getLearning().getModelProvider())) {
+            session.setTransientProviderOverride(appConfig.getLearning().getModelProvider().trim());
+        }
+        if (StrUtil.isNotBlank(appConfig.getLearning().getModel())) {
+            session.setTransientModelOverride(appConfig.getLearning().getModel().trim());
+        }
     }
 
     /** 将模型输出解析为经过字段白名单和证据引用校验的洞察。 */

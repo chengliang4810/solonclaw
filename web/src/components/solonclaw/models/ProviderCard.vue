@@ -33,7 +33,7 @@ function providerFieldValue(key: ProviderCardFieldKey): string {
     case 'baseUrl':
       return props.provider.base_url
     case 'defaultModel':
-      return props.provider.models[0] || '—'
+      return props.provider.defaultModel || props.provider.models[0] || '—'
     case 'apiKey':
       return t(apiKeyStatusLabelKey(props.provider.has_api_key))
     case 'healthStatus':
@@ -69,8 +69,8 @@ async function handleValidate() {
       providerKey: props.provider.providerKey || props.provider.provider,
       baseUrl: props.provider.base_url,
       dialect: props.provider.dialect,
-      model: props.provider.models?.[0] || '',
-      defaultModel: props.provider.models?.[0] || '',
+      model: props.provider.defaultModel || props.provider.models?.[0] || '',
+      defaultModel: props.provider.defaultModel || props.provider.models?.[0] || '',
     })
     if (validationResult.value.ok) {
       message.success(t('models.providerValid'))
@@ -99,6 +99,10 @@ async function handleValidate() {
         <span class="info-label">{{ t(row.labelKey) }}</span>
         <code v-if="row.monospaced" class="info-value mono">{{ providerFieldValue(row.key) }}</code>
         <span v-else class="info-value">{{ providerFieldValue(row.key) }}</span>
+      </div>
+      <div class="model-list-summary">
+        <span class="info-label">{{ t('models.configuredModels') }}</span>
+        <span class="info-value">{{ t('models.modelCount', { count: provider.models.length }) }}</span>
       </div>
     </div>
 
@@ -175,6 +179,13 @@ async function handleValidate() {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.model-list-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .info-label {

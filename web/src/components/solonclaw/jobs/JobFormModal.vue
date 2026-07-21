@@ -4,6 +4,7 @@ import { Modal, Form, FormItem, Input, Button, Select, InputNumber, Switch, Text
 import type { SelectValue } from 'antdv-next'
 import { fetchToolsets, type Toolset } from '@/api/solonclaw/jobs'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
+import { useModelsStore } from '@/stores/solonclaw/models'
 import { useI18n } from 'vue-i18n'
 import {
   DOMESTIC_PLATFORM_KEYS,
@@ -38,6 +39,7 @@ const emit = defineEmits<{
 }>()
 
 const jobsStore = useJobsStore()
+const modelsStore = useModelsStore()
 
 const showModal = ref(true)
 const loading = ref(false)
@@ -104,6 +106,38 @@ const toolsetOptions = computed(() => {
     if (value && !known.has(value)) {
       options.push({ label: value, value, disabled: false })
     }
+  }
+  return options
+})
+
+const providerOptions = computed(() => {
+  const options = modelsStore.providers.map(provider => ({
+    label: provider.label,
+    value: provider.provider,
+    disabled: false,
+  }))
+  const currentProvider = formData.value.provider
+  if (currentProvider && !modelsStore.providers.some(provider => provider.provider === currentProvider)) {
+    options.push({
+      label: t('models.unregisteredProvider', { provider: currentProvider }),
+      value: currentProvider,
+      disabled: true,
+    })
+  }
+  return options
+})
+
+const modelOptions = computed(() => {
+  const provider = modelsStore.providers.find(item => item.provider === formData.value.provider)
+  const models = Array.from(new Set(provider?.models || []))
+  const options = models.map(model => ({ label: model, value: model, disabled: false }))
+  const currentModel = formData.value.model
+  if (currentModel && !models.includes(currentModel)) {
+    options.push({
+      label: t('models.unregisteredModel', { model: currentModel }),
+      value: currentModel,
+      disabled: true,
+    })
   }
   return options
 })
@@ -275,9 +309,15 @@ function buildDeliveryPayload() {
 
 onMounted(async () => {
   void loadToolsets()
+  if (modelsStore.providers.length === 0) {
+    await modelsStore.fetchProviders()
+  }
   if (props.jobId) {
     try {
       const job = await jobsStore.fetchJob(props.jobId)
+      const storedProvider = String(job.provider || '').trim()
+      const storedModel = String(job.model || '').trim()
+      const hasCompleteModelBinding = Boolean(storedProvider && storedModel)
       formData.value = {
         name: job.name,
         schedule: '',
@@ -293,9 +333,9 @@ onMounted(async () => {
         no_agent: job.no_agent,
         context_from_text: joinTextList(job.context_from),
         enabled_toolsets: [...job.enabled_toolsets],
-        provider: job.provider || '',
-        model: job.model || '',
-        base_url: job.base_url || '',
+        provider: hasCompleteModelBinding ? storedProvider : '',
+        model: hasCompleteModelBinding ? storedModel : '',
+        base_url: '',
         state: job.state === 'completed' || job.state === 'paused' ? job.state : 'scheduled',
         enabled: job.enabled,
         paused_reason: job.paused_reason || '',
@@ -310,6 +350,13 @@ onMounted(async () => {
     }
   }
 })
+
+function handleProviderChange(value?: string) {
+  formData.value.provider = value || ''
+  const provider = modelsStore.providers.find(item => item.provider === formData.value.provider)
+  formData.value.model = provider?.defaultModel || provider?.models[0] || ''
+  formData.value.base_url = ''
+}
 
 async function loadToolsets() {
   toolsetsLoading.value = true
@@ -342,6 +389,10 @@ async function handleSave() {
   }
   if (deliveryMode.value === 'specific' && !hasText(formData.value.deliver_chat_id)) {
     message.warning(t('jobs.deliverChatIdRequired'))
+    return
+  }
+  if (hasText(formData.value.provider) !== hasText(formData.value.model)) {
+    message.warning(t('jobs.providerModelPairRequired'))
     return
   }
 
@@ -387,7 +438,7 @@ async function handleSave() {
       ['paused_reason', formData.value.paused_reason],
     ]
     for (const [key, raw] of nullableFields) {
-      const value = trimText(String(raw))
+      const value = trimText(typeof raw === 'string' ? raw : '')
       if (value) payload[key] = value
       else if (isEdit.value) payload[key] = null
     }
@@ -727,15 +778,23 @@ function handlePresetChange(value: SelectValue) {
           </FormItem>
         </div>
 
-        <div class="form-grid three">
+        <div class="form-grid">
           <FormItem :label="t('jobs.provider')">
-            <Input v-model:value="formData.provider" :placeholder="t('jobs.providerPlaceholder')" />
+            <Select
+              v-model:value="formData.provider"
+              :options="providerOptions"
+              :placeholder="t('jobs.useCronDefaultModel')"
+              allow-clear
+              @change="handleProviderChange"
+            />
           </FormItem>
           <FormItem :label="t('jobs.model')">
-            <Input v-model:value="formData.model" :placeholder="t('jobs.modelPlaceholder')" />
-          </FormItem>
-          <FormItem :label="t('jobs.baseUrl')">
-            <Input v-model:value="formData.base_url" :placeholder="t('jobs.baseUrlPlaceholder')" />
+            <Select
+              v-model:value="formData.model"
+              :options="modelOptions"
+              :placeholder="t('jobs.useCronDefaultModel')"
+              :disabled="!formData.provider"
+            />
           </FormItem>
         </div>
       </section>

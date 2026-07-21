@@ -723,7 +723,8 @@ public class SolonAiLlmGateway implements LlmGateway {
     private boolean hasPersistentSession(SessionRecord session) {
         return sessionRepository != null
                 && session != null
-                && StrUtil.isNotBlank(session.getSourceKey());
+                && StrUtil.isNotBlank(session.getSourceKey())
+                && session.getPersistedConcurrentSettings() != null;
     }
 
     /** 返回当前会话实际使用的决策重试次数。 */
@@ -4265,9 +4266,6 @@ public class SolonAiLlmGateway implements LlmGateway {
         @Override
         public SmartApprovalDecision judge(String toolName, String command, String description) {
             try {
-                AppConfig.LlmConfig resolved = buildCandidateConfigs(null).get(0);
-                validate(resolved);
-                ChatModel chatModel = buildChatModel(resolved);
                 String prompt =
                         "You are the smart approval judge for a local AI agent. "
                                 + "Decide whether this flagged command is low risk enough to run without asking the user, genuinely dangerous, or uncertain. "
@@ -4280,14 +4278,19 @@ public class SolonAiLlmGateway implements LlmGateway {
                                 + StrUtil.nullToEmpty(description)
                                 + "\ncommand:\n"
                                 + StrUtil.nullToEmpty(command);
-                ChatResponse response =
-                        chatModel
-                                .prompt(
-                                        ChatMessage.ofSystem(
-                                                "You are a strict command risk classifier."),
-                                        ChatMessage.ofUser(prompt))
-                                .call();
-                return parseSmartApprovalResponse(response == null ? null : response.getContent());
+                LlmResult result =
+                        SolonAiLlmGateway.this.chatTextOnly(
+                                smartApprovalSession(),
+                                "You are a strict command risk classifier.",
+                                prompt);
+                String output =
+                        result == null
+                                ? ""
+                                : MessageSupport.assistantText(result.getAssistantMessage());
+                if (StrUtil.isBlank(output) && result != null) {
+                    output = MessageSupport.visibleText(result.getRawResponse());
+                }
+                return parseSmartApprovalResponse(output);
             } catch (Exception e) {
                 log.warn(
                         "Smart approval judge failed, escalating to manual approval: {}",
@@ -4295,6 +4298,24 @@ public class SolonAiLlmGateway implements LlmGateway {
                 return SmartApprovalDecision.escalate("smart approval failed");
             }
         }
+    }
+
+    /**
+     * 创建只供危险操作智能审批使用的辅助会话；路由留空时由统一 Provider 解析器继承 Profile 主模型。
+     *
+     * @return 携带审批模型路由的临时会话。
+     */
+    private SessionRecord smartApprovalSession() {
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("smart-approval");
+        if (StrUtil.isNotBlank(appConfig.getApprovals().getModelProvider())) {
+            session.setTransientProviderOverride(
+                    appConfig.getApprovals().getModelProvider().trim());
+        }
+        if (StrUtil.isNotBlank(appConfig.getApprovals().getModel())) {
+            session.setTransientModelOverride(appConfig.getApprovals().getModel().trim());
+        }
+        return session;
     }
 
     /**

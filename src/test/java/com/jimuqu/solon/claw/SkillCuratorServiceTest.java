@@ -112,6 +112,8 @@ public class SkillCuratorServiceTest {
     @Test
     void shouldEvaluateSkillWithRealContentUsageAndConversationEvidence() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getCurator().setAiProvider("curator-provider");
+        env.appConfig.getCurator().setAiModel("curator-model");
         createSkill(env, "evidence-skill", false);
         SessionRecord session = session(env, "real-session", "这个技能的输出遗漏边界检查", "我会补充空输入和超长输入处理");
         env.localSkillService.bumpUsage("evidence-skill", "call", session.getSessionId(), 1);
@@ -137,6 +139,9 @@ public class SkillCuratorServiceTest {
                 .contains("callCount\":1")
                 .contains("这个技能的输出遗漏边界检查")
                 .contains("我会补充空输入和超长输入处理");
+        assertThat(gateway.lastSession.getTransientProviderOverride())
+                .isEqualTo("curator-provider");
+        assertThat(gateway.lastSession.getTransientModelOverride()).isEqualTo("curator-model");
         service.shutdown();
     }
 
@@ -394,6 +399,9 @@ public class SkillCuratorServiceTest {
         /** 最近一次用户提示。 */
         private String lastUserMessage;
 
+        /** 最近一次技能整理辅助会话。 */
+        private SessionRecord lastSession;
+
         /** 创建固定回复模型网关。 */
         private RecordingGateway(String response) {
             this.response = response;
@@ -406,6 +414,7 @@ public class SkillCuratorServiceTest {
                 String systemPrompt,
                 String userMessage,
                 List<Object> toolObjects) {
+            lastSession = session;
             lastUserMessage = userMessage;
             LlmResult result = new LlmResult();
             result.setAssistantMessage(new AssistantMessage(response));

@@ -2045,6 +2045,18 @@ public class DefaultCronSchedulerTest {
     void shouldPersistJimuquCronFieldsAndRejectUnsafePrompt() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getScheduler().setWrapResponse(false);
+        env.appConfig
+                .getProviders()
+                .get("default")
+                .setModels(
+                        java.util.Arrays.asList(
+                                "gpt-5.4",
+                                "gpt-5.2",
+                                "gpt-5.3",
+                                "claude-sonnet-4",
+                                "gpt-5.4-mini",
+                                "object-model",
+                                "fallback-provider-model"));
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
         Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -2055,6 +2067,7 @@ public class DefaultCronSchedulerTest {
         body.put("repeat", Integer.valueOf(3));
         body.put("deliver", java.util.Arrays.asList("origin", "MEMORY:briefing-room"));
         body.put("wrap_response", Boolean.FALSE);
+        body.put("provider", "default");
         body.put("model", "gpt-5.4-mini");
         body.put("base_url", "https://api.pin.example/v1/");
         CronJobRecord job = service.create("MEMORY:room:user", body);
@@ -2119,6 +2132,7 @@ public class DefaultCronSchedulerTest {
         directProvider.setBaseUrl("https://api.direct.example");
         directProvider.setApiKey("key");
         directProvider.setDefaultModel("direct-default");
+        directProvider.setModels(java.util.Arrays.asList("direct-default", "object-model"));
         directProvider.setDialect("openai-responses");
         env.appConfig.getProviders().put("direct", directProvider);
 
@@ -2162,6 +2176,42 @@ public class DefaultCronSchedulerTest {
         assertThat(cleared.getProvider()).isNull();
         assertThat(cleared.getModel()).isNull();
         assertThat(cleared.getBaseUrl()).isNull();
+
+        Map<String, Object> providerOnly = new LinkedHashMap<String, Object>();
+        providerOnly.put("name", "provider-only");
+        providerOnly.put("schedule", "30m");
+        providerOnly.put("prompt", "不得保存半组模型绑定");
+        providerOnly.put("provider", "default");
+        assertThatThrownBy(() -> service.create("MEMORY:room:user", providerOnly))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("requires both provider and model");
+
+        Map<String, Object> modelOnly = new LinkedHashMap<String, Object>();
+        modelOnly.put("name", "model-only");
+        modelOnly.put("schedule", "30m");
+        modelOnly.put("prompt", "不得保存半组模型绑定");
+        modelOnly.put("model", "gpt-5.4");
+        assertThatThrownBy(() -> service.create("MEMORY:room:user", modelOnly))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("requires both provider and model");
+
+        Map<String, Object> unregisteredModel = new LinkedHashMap<String, Object>();
+        unregisteredModel.put("name", "unregistered-model");
+        unregisteredModel.put("schedule", "30m");
+        unregisteredModel.put("prompt", "不得保存未登记模型");
+        unregisteredModel.put("provider", "default");
+        unregisteredModel.put("model", "missing-model");
+        assertThatThrownBy(() -> service.create("MEMORY:room:user", unregisteredModel))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("模型未加入 Provider default");
+
+        Map<String, Object> unregisteredModelUpdate = new LinkedHashMap<String, Object>();
+        unregisteredModelUpdate.put("provider", "default");
+        unregisteredModelUpdate.put("model", "missing-model");
+        assertThatThrownBy(() -> service.update(job.getJobId(), unregisteredModelUpdate))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("模型未加入 Provider default");
+        assertThat(service.require(job.getJobId()).getModel()).isEqualTo("gpt-5.4");
 
         Map<String, Object> unsafe = new LinkedHashMap<String, Object>();
         unsafe.put("name", "unsafe");
@@ -2561,6 +2611,7 @@ public class DefaultCronSchedulerTest {
         direct.setBaseUrl("https://api.default.example");
         direct.setApiKey("test-key");
         direct.setDefaultModel("default-model");
+        direct.setModels(java.util.Arrays.asList("default-model", "pinned-model"));
         direct.setDialect("openai-responses");
         env.appConfig.getProviders().put("direct", direct);
 
@@ -2596,6 +2647,76 @@ public class DefaultCronSchedulerTest {
                                 .getModelOverride())
                 .isNull();
         assertThat(env.sessionRepository.getBoundSession("MEMORY:cron-room:cron-user")).isNull();
+    }
+
+    /** 验证 Cron 运行时按任务绑定、Cron 默认、Profile 主模型的顺序选择模型。 */
+    @Test
+    void shouldResolveCronModelByJobDefaultThenProfilePriority() throws Exception {
+        RecordingResolvedLlmGateway gateway = new RecordingResolvedLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        AppConfig.ProviderConfig jobProvider = new AppConfig.ProviderConfig();
+        jobProvider.setName("JobProvider");
+        jobProvider.setBaseUrl("https://api.job.example");
+        jobProvider.setApiKey("test-key");
+        jobProvider.setDefaultModel("job-provider-default");
+        jobProvider.setDialect("openai-responses");
+        env.appConfig.getProviders().put("job-provider", jobProvider);
+        AppConfig.ProviderConfig cronProvider = new AppConfig.ProviderConfig();
+        cronProvider.setName("CronProvider");
+        cronProvider.setBaseUrl("https://api.cron.example");
+        cronProvider.setApiKey("test-key");
+        cronProvider.setDefaultModel("cron-provider-default");
+        cronProvider.setDialect("openai-responses");
+        env.appConfig.getProviders().put("cron-provider", cronProvider);
+        env.appConfig.getScheduler().setDefaultProvider("cron-provider");
+        env.appConfig.getScheduler().setDefaultModel("cron-default-model");
+
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        service,
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+        CronJobRecord pinned = job("cron-model-pinned", "MEMORY:cron-pinned:user");
+        pinned.setProvider("job-provider");
+        pinned.setModel("job-model");
+        env.cronJobRepository.save(pinned);
+
+        scheduler.runNow(pinned.getJobId());
+
+        assertThat(gateway.provider).isEqualTo("job-provider");
+        assertThat(gateway.model).isEqualTo("job-model");
+
+        CronJobRecord inherited = job("cron-model-default", "MEMORY:cron-default:user");
+        env.cronJobRepository.save(inherited);
+
+        scheduler.runNow(inherited.getJobId());
+
+        assertThat(gateway.provider).isEqualTo("cron-provider");
+        assertThat(gateway.model).isEqualTo("cron-default-model");
+
+        CronJobRecord legacyHalfPin = job("cron-model-half-pin", "MEMORY:cron-half:user");
+        legacyHalfPin.setProvider("job-provider");
+        env.cronJobRepository.save(legacyHalfPin);
+
+        scheduler.runNow(legacyHalfPin.getJobId());
+
+        assertThat(gateway.provider).isEqualTo("cron-provider");
+        assertThat(gateway.model).isEqualTo("cron-default-model");
+
+        env.appConfig.getScheduler().setDefaultProvider("cron-provider");
+        env.appConfig.getScheduler().setDefaultModel("");
+        CronJobRecord profileMain = job("cron-model-profile", "MEMORY:cron-profile:user");
+        env.cronJobRepository.save(profileMain);
+
+        scheduler.runNow(profileMain.getJobId());
+
+        assertThat(gateway.provider).isEqualTo("default");
+        assertThat(gateway.model).isEqualTo("gpt-5.4");
     }
 
     @Test

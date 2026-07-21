@@ -503,7 +503,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/providers",
-                        "{\"providerKey\":\"openai-direct\",\"name\":\"OpenAI渠道\",\"baseUrl\":\"https://api.openai.com\",\"apiKey\":\"test-key\",\"defaultModel\":\"gpt-5-mini\",\"dialect\":\"openai-responses\"}",
+                        "{\"providerKey\":\"openai-direct\",\"name\":\"OpenAI渠道\",\"baseUrl\":\"https://api.openai.com\",\"apiKey\":\"test-key\",\"defaultModel\":\"gpt-5-mini\",\"models\":[\"gpt-5-mini\",\"gpt-5.4\"],\"dialect\":\"openai-responses\"}",
                         token);
         assertThat(createProvider.status).isEqualTo(200);
 
@@ -1105,7 +1105,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/cron/jobs",
-                        "{\"prompt\":\"daily summary\",\"schedule\":\"0 9 * * *\",\"name\":\"Daily summary\",\"deliver\":\"feishu\",\"deliver_chat_id\":\"chat-dashboard\",\"deliver_thread_id\":\"thread-dashboard\",\"model\":\"gpt-5-mini\",\"base_url\":\"https://api.cron.example/v1/\"}",
+                        "{\"prompt\":\"daily summary\",\"schedule\":\"0 9 * * *\",\"name\":\"Daily summary\",\"deliver\":\"feishu\",\"deliver_chat_id\":\"chat-dashboard\",\"deliver_thread_id\":\"thread-dashboard\",\"provider\":\"openai-direct\",\"model\":\"gpt-5-mini\",\"base_url\":\"https://api.cron.example/v1/\"}",
                         token);
         assertThat(createCron.status).isEqualTo(200);
         assertThat(createCron.body).contains("\"model\":\"gpt-5-mini\"");

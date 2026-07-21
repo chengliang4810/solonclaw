@@ -195,6 +195,41 @@ public class SolonAiLlmGatewayConfigTest {
         }
     }
 
+    /** 验证智能审批辅助会话最终解析到 approval 独立 Provider 和模型。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldResolveConfiguredSmartApprovalModelRoute() throws Exception {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig main = new AppConfig.ProviderConfig();
+        main.setBaseUrl("https://main.example/v1");
+        main.setDefaultModel("main-model");
+        main.setDialect("openai");
+        AppConfig.ProviderConfig approval = new AppConfig.ProviderConfig();
+        approval.setBaseUrl("https://approval.example/v1");
+        approval.setDefaultModel("approval-default");
+        approval.setDialect("openai");
+        config.getProviders().put("main", main);
+        config.getProviders().put("approval", approval);
+        config.getModel().setProviderKey("main");
+        config.getModel().setDefault("main-model");
+        config.getApprovals().setModelProvider("approval");
+        config.getApprovals().setModel("approval-model");
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
+        Method approvalSession = SolonAiLlmGateway.class.getDeclaredMethod("smartApprovalSession");
+        approvalSession.setAccessible(true);
+        Method candidates =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "buildCandidateConfigs", SessionRecord.class);
+        candidates.setAccessible(true);
+
+        List<AppConfig.LlmConfig> resolved =
+                (List<AppConfig.LlmConfig>)
+                        candidates.invoke(gateway, approvalSession.invoke(gateway));
+
+        assertThat(resolved.get(0).getProvider()).isEqualTo("approval");
+        assertThat(resolved.get(0).getModel()).isEqualTo("approval-model");
+    }
+
     @Test
     void shouldApplyPriorityServiceTierForFastSession() throws Exception {
         AppConfig config = new AppConfig();

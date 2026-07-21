@@ -1,17 +1,22 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
+import com.jimuqu.solon.claw.profile.ProfileCreateOptions;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardProfileController;
 import com.jimuqu.solon.claw.web.DashboardProfileScope;
 import com.jimuqu.solon.claw.web.DashboardProfileService;
+import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -160,7 +165,17 @@ public class DashboardProfileServiceTest {
 
             Files.writeString(
                     root.resolve("config.yml"),
-                    "model:\n"
+                    "providers:\n"
+                            + "  default:\n"
+                            + "    baseUrl: https://default.example/v1\n"
+                            + "    defaultModel: default-model\n"
+                            + "    dialect: openai\n"
+                            + "  anthropic:\n"
+                            + "    baseUrl: https://anthropic.example/v1\n"
+                            + "    defaultModel: claude-test\n"
+                            + "    models: [claude-test, claude-default]\n"
+                            + "    dialect: anthropic\n"
+                            + "model:\n"
                             + "  providerKey: default\n"
                             + "  default: default-model\n"
                             + "solonclaw:\n"
@@ -185,15 +200,31 @@ public class DashboardProfileServiceTest {
             assertThat(profileConfig)
                     .contains("providerKey: anthropic")
                     .contains("default: claude-test")
-                    .contains("baseUrl: https://default.example/v1")
-                    .contains("baseUrl: https://anthropic.example/v1")
+                    .doesNotContain("providers:")
+                    .doesNotContain("baseUrl:")
                     .contains("contextWindowTokens: 0");
             assertThat(Files.readString(root.resolve("config.yml")))
                     .contains("default: default-model")
+                    .contains("baseUrl: https://anthropic.example/v1")
                     .contains("contextWindowTokens: 8192");
             assertThat(service.showProfile("writer"))
                     .containsEntry("provider", "anthropic")
                     .containsEntry("model", "claude-test");
+
+            service.updateModel("default", "anthropic", "claude-default");
+            assertThat(Files.readString(root.resolve("config.yml")))
+                    .contains("providers:")
+                    .contains("providerKey: anthropic")
+                    .contains("default: claude-default");
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                            () -> service.updateModel("writer", "missing", "unknown-model"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Provider 不存在");
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                            () -> service.updateModel("writer", "anthropic", "claude-unregistered"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("模型未加入 Provider anthropic");
 
             assertThat(service.createAlias("writer", "release-writer").get("aliases"))
                     .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
@@ -203,6 +234,78 @@ public class DashboardProfileServiceTest {
                     .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
                     .doesNotContain("release-writer");
             assertThat(wrappers.resolve("release-writer")).doesNotExist();
+        } finally {
+            deleteTree(root);
+            deleteTree(wrappers);
+        }
+    }
+
+    /** 内置 default Provider 也属于有效全局注册表，Profile 模型更新不得误判为不存在。 */
+    @Test
+    void shouldAcceptEffectiveBuiltInProviderForProfileModel() throws Exception {
+        Path root = Files.createTempDirectory("solonclaw-effective-provider-");
+        Path wrappers = Files.createTempDirectory("solonclaw-effective-provider-wrappers-");
+        try {
+            DashboardProfileService service =
+                    new DashboardProfileService(new ProfileManager(root, wrappers, "solonclaw"));
+            Map<String, Object> create = new LinkedHashMap<String, Object>();
+            create.put("name", "writer");
+            create.put("no_alias", Boolean.TRUE);
+            service.createProfile(create);
+
+            assertThat(service.updateModel("writer", "default", "gpt-5.4"))
+                    .containsEntry("provider", "default")
+                    .containsEntry("model", "gpt-5.4");
+        } finally {
+            deleteTree(root);
+            deleteTree(wrappers);
+        }
+    }
+
+    /** Provider CRUD 始终写根注册表，且禁止删除仍被任一命名 Profile 引用的 Provider。 */
+    @Test
+    void shouldKeepProviderCrudGlobalAndProtectProfileReferences() throws Exception {
+        Path root = Files.createTempDirectory("solonclaw-global-provider-crud-");
+        Path wrappers = Files.createTempDirectory("solonclaw-global-provider-crud-wrappers-");
+        try {
+            Files.writeString(
+                    root.resolve("config.yml"),
+                    "providers:\n"
+                            + "  default:\n"
+                            + "    baseUrl: https://default.example/v1\n"
+                            + "    defaultModel: default-model\n"
+                            + "    dialect: openai\n"
+                            + "model:\n"
+                            + "  providerKey: default\n"
+                            + "  default: default-model\n");
+            ProfileManager manager = new ProfileManager(root, wrappers, "solonclaw");
+            manager.createProfile(
+                    "writer", new ProfileCreateOptions().setNoAlias(true).setClone(true));
+            AppConfig config = profileConfig(root.resolve("profiles/writer"));
+            DashboardProviderService providers =
+                    new DashboardProviderService(
+                            config,
+                            null,
+                            new LlmProviderService(config),
+                            null,
+                            null,
+                            new DashboardProfileContext(manager, config));
+            Map<String, Object> create = new LinkedHashMap<String, Object>();
+            create.put("providerKey", "anthropic");
+            create.put("baseUrl", "https://api.anthropic.com/v1");
+            create.put("defaultModel", "claude-test");
+            create.put("dialect", "anthropic");
+
+            providers.createProvider(create, "writer");
+            assertThat(Files.readString(root.resolve("config.yml")))
+                    .contains("anthropic:", "https://api.anthropic.com/v1");
+            assertThat(Files.readString(root.resolve("profiles/writer/config.yml")))
+                    .doesNotContain("anthropic:", "providers:");
+
+            new DashboardProfileService(manager).updateModel("writer", "anthropic", "claude-test");
+            assertThatThrownBy(() -> providers.deleteProvider("anthropic", "writer"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Profile");
         } finally {
             deleteTree(root);
             deleteTree(wrappers);
@@ -239,7 +342,7 @@ public class DashboardProfileServiceTest {
             body.put("no_alias", Boolean.TRUE);
             body.put("clone_from", "default");
             body.put("provider", "default");
-            body.put("model", "claude-test");
+            body.put("model", "gpt-5.4");
             body.put(
                     "mcp_servers",
                     java.util.Arrays.asList(
@@ -255,7 +358,7 @@ public class DashboardProfileServiceTest {
                     .containsEntry("ok", Boolean.TRUE)
                     .containsEntry("model_set", Boolean.TRUE)
                     .containsEntry("provider", "default")
-                    .containsEntry("model", "claude-test")
+                    .containsEntry("model", "gpt-5.4")
                     .containsEntry("mcp_written", Integer.valueOf(2))
                     .containsEntry("skills_disabled", Integer.valueOf(1));
             assertThat((List<Map<String, Object>>) created.get("hub_installs"))
@@ -264,7 +367,7 @@ public class DashboardProfileServiceTest {
             Path home = root.resolve("profiles/builder");
             assertThat(Files.readString(home.resolve("config.yml")))
                     .contains("providerKey: default")
-                    .contains("default: claude-test");
+                    .contains("default: gpt-5.4");
             assertThat(mcpServers(mcp.list("builder")))
                     .extracting("server_id")
                     .containsExactlyInAnyOrder("stdio-one", "http-one");

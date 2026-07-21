@@ -1869,6 +1869,7 @@ public class SolonAiOwnedReActLoopTest {
         TestGateway gateway = new TestGateway(config, repository, model);
         SessionRecord synthetic = new SessionRecord();
         synthetic.setSessionId("proactive-decision-test");
+        synthetic.setSourceKey("MEMORY:real-channel:user");
         synthetic.setNdjson("");
 
         LlmResult result =
@@ -1887,6 +1888,7 @@ public class SolonAiOwnedReActLoopTest {
                 new FakeChatModel(
                         config.getLlm().getModel(), FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL);
         SessionRecord persistent = session("persistent-fallback-test");
+        persistent.setPersistedConcurrentSettings(new Object[0]);
         new TestGateway(config, repository, persistentModel)
                 .chat(
                         persistent,

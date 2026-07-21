@@ -28,6 +28,17 @@ public class CronjobToolsSchedulerTest {
     @Test
     void shouldMatchJimuquCronjobToolIncludeDisabledAndWrapResponse() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig
+                .getProviders()
+                .get("default")
+                .setModels(
+                        java.util.Arrays.asList(
+                                "gpt-5.4",
+                                "gpt-5.2",
+                                "gpt-5.3",
+                                "claude-sonnet-4",
+                                "tool-object-model",
+                                "tool-json-model"));
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         CronjobTools tools = new CronjobTools(service, "MEMORY:tool-room:user");
 
@@ -801,6 +812,12 @@ public class CronjobToolsSchedulerTest {
     @Test
     void shouldClearCronjobToolEditableMetadata() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig
+                .getProviders()
+                .get("default")
+                .setModels(
+                        java.util.Arrays.asList(
+                                "gpt-5.4", "gpt-5.2", "gpt-5.3", "claude-sonnet-4", "clear-model"));
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         CronjobTools tools = new CronjobTools(service, "MEMORY:tool-clear-room:user");
 

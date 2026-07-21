@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.config.AppConfig.ProactiveConfig;
 import com.jimuqu.solon.claw.config.AppConfig.ProviderConfig;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
+import com.jimuqu.solon.claw.profile.ProfileEnvironmentLoader;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.BootstrapPromptBudgetSupport;
 import com.jimuqu.solon.claw.support.RuntimePathSupport;
@@ -86,7 +87,8 @@ final class AppConfigLoader {
                         workspaceBase);
         // 只读取启动前已经存在的运行配置；自动生成的模板不能在首次启动时覆盖命令行参数。
         Map<String, Object> overrides = loadFlatOverrides(workspaceHome);
-        Map<String, Object> structuredOverrides = loadStructuredOverrides(workspaceHome);
+        Map<String, Object> structuredOverrides =
+                applyGlobalProviders(workspaceHome, loadStructuredOverrides(workspaceHome));
         initializeRuntimeConfigIfMissing(workspaceHome, props);
         RuntimeConfigResolver configResolver =
                 registerGlobalResolver
@@ -203,6 +205,9 @@ final class AppConfigLoader {
                                         "solonclaw.llm.promptCache.layout",
                                         "system_and_3")));
         applyProviderConfiguration(config, props, overrides, structuredOverrides);
+        File providerRootHome = profileRootHome(workspaceHome);
+        ProfileEnvironmentLoader.applyGlobalProviderCredentials(
+                config, (providerRootHome == null ? workspaceHome : providerRootHome).toPath());
         applyPricingConfiguration(config, props, overrides, structuredOverrides);
 
         config.getScheduler()
@@ -254,6 +259,19 @@ final class AppConfigLoader {
                                         overrides,
                                         "solonclaw.scheduler.enabledToolsets",
                                         "")));
+        config.getScheduler()
+                .setDefaultProvider(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.scheduler.defaultProvider",
+                                        "")));
+        config.getScheduler()
+                .setDefaultModel(
+                        resolveConfigString(
+                                readString(
+                                        props, overrides, "solonclaw.scheduler.defaultModel", "")));
 
         config.getCompression()
                 .setEnabled(
@@ -268,6 +286,14 @@ final class AppConfigLoader {
                                         overrides,
                                         "solonclaw.compression.thresholdPercent",
                                         CompressionConstants.DEFAULT_THRESHOLD_PERCENT)));
+        config.getCompression()
+                .setSummaryProvider(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.compression.summaryProvider",
+                                        "")));
         config.getCompression()
                 .setSummaryModel(
                         resolveConfigString(
@@ -315,6 +341,15 @@ final class AppConfigLoader {
                                                 "solonclaw.learning.auxiliaryTimeoutSeconds",
                                                 60)),
                                 60));
+        config.getLearning()
+                .setModelProvider(
+                        resolveConfigString(
+                                readString(
+                                        props, overrides, "solonclaw.learning.modelProvider", "")));
+        config.getLearning()
+                .setModel(
+                        resolveConfigString(
+                                readString(props, overrides, "solonclaw.learning.model", "")));
         config.getMemory()
                 .getArchive()
                 .setEnabled(
@@ -1334,6 +1369,18 @@ final class AppConfigLoader {
                                         overrides,
                                         "solonclaw.proactive.quietEnd",
                                         proactiveDefaults.getQuietEnd())));
+        config.getProactive()
+                .setModelProvider(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.modelProvider",
+                                        "")));
+        config.getProactive()
+                .setModel(
+                        resolveConfigString(
+                                readString(props, overrides, "solonclaw.proactive.model", "")));
         config.getReact()
                 .setMaxSteps(resolveInt(readInt(props, overrides, "solonclaw.react.maxSteps", 12)));
         config.getReact()
@@ -1851,6 +1898,13 @@ final class AppConfigLoader {
                         resolveBoolean(
                                 readBoolean(props, overrides, "approvals.mcpReloadConfirm", true)));
         config.getApprovals().setDeny(resolveList(readRaw(props, overrides, "approvals.deny", "")));
+        config.getApprovals()
+                .setModelProvider(
+                        resolveConfigString(
+                                readString(props, overrides, "approvals.modelProvider", "")));
+        config.getApprovals()
+                .setModel(resolveConfigString(readString(props, overrides, "approvals.model", "")));
+        normalizeConfiguredTaskModels(config);
         config.getMcp()
                 .setEnabled(
                         resolveBoolean(
@@ -2889,6 +2943,7 @@ final class AppConfigLoader {
         List<FallbackProviderConfig> fallbackChain =
                 parseFallbackProviders(structuredOverrides.get("fallbackProviders"));
 
+        includeReferencedModels(providers, modelConfig, fallbackChain);
         validateProviderConfiguration(providers, modelConfig, fallbackChain);
 
         config.setProviders(providers);
@@ -2910,6 +2965,147 @@ final class AppConfigLoader {
                                 activeProvider.getBaseUrl(), activeProvider.getDialect()));
         config.getLlm().setApiKey(StrUtil.nullToEmpty(activeProvider.getApiKey()).trim());
         config.getLlm().setModel(effectiveModel);
+    }
+
+    /**
+     * 把旧配置中的主模型和故障切换模型并入 Provider 模型清单，保证升级后仍可在下拉框中选择。
+     *
+     * @param providers Provider 注册表。
+     * @param modelConfig 当前主模型配置。
+     * @param fallbackChain 故障切换链。
+     */
+    private static void includeReferencedModels(
+            Map<String, ProviderConfig> providers,
+            ModelConfig modelConfig,
+            List<FallbackProviderConfig> fallbackChain) {
+        if (modelConfig != null) {
+            includeProviderModel(providers, modelConfig.getProviderKey(), modelConfig.getDefault());
+        }
+        if (fallbackChain != null) {
+            for (FallbackProviderConfig fallback : fallbackChain) {
+                if (fallback != null) {
+                    includeProviderModel(providers, fallback.getProvider(), fallback.getModel());
+                }
+            }
+        }
+    }
+
+    /**
+     * 向指定 Provider 模型清单追加一项现有引用。
+     *
+     * @param providers Provider 注册表。
+     * @param providerKey Provider 键。
+     * @param model 模型名。
+     */
+    private static void includeProviderModel(
+            Map<String, ProviderConfig> providers, String providerKey, String model) {
+        if (providers == null || StrUtil.isBlank(providerKey) || StrUtil.isBlank(model)) {
+            return;
+        }
+        ProviderConfig provider = providers.get(providerKey.trim());
+        if (provider == null) {
+            return;
+        }
+        List<String> models =
+                provider.getModels() == null
+                        ? new ArrayList<String>()
+                        : new ArrayList<String>(provider.getModels());
+        models.add(model.trim());
+        provider.setModels(models);
+        normalizeProviderModels(provider);
+    }
+
+    /**
+     * 规范化六类后台任务模型路由；兼容旧配置只写 Provider 或只写模型的形式。
+     *
+     * @param config 已加载的应用配置。
+     */
+    private static void normalizeConfiguredTaskModels(AppConfig config) {
+        String[] monitor =
+                normalizeTaskModel(
+                        config,
+                        "monitor",
+                        config.getProactive().getModelProvider(),
+                        config.getProactive().getModel());
+        config.getProactive().setModelProvider(monitor[0]);
+        config.getProactive().setModel(monitor[1]);
+
+        String[] backgroundReview =
+                normalizeTaskModel(
+                        config,
+                        "background_review",
+                        config.getLearning().getModelProvider(),
+                        config.getLearning().getModel());
+        config.getLearning().setModelProvider(backgroundReview[0]);
+        config.getLearning().setModel(backgroundReview[1]);
+
+        String[] curator =
+                normalizeTaskModel(
+                        config,
+                        "curator",
+                        config.getCurator().getAiProvider(),
+                        config.getCurator().getAiModel());
+        config.getCurator().setAiProvider(curator[0]);
+        config.getCurator().setAiModel(curator[1]);
+
+        String[] approval =
+                normalizeTaskModel(
+                        config,
+                        "approval",
+                        config.getApprovals().getModelProvider(),
+                        config.getApprovals().getModel());
+        config.getApprovals().setModelProvider(approval[0]);
+        config.getApprovals().setModel(approval[1]);
+
+        String[] compression =
+                normalizeTaskModel(
+                        config,
+                        "compression",
+                        config.getCompression().getSummaryProvider(),
+                        config.getCompression().getSummaryModel());
+        config.getCompression().setSummaryProvider(compression[0]);
+        config.getCompression().setSummaryModel(compression[1]);
+
+        String[] cron =
+                normalizeTaskModel(
+                        config,
+                        "cron",
+                        config.getScheduler().getDefaultProvider(),
+                        config.getScheduler().getDefaultModel());
+        config.getScheduler().setDefaultProvider(cron[0]);
+        config.getScheduler().setDefaultModel(cron[1]);
+    }
+
+    /**
+     * 把任务的半组旧配置补全为完整路由，并把模型并入 Provider 可选清单。
+     *
+     * @param config 应用配置。
+     * @param category 任务类别。
+     * @param providerKey 显式 Provider 键。
+     * @param model 显式模型名。
+     * @return 长度为二的 Provider、模型数组；两者均未配置时返回两个空文本。
+     */
+    private static String[] normalizeTaskModel(
+            AppConfig config, String category, String providerKey, String model) {
+        String normalizedProvider = StrUtil.nullToEmpty(providerKey).trim();
+        String normalizedModel = StrUtil.nullToEmpty(model).trim();
+        if (StrUtil.isBlank(normalizedProvider) && StrUtil.isBlank(normalizedModel)) {
+            return new String[] {"", ""};
+        }
+        normalizedProvider =
+                StrUtil.blankToDefault(normalizedProvider, config.getModel().getProviderKey())
+                        .trim();
+        ProviderConfig provider = config.getProviders().get(normalizedProvider);
+        if (provider == null) {
+            throw new IllegalStateException(category + " 引用了不存在的 provider：" + normalizedProvider);
+        }
+        normalizedModel =
+                StrUtil.blankToDefault(normalizedModel, provider.getDefaultModel()).trim();
+        if (StrUtil.isBlank(normalizedModel)) {
+            throw new IllegalStateException(category + " 未配置可用模型。");
+        }
+        includeProviderModel(config.getProviders(), normalizedProvider, normalizedModel);
+        return new String[] {normalizedProvider, normalizedModel};
     }
 
     /**
@@ -2944,6 +3140,7 @@ final class AppConfigLoader {
             applyProviderString(rawProvider, "baseUrl", provider, "baseUrl");
             applyProviderString(rawProvider, "apiKey", provider, "apiKey");
             applyProviderString(rawProvider, "defaultModel", provider, "defaultModel");
+            applyProviderModels(rawProvider, provider);
             applyProviderString(rawProvider, "dialect", provider, "dialect");
             applyProviderString(rawProvider, "groupId", provider, "groupId");
             applyProviderString(rawProvider, "groupLabel", provider, "groupLabel");
@@ -2951,6 +3148,7 @@ final class AppConfigLoader {
             applyProviderString(rawProvider, "displayDescription", provider, "displayDescription");
             applyProviderBoolean(rawProvider, "supportsVision", provider, "supportsVision");
             applyProviderCapabilities(rawProvider, provider);
+            normalizeProviderModels(provider);
             providers.put(key, provider);
         }
 
@@ -2970,6 +3168,10 @@ final class AppConfigLoader {
             copy.setBaseUrl(source.getBaseUrl());
             copy.setApiKey(source.getApiKey());
             copy.setDefaultModel(source.getDefaultModel());
+            copy.setModels(
+                    source.getModels() == null
+                            ? new ArrayList<String>()
+                            : new ArrayList<String>(source.getModels()));
             copy.setDialect(source.getDialect());
             copy.setSupportsVision(source.getSupportsVision());
             copy.setCapabilities(
@@ -2982,6 +3184,41 @@ final class AppConfigLoader {
             copy.setDisplayDescription(source.getDisplayDescription());
         }
         return copy;
+    }
+
+    /**
+     * 读取 provider.models 模型清单。
+     *
+     * @param rawProvider 原始 provider 配置。
+     * @param provider 目标 provider 配置。
+     */
+    private static void applyProviderModels(
+            Map<Object, Object> rawProvider, ProviderConfig provider) {
+        if (!rawProvider.containsKey("models")) {
+            return;
+        }
+        provider.setModels(resolveList(rawProvider.get("models")));
+    }
+
+    /**
+     * 对 provider 模型清单去空、去重，并确保默认模型位于首位。
+     *
+     * @param provider 待规范化的 provider。
+     */
+    private static void normalizeProviderModels(ProviderConfig provider) {
+        java.util.LinkedHashSet<String> models = new java.util.LinkedHashSet<String>();
+        String defaultModel = StrUtil.nullToEmpty(provider.getDefaultModel()).trim();
+        if (StrUtil.isNotBlank(defaultModel)) {
+            models.add(defaultModel);
+        }
+        if (provider.getModels() != null) {
+            for (String model : provider.getModels()) {
+                if (StrUtil.isNotBlank(model)) {
+                    models.add(model.trim());
+                }
+            }
+        }
+        provider.setModels(new ArrayList<String>(models));
     }
 
     /**
@@ -3150,6 +3387,7 @@ final class AppConfigLoader {
         provider.setBaseUrl(baseUrl);
         provider.setApiKey(StrUtil.nullToEmpty(props.get("providers.default.apiKey")).trim());
         provider.setDefaultModel(defaultModel);
+        provider.setModels(new ArrayList<String>(Collections.singletonList(defaultModel)));
         provider.setDialect(LlmProviderSupport.normalizeDialect(dialect));
         provider.setSupportsVision(
                 resolveOptionalBoolean(props.get("providers.default.supportsVision")));
@@ -3276,6 +3514,51 @@ final class AppConfigLoader {
             log.warn("运行时结构化配置读取失败，忽略 config.yml 覆盖: error={}", exceptionSummary(e));
             return Collections.emptyMap();
         }
+    }
+
+    /**
+     * 命名 Profile 只引用根工作区的全局 Provider 注册表，忽略 Profile 内重复或过期的 providers。
+     *
+     * @param workspaceHome 当前配置工作区。
+     * @param structuredOverrides 当前工作区的结构化配置。
+     * @return 已替换为全局 Provider 注册表的结构化配置。
+     */
+    private static Map<String, Object> applyGlobalProviders(
+            File workspaceHome, Map<String, Object> structuredOverrides) {
+        File rootHome = profileRootHome(workspaceHome);
+        if (rootHome == null) {
+            return structuredOverrides;
+        }
+        Map<String, Object> rootOverrides = loadStructuredOverrides(rootHome);
+        Map<String, Object> result =
+                new LinkedHashMap<String, Object>(
+                        structuredOverrides == null
+                                ? Collections.<String, Object>emptyMap()
+                                : structuredOverrides);
+        result.remove("providers");
+        if (rootOverrides.containsKey("providers")) {
+            result.put("providers", rootOverrides.get("providers"));
+        }
+        return result;
+    }
+
+    /**
+     * 识别形如“根工作区/profiles/Profile名”的命名 Profile，并返回根工作区。
+     *
+     * @param workspaceHome 待识别的工作区。
+     * @return 命名 Profile 对应根工作区；普通工作区返回 null。
+     */
+    private static File profileRootHome(File workspaceHome) {
+        if (workspaceHome == null) {
+            return null;
+        }
+        File profileHome = workspaceHome.getAbsoluteFile();
+        File profilesHome = profileHome.getParentFile();
+        if (profilesHome == null || !"profiles".equals(profilesHome.getName())) {
+            return null;
+        }
+        File rootHome = profilesHome.getParentFile();
+        return rootHome == null ? null : rootHome.getAbsoluteFile();
     }
 
     /**
@@ -3418,6 +3701,10 @@ final class AppConfigLoader {
                 + "\n"
                 + "    apiKey: \"\"\n"
                 + "    defaultModel: "
+                + yamlDoubleQuoted(provider.getDefaultModel())
+                + "\n"
+                + "    models:\n"
+                + "      - "
                 + yamlDoubleQuoted(provider.getDefaultModel())
                 + "\n"
                 + "    dialect: "

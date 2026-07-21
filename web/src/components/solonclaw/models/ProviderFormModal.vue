@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { Modal, Form, FormItem, Input, Button, Select, AutoComplete, message } from 'antdv-next'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { Modal, Form, FormItem, Input, Button, Select, message } from 'antdv-next'
 import { useModelsStore } from '@/stores/solonclaw/models'
 import type { AvailableModelGroup } from '@/api/solonclaw/system'
 import {
@@ -26,16 +26,27 @@ const modelsStore = useModelsStore()
 const showModal = ref(true)
 const loading = ref(false)
 const modelsLoading = ref(false)
-const modelOptions = ref<Array<{ label: string; value: string }>>([])
+const discoveredModels = ref<string[]>([])
+/** 用户手工输入或编辑前已经保存的模型；连接参数变化时必须保留。 */
+const manualModels = ref<string[]>([...(props.provider?.models || [])])
 const isEdit = computed(() => !!props.provider)
+let automaticFetchTimer: ReturnType<typeof setTimeout> | undefined
+let modelRequestId = 0
+let activeModelRequest: { id: number; signature: string } | null = null
 const formData = ref({
   providerKey: props.provider?.provider || '',
   name: props.provider?.label || '',
   baseUrl: props.provider?.base_url || '',
   apiKey: '',
-  defaultModel: props.provider?.models?.[0] || '',
+  defaultModel: props.provider?.defaultModel || props.provider?.models?.[0] || '',
+  models: [...(props.provider?.models || [])],
   dialect: props.provider?.dialect || 'openai-responses',
 })
+
+const modelOptions = computed(() =>
+  Array.from(new Set([...formData.value.models, ...discoveredModels.value].map(model => model.trim()).filter(Boolean)))
+    .map(model => ({ label: model, value: model })),
+)
 
 function baseUrlPlaceholder(): string {
   return baseUrlPlaceholderForDialect(formData.value.dialect)
@@ -66,6 +77,11 @@ async function handleSave() {
     return
   }
 
+  const models = Array.from(new Set([
+    formData.value.defaultModel.trim(),
+    ...formData.value.models.map(model => model.trim()),
+  ].filter(Boolean)))
+
   loading.value = true
   try {
     if (isEdit.value) {
@@ -73,6 +89,7 @@ async function handleSave() {
         name: formData.value.name.trim(),
         baseUrl: formData.value.baseUrl.trim(),
         defaultModel: formData.value.defaultModel.trim(),
+        models,
         dialect: formData.value.dialect,
         apiKey: formData.value.apiKey.trim() || undefined,
       }
@@ -87,6 +104,7 @@ async function handleSave() {
         baseUrl: formData.value.baseUrl.trim(),
         apiKey: formData.value.apiKey.trim(),
         defaultModel: formData.value.defaultModel.trim(),
+        models,
         dialect: formData.value.dialect,
       })
       message.success(t('models.providerAdded'))
@@ -99,11 +117,26 @@ async function handleSave() {
   }
 }
 
-async function fetchModelList() {
+/** 生成模型发现请求的稳定签名，用于合并相同连接参数的并发请求。 */
+function modelRequestSignature(): string {
+  return JSON.stringify([
+    formData.value.baseUrl.trim(),
+    formData.value.apiKey.trim(),
+    formData.value.dialect,
+  ])
+}
+
+/** 拉取远端模型；自动模式保持静默，手动模式显示明确反馈。 */
+async function fetchModelList(silent = false) {
   if (!formData.value.baseUrl.trim()) {
-    message.warning(t('models.baseUrlRequired'))
+    if (!silent) message.warning(t('models.baseUrlRequired'))
     return
   }
+
+  const signature = modelRequestSignature()
+  if (activeModelRequest?.signature === signature && activeModelRequest.id === modelRequestId) return
+  const requestId = ++modelRequestId
+  activeModelRequest = { id: requestId, signature }
   modelsLoading.value = true
   try {
     const res = await modelsStore.fetchProviderModels({
@@ -114,19 +147,71 @@ async function fetchModelList() {
       model: formData.value.defaultModel.trim(),
       defaultModel: formData.value.defaultModel.trim(),
     })
-    modelOptions.value = (res.models || []).map(model => ({ label: model, value: model }))
-    if (!modelOptions.value.length) {
-      message.warning(t('models.noRemoteModels'))
+    if (requestId !== modelRequestId) return
+    discoveredModels.value = Array.from(new Set(res.models || []))
+    if (!discoveredModels.value.length) {
+      if (!silent) message.warning(t('models.noRemoteModels'))
       return
     }
+    formData.value.models = Array.from(new Set([
+      ...manualModels.value,
+      ...discoveredModels.value,
+    ]))
     if (!formData.value.defaultModel.trim()) {
-      formData.value.defaultModel = modelOptions.value[0].value
+      formData.value.defaultModel = discoveredModels.value[0]
     }
-    message.success(t('models.modelsFetched'))
+    if (!silent) message.success(t('models.modelsFetched'))
   } catch (error: unknown) {
-    message.error(errorMessage(error, t('models.fetchModelsFailed')))
+    if (requestId === modelRequestId && !silent) {
+      message.error(errorMessage(error, t('models.fetchModelsFailed')))
+    }
   } finally {
+    if (requestId === modelRequestId) modelsLoading.value = false
+    if (activeModelRequest?.id === requestId) activeModelRequest = null
+  }
+}
+
+/** 新增 Provider 时，在连接参数稳定后自动发现模型。 */
+function scheduleAutomaticModelFetch() {
+  if (isEdit.value) return
+  const previousDiscoveredModels = new Set(discoveredModels.value)
+  const currentDefaultModel = formData.value.defaultModel.trim()
+  if (
+    currentDefaultModel
+    && previousDiscoveredModels.has(currentDefaultModel)
+    && !manualModels.value.includes(currentDefaultModel)
+  ) {
+    formData.value.defaultModel = ''
+  }
+  modelRequestId += 1
+  discoveredModels.value = []
+  formData.value.models = [...manualModels.value]
+  if (automaticFetchTimer) clearTimeout(automaticFetchTimer)
+  if (!formData.value.baseUrl.trim()) {
     modelsLoading.value = false
+    return
+  }
+  automaticFetchTimer = setTimeout(() => {
+    automaticFetchTimer = undefined
+    void fetchModelList(true)
+  }, 500)
+}
+
+watch(
+  () => [formData.value.baseUrl, formData.value.apiKey, formData.value.dialect],
+  () => scheduleAutomaticModelFetch(),
+)
+
+onBeforeUnmount(() => {
+  if (automaticFetchTimer) clearTimeout(automaticFetchTimer)
+  modelRequestId += 1
+})
+
+function handleModelsChange() {
+  const discovered = new Set(discoveredModels.value)
+  manualModels.value = formData.value.models.filter(model => !discovered.has(model))
+  if (formData.value.defaultModel && !formData.value.models.includes(formData.value.defaultModel)) {
+    formData.value.defaultModel = formData.value.models[0] || ''
   }
 }
 
@@ -178,17 +263,28 @@ function handleClose() {
         />
       </FormItem>
 
-      <FormItem :label="t(PROVIDER_FORM_FIELD_LABEL_KEYS.defaultModel)" required>
+      <FormItem :label="t('models.configuredModels')" required>
         <div class="model-select-row">
-          <AutoComplete
-            v-model:value="formData.defaultModel"
+          <Select
+            v-model:value="formData.models"
+            mode="tags"
             :options="modelOptions"
-            :placeholder="t('models.selectOrInput')"
+            :placeholder="t('models.modelsPlaceholder')"
+            :token-separators="[',']"
+            @change="handleModelsChange"
           />
-          <Button :loading="modelsLoading" @click="fetchModelList">
+          <Button :loading="modelsLoading" @click="fetchModelList(false)">
             {{ t('models.fetchModelList') }}
           </Button>
         </div>
+      </FormItem>
+
+      <FormItem :label="t(PROVIDER_FORM_FIELD_LABEL_KEYS.defaultModel)" required>
+        <Select
+          v-model:value="formData.defaultModel"
+          :options="modelOptions"
+          :placeholder="t('models.selectModel')"
+        />
       </FormItem>
 
       <FormItem :label="t(PROVIDER_FORM_FIELD_LABEL_KEYS.dialect)" required>

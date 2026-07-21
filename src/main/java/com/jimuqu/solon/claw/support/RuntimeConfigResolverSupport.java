@@ -19,6 +19,6 @@ public final class RuntimeConfigResolverSupport {
                 appConfig == null || appConfig.getRuntime() == null
                         ? ""
                         : appConfig.getRuntime().getHome();
-        return RuntimeConfigResolver.initialize(home);
+        return RuntimeConfigResolver.open(home);
     }
 }

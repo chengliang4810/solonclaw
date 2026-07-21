@@ -11,7 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-/** 只读取指定 Profile 的 .env，并把当前项目或协议明确支持的凭据应用到独立配置快照。 */
+/** 只读取指定工作区的 .env，并按全局 Provider 与 Profile 私有能力的边界应用凭据。 */
 public final class ProfileEnvironmentLoader {
     /** Profile 环境文件最大读取体积，避免异常文件拖垮网关启动。 */
     private static final long MAX_ENV_BYTES = 1024L * 1024L;
@@ -48,7 +48,7 @@ public final class ProfileEnvironmentLoader {
     }
 
     /**
-     * 把 Profile 环境中的凭据应用到已隔离的 AppConfig；配置文件非空值始终优先。
+     * 把 Profile 私有的语音与渠道凭据应用到已隔离的 AppConfig；Provider 凭据只能来自根工作区。
      *
      * @param config Profile 独立配置快照。
      * @param environment Profile 局部环境快照。
@@ -57,9 +57,18 @@ public final class ProfileEnvironmentLoader {
         if (config == null || environment == null || environment.isEmpty()) {
             return;
         }
-        applyProviderCredentials(config, environment);
         applySpeechCredentials(config, environment);
         applyChannelCredentials(config, environment);
+    }
+
+    /**
+     * 从根工作区环境补齐全局 Provider 凭据，配置文件非空值始终优先。
+     *
+     * @param config 待补齐的应用配置。
+     * @param rootHome 全局 Provider 注册表所在根工作区。
+     */
+    public static void applyGlobalProviderCredentials(AppConfig config, Path rootHome) {
+        applyProviderCredentials(config, load(rootHome));
     }
 
     /** 解析一行 dotenv 文本，拒绝非法键并保留值内等号。 */

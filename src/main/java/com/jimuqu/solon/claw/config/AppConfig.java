@@ -304,6 +304,10 @@ public class AppConfig {
             copy.setBaseUrl(source.getBaseUrl());
             copy.setApiKey(source.getApiKey());
             copy.setDefaultModel(source.getDefaultModel());
+            copy.setModels(
+                    source.getModels() == null
+                            ? new ArrayList<String>()
+                            : new ArrayList<String>(source.getModels()));
             copy.setDialect(source.getDialect());
             copy.setSupportsVision(source.getSupportsVision());
             copy.setCapabilities(
@@ -375,6 +379,8 @@ public class AppConfig {
         this.scheduler.setScriptTimeoutSeconds(other.getScriptTimeoutSeconds());
         this.scheduler.setInactivityTimeoutSeconds(other.getInactivityTimeoutSeconds());
         this.scheduler.setEnabledToolsets(new ArrayList<String>(other.getEnabledToolsets()));
+        this.scheduler.setDefaultProvider(other.getDefaultProvider());
+        this.scheduler.setDefaultModel(other.getDefaultModel());
     }
 
     /**
@@ -385,6 +391,7 @@ public class AppConfig {
     private void copyCompression(CompressionConfig other) {
         this.compression.setEnabled(other.isEnabled());
         this.compression.setThresholdPercent(other.getThresholdPercent());
+        this.compression.setSummaryProvider(other.getSummaryProvider());
         this.compression.setSummaryModel(other.getSummaryModel());
         this.compression.setProtectHeadMessages(other.getProtectHeadMessages());
         this.compression.setTailRatio(other.getTailRatio());
@@ -399,6 +406,8 @@ public class AppConfig {
         this.learning.setEnabled(other.isEnabled());
         this.learning.setToolCallThreshold(other.getToolCallThreshold());
         this.learning.setAuxiliaryTimeoutSeconds(other.getAuxiliaryTimeoutSeconds());
+        this.learning.setModelProvider(other.getModelProvider());
+        this.learning.setModel(other.getModel());
     }
 
     /**
@@ -668,6 +677,8 @@ public class AppConfig {
         this.approvals.setTimeoutSeconds(other.getTimeoutSeconds());
         this.approvals.setMcpReloadConfirm(other.isMcpReloadConfirm());
         this.approvals.setDeny(other.getDeny());
+        this.approvals.setModelProvider(other.getModelProvider());
+        this.approvals.setModel(other.getModel());
     }
 
     /**
@@ -698,6 +709,8 @@ public class AppConfig {
         this.proactive.setQuietHoursEnabled(other.isQuietHoursEnabled());
         this.proactive.setQuietStart(other.getQuietStart());
         this.proactive.setQuietEnd(other.getQuietEnd());
+        this.proactive.setModelProvider(other.getModelProvider());
+        this.proactive.setModel(other.getModel());
     }
 
     /**
@@ -935,6 +948,9 @@ public class AppConfig {
         /** 记录提供方中的默认模型。 */
         private String defaultModel;
 
+        /** 该提供方允许在 Dashboard 和任务路由中选择的模型清单。 */
+        private List<String> models = new ArrayList<String>();
+
         /** 记录提供方中的协议方言。 */
         private String dialect;
 
@@ -1033,6 +1049,12 @@ public class AppConfig {
 
         /** 未设置 job.enabled_toolsets 时，cron 平台默认启用的工具集；空列表表示沿用全部默认工具。 */
         private List<String> enabledToolsets = new ArrayList<String>();
+
+        /** Cron 任务未绑定模型时使用的默认 provider；留空时沿用 Profile 主模型。 */
+        private String defaultProvider = "";
+
+        /** Cron 任务未绑定模型时使用的默认 model；留空时沿用 Profile 主模型。 */
+        private String defaultModel = "";
     }
 
     /** 上下文压缩配置。 */
@@ -1046,8 +1068,11 @@ public class AppConfig {
         /** 触发压缩的上下文阈值百分比。 */
         private double thresholdPercent = CompressionConstants.DEFAULT_THRESHOLD_PERCENT;
 
+        /** 压缩摘要专用 provider；留空时沿用 Profile 主模型。 */
+        private String summaryProvider = "";
+
         /** 可选的压缩摘要模型。 */
-        private String summaryModel;
+        private String summaryModel = "";
 
         /** 头部消息保护数量。 */
         private int protectHeadMessages = CompressionConstants.DEFAULT_PROTECT_HEAD_MESSAGES;
@@ -1069,6 +1094,12 @@ public class AppConfig {
 
         /** 辅助模型分类/总结调用总超时，单位秒。 */
         private int auxiliaryTimeoutSeconds = 60;
+
+        /** 对话后复盘、记忆和技能维护使用的 provider；留空时沿用 Profile 主模型。 */
+        private String modelProvider = "";
+
+        /** 对话后复盘、记忆和技能维护使用的 model；留空时沿用 Profile 主模型。 */
+        private String model = "";
     }
 
     /** 长期记忆生命周期配置。 */
@@ -1352,6 +1383,12 @@ public class AppConfig {
 
         /** 免打扰结束时间，格式为 HH:mm。 */
         private String quietEnd = "08:00";
+
+        /** 主动监控和重要性分类使用的 provider；留空时沿用 Profile 主模型。 */
+        private String modelProvider = "";
+
+        /** 主动监控和重要性分类使用的 model；留空时沿用 Profile 主模型。 */
+        private String model = "";
     }
 
     /** ReAct 推理控制配置。 */
@@ -1682,6 +1719,12 @@ public class AppConfig {
 
         /** /reload-mcp 是否需要确认，默认开启。 */
         private boolean mcpReloadConfirm = true;
+
+        /** 危险操作智能审批使用的 provider；留空时沿用 Profile 主模型。 */
+        private String modelProvider = "";
+
+        /** 危险操作智能审批使用的 model；留空时沿用 Profile 主模型。 */
+        private String model = "";
 
         /**
          * 用户自定义不可绕过的命令 deny 列表，支持 fnmatch glob。

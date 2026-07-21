@@ -386,11 +386,13 @@ public class ContextConfiguration {
      * 执行上下文压缩服务相关逻辑。
      *
      * @param appConfig 应用运行配置。
+     * @param llmGateway 压缩摘要模型网关。
      * @return 返回上下文压缩服务结果。
      */
-    @Bean
-    public ContextCompressionService contextCompressionService(AppConfig appConfig) {
-        return new DefaultContextCompressionService(appConfig);
+    @Bean(destroyMethod = "shutdown")
+    public ContextCompressionService contextCompressionService(
+            AppConfig appConfig, LlmGateway llmGateway) {
+        return new DefaultContextCompressionService(appConfig, llmGateway);
     }
 
     /**

@@ -15,6 +15,7 @@ export interface ProviderRecord {
   name: string
   baseUrl: string
   defaultModel: string
+  models: string[]
   dialect: string
   hasApiKey: boolean
   isDefault: boolean
@@ -96,6 +97,7 @@ export interface AvailableModelGroup {
   label: string
   base_url: string
   models: string[]
+  defaultModel: string
   dialect: string
   has_api_key: boolean
   isDefault: boolean
@@ -107,6 +109,7 @@ export interface AvailableModelsResponse {
   groups: AvailableModelGroup[]
   allProviders: AvailableModelGroup[]
   fallbackProviders: FallbackProvider[]
+  taskModelRoutes: TaskModelRoutes
   dialectCatalog: DialectCatalogItem[]
 }
 
@@ -116,8 +119,24 @@ export interface CustomProvider {
   baseUrl: string
   apiKey?: string
   defaultModel: string
+  models: string[]
   dialect: string
 }
+
+export type TaskModelCategory =
+  | 'monitor'
+  | 'background_review'
+  | 'curator'
+  | 'approval'
+  | 'compression'
+  | 'cron'
+
+export interface TaskModelRoute {
+  provider: string
+  model: string
+}
+
+export type TaskModelRoutes = Record<TaskModelCategory, TaskModelRoute>
 
 interface DashboardStatus {
   version?: string
@@ -141,6 +160,7 @@ interface ProvidersPayload {
   defaultProviderKey: string
   defaultModel: string
   fallbackProviders: FallbackProvider[]
+  taskModelRoutes?: Partial<TaskModelRoutes>
   dialectCatalog?: DialectCatalogItem[]
 }
 
@@ -175,16 +195,40 @@ export async function checkHealth(): Promise<HealthResponse> {
 
 function toGroup(provider: ProviderRecord, defaultModel: string): AvailableModelGroup {
   const model = provider.defaultModel || defaultModel || ''
+  const models = Array.from(new Set([model, ...(provider.models || [])].map(item => item.trim()).filter(Boolean)))
   return {
     provider: provider.providerKey,
     providerKey: provider.providerKey,
     label: provider.name || provider.providerKey,
     base_url: provider.baseUrl,
-    models: model ? [model] : [],
+    models,
+    defaultModel: model,
     dialect: provider.dialect,
     has_api_key: provider.hasApiKey,
     isDefault: provider.isDefault,
   }
+}
+
+export function emptyTaskModelRoutes(): TaskModelRoutes {
+  return {
+    monitor: { provider: '', model: '' },
+    background_review: { provider: '', model: '' },
+    curator: { provider: '', model: '' },
+    approval: { provider: '', model: '' },
+    compression: { provider: '', model: '' },
+    cron: { provider: '', model: '' },
+  }
+}
+
+function normalizeTaskModelRoutes(routes?: Partial<TaskModelRoutes>): TaskModelRoutes {
+  const result = emptyTaskModelRoutes()
+  for (const category of Object.keys(result) as TaskModelCategory[]) {
+    result[category] = {
+      provider: routes?.[category]?.provider || '',
+      model: routes?.[category]?.model || '',
+    }
+  }
+  return result
 }
 
 export async function fetchAvailableModels(): Promise<AvailableModelsResponse> {
@@ -196,6 +240,7 @@ export async function fetchAvailableModels(): Promise<AvailableModelsResponse> {
     groups,
     allProviders: groups,
     fallbackProviders: payload.fallbackProviders || [],
+    taskModelRoutes: normalizeTaskModelRoutes(payload.taskModelRoutes),
     dialectCatalog: payload.dialectCatalog || [],
   }
 }
@@ -268,12 +313,26 @@ export async function updateProvider(poolKey: string, data: {
   baseUrl?: string
   apiKey?: string
   defaultModel?: string
+  models?: string[]
   dialect?: string
 }): Promise<void> {
   await request(`/api/providers/${encodeURIComponent(poolKey)}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   })
+}
+
+export async function fetchTaskModelRoutes(): Promise<TaskModelRoutes> {
+  const response = await request<{ routes?: Partial<TaskModelRoutes> }>('/api/model/task-routes')
+  return normalizeTaskModelRoutes(response.routes)
+}
+
+export async function updateTaskModelRoutes(routes: TaskModelRoutes): Promise<TaskModelRoutes> {
+  const response = await request<{ routes?: Partial<TaskModelRoutes> }>('/api/model/task-routes', {
+    method: 'PUT',
+    body: JSON.stringify({ routes }),
+  })
+  return normalizeTaskModelRoutes(response.routes)
 }
 
 export async function updateFallbackProviders(fallbackProviders: FallbackProvider[]): Promise<void> {

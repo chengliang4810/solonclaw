@@ -27,6 +27,8 @@ providers.default.baseUrl: https://api.openai.com
 providers.default.apiKey:
 # 默认模型名称；model.default 为空时使用该值。
 providers.default.defaultModel: gpt-5.4
+# 当前 Provider 可供界面和任务路由选择的模型列表。
+providers.default.models: gpt-5.4
 # 模型协议方言，可选 openai、openai-responses、ollama、gemini、anthropic。
 providers.default.dialect: openai-responses
 # 默认模型能力由配置明确声明，避免仅依据模型名称猜测。
@@ -63,10 +65,14 @@ solonclaw.scheduler.wrapResponse: true
 solonclaw.scheduler.scriptTimeoutSeconds: 120
 solonclaw.scheduler.inactivityTimeoutSeconds: 600
 solonclaw.scheduler.enabledToolsets:
+# Cron 任务未单独绑定模型时使用；留空则沿用 Profile 主模型。
+solonclaw.scheduler.defaultProvider:
+solonclaw.scheduler.defaultModel:
 
 # 上下文压缩
 solonclaw.compression.enabled: true
 solonclaw.compression.thresholdPercent: 0.5
+solonclaw.compression.summaryProvider:
 solonclaw.compression.summaryModel:
 solonclaw.compression.protectHeadMessages: 3
 solonclaw.compression.tailRatio: 0.2
@@ -74,6 +80,8 @@ solonclaw.compression.tailRatio: 0.2
 # 主回复后的自动学习
 solonclaw.learning.enabled: true
 solonclaw.learning.toolCallThreshold: 5
+solonclaw.learning.modelProvider:
+solonclaw.learning.model:
 
 # 旧每日记忆不可变归档与派生摘要
 solonclaw.memory.archive.enabled: true
@@ -173,6 +181,9 @@ approvals.subagentAutoApprove: false
 approvals.timeoutSeconds: 60
 # /reload-mcp 默认需要确认，避免工具 schema 变更影响下一轮模型调用。
 approvals.mcpReloadConfirm: true
+# 危险操作智能审批模型；两项留空时沿用当前 Profile 主模型。
+approvals.modelProvider:
+approvals.model:
 
 # 预定义人格
 solonclaw.agent.personalities.helpful.description: 友好、通用的默认助手

@@ -174,6 +174,44 @@ public class DashboardProviderController {
     }
 
     /**
+     * 列出六类后台任务的默认模型路由。
+     *
+     * @param context 当前请求上下文。
+     * @return 后台任务模型路由。
+     */
+    @Mapping(value = "/api/model/task-routes", method = MethodType.GET)
+    public Map<String, Object> taskModelRoutes(Context context) {
+        try {
+            return DashboardResponse.ok(
+                    providerService.listTaskModelRoutes(
+                            DashboardProfileContext.requestedProfile(context)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
+        }
+    }
+
+    /**
+     * 更新六类后台任务的默认模型路由。
+     *
+     * @param context 当前请求上下文。
+     * @return 更新后的模型路由。
+     * @throws Exception 请求体读取失败时抛出异常。
+     */
+    @Mapping(value = "/api/model/task-routes", method = MethodType.PUT)
+    public Map<String, Object> updateTaskModelRoutes(Context context) throws Exception {
+        try {
+            Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
+            return DashboardResponse.ok(
+                    providerService.updateTaskModelRoutes(
+                            body, DashboardProfileContext.requestedProfile(context, body)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
+        } catch (IllegalArgumentException e) {
+            return DashboardResponse.error(context, 400, "MODEL_ROUTE_BAD_REQUEST", e);
+        }
+    }
+
+    /**
      * 更新默认。
      *
      * @param context 当前请求或运行上下文。

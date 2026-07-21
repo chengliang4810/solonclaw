@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.core.Props;
 
+/** 验证 Provider 注册表、模型列表、默认模型和故障切换配置的加载行为。 */
 public class AppConfigProviderLoadTest {
     @Test
     void shouldLoadRepositoryConfigExample() throws Exception {
@@ -50,6 +51,7 @@ public class AppConfigProviderLoadTest {
                         + "    baseUrl: https://api.openai.com\n"
                         + "    apiKey: test-key\n"
                         + "    defaultModel: gpt-5-mini\n"
+                        + "    models: [gpt-5, gpt-5-mini, gpt-5, ' ']\n"
                         + "    dialect: openai-responses\n"
                         + "    supportsVision: true\n"
                         + "    capabilities:\n"
@@ -60,13 +62,19 @@ public class AppConfigProviderLoadTest {
                         + "    baseUrl: https://backup.example.com#\n"
                         + "    apiKey: backup-key\n"
                         + "    defaultModel: claude-sonnet-4\n"
+                        + "    models: [claude-haiku-4]\n"
                         + "    dialect: anthropic\n"
                         + "    supportsVision: false\n"
                         + "model:\n"
                         + "  providerKey: openai-direct\n"
                         + "  default: \n"
                         + "fallbackProviders:\n"
-                        + "  - provider: backup\n",
+                        + "  - provider: backup\n"
+                        + "solonclaw:\n"
+                        + "  compression:\n"
+                        + "    summaryModel: gpt-5\n"
+                        + "  learning:\n"
+                        + "    modelProvider: backup\n",
                 new File(workspaceHome, "config.yml"));
 
         Props props = new Props();
@@ -91,6 +99,10 @@ public class AppConfigProviderLoadTest {
                 .isEqualTo("https://backup.example.com/v1/models");
         assertThat(config.getProviders().get("openai-direct").getSupportsVision())
                 .isEqualTo(Boolean.TRUE);
+        assertThat(config.getProviders().get("openai-direct").getModels())
+                .containsExactly("gpt-5-mini", "gpt-5");
+        assertThat(config.getProviders().get("backup").getModels())
+                .containsExactly("claude-sonnet-4", "claude-haiku-4");
         assertThat(config.getProviders().get("openai-direct").getCapabilities())
                 .containsEntry("reasoning", Boolean.FALSE)
                 .containsEntry("prompt_cache", Boolean.TRUE);
@@ -98,6 +110,10 @@ public class AppConfigProviderLoadTest {
                 .isEqualTo(Boolean.FALSE);
         assertThat(config.getFallbackProviders()).hasSize(1);
         assertThat(config.getFallbackProviders().get(0).getProvider()).isEqualTo("backup");
+        assertThat(config.getCompression().getSummaryProvider()).isEqualTo("openai-direct");
+        assertThat(config.getCompression().getSummaryModel()).isEqualTo("gpt-5");
+        assertThat(config.getLearning().getModelProvider()).isEqualTo("backup");
+        assertThat(config.getLearning().getModel()).isEqualTo("claude-sonnet-4");
     }
 
     @Test
@@ -130,6 +146,7 @@ public class AppConfigProviderLoadTest {
         resolver.setFileValue("providers.default.dialect", "openai");
         resolver.setFileValue("model.providerKey", "default");
         resolver.setFileValue("model.default", "mimo-v2.5-pro");
+        config.applyFrom(AppConfig.loadDetached(props));
 
         LlmProviderService.ResolvedProvider resolved =
                 new LlmProviderService(config).resolveEffectiveProvider(null);
@@ -163,6 +180,7 @@ public class AppConfigProviderLoadTest {
         assertThat(new File(workspaceHome, "config.yml")).exists();
         assertThat(runtimeConfig).contains("baseUrl: \"https://startup.example.com/v1\"");
         assertThat(runtimeConfig).contains("defaultModel: \"startup-model\"");
+        assertThat(runtimeConfig).contains("models:\n      - \"startup-model\"");
         assertThat(runtimeConfig).contains("dialect: \"openai-responses\"");
         assertThat(runtimeConfig).contains("apiKey: \"\"");
         assertThat(runtimeConfig).doesNotContain("https://api.openai.com");

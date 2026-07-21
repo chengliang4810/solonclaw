@@ -105,3 +105,37 @@ assert.ok(!providerForm.includes("t('models.baseUrl')"), 'provider form should r
 assert.ok(!providerForm.includes("t('models.apiKey')"), 'provider form should reuse shared field labels')
 assert.ok(!providerForm.includes("t('models.defaultModel')"), 'provider form should reuse shared field labels')
 assert.ok(!providerForm.includes("t('models.dialect')"), 'provider form should reuse shared field labels')
+assert.ok(providerForm.includes('mode="tags"'), 'provider form should support manually adding model names')
+assert.ok(providerForm.includes('formData.value.models'), 'provider form should persist the complete Provider model list')
+assert.ok(
+  providerForm.includes('() => [formData.value.baseUrl, formData.value.apiKey, formData.value.dialect]'),
+  'new Provider discovery should react to all connection parameters',
+)
+assert.ok(providerForm.includes('}, 500)'), 'automatic model discovery should debounce input for 500 ms')
+assert.ok(providerForm.includes('if (isEdit.value) return'), 'automatic discovery should only run while adding a Provider')
+assert.ok(providerForm.includes('requestId !== modelRequestId'), 'stale model discovery responses should be discarded')
+assert.ok(
+  providerForm.includes('activeModelRequest?.signature === signature'),
+  'identical in-flight model discovery requests should be coalesced',
+)
+assert.ok(
+  providerForm.includes('formData.value.models = [...manualModels.value]'),
+  'changing Provider connection parameters should discard models discovered from the previous endpoint',
+)
+assert.ok(
+  providerForm.includes('previousDiscoveredModels.has(currentDefaultModel)'),
+  'changing Provider connection parameters should clear a default model discovered from the previous endpoint',
+)
+assert.ok(
+  providerForm.includes('!manualModels.value.includes(currentDefaultModel)'),
+  'changing Provider connection parameters should preserve a manually configured default model',
+)
+assert.ok(
+  !providerForm.includes('...discoveredModels.value.map(model => model.trim())'),
+  'saving should not restore discovered models that the user removed from the editable list',
+)
+assert.ok(
+  providerForm.includes('...discoveredModels.value,'),
+  'the current endpoint discovery result should populate the editable model list',
+)
+assert.ok(providerForm.includes('@click="fetchModelList(false)"'), 'the form should keep an explicit manual retry action')

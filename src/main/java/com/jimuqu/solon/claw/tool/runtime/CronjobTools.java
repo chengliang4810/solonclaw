@@ -169,10 +169,13 @@ public class CronjobTools {
                     Object enabledToolsets,
             @Param(
                             name = "model",
-                            description = "任务固定模型；支持字符串或 {provider, model} 对象",
+                            description = "任务固定模型；支持字符串或 {provider, model} 对象，固定时必须同时提供 provider",
                             required = false)
                     Object model,
-            @Param(name = "provider", description = "任务固定 provider", required = false)
+            @Param(
+                            name = "provider",
+                            description = "任务固定 provider；固定时必须同时提供 model",
+                            required = false)
                     String provider,
             @Param(name = "base_url", description = "任务固定模型 API base URL", required = false)
                     String baseUrl,

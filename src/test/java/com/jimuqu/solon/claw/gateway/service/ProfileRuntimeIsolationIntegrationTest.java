@@ -24,6 +24,8 @@ import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.web.DashboardChatController;
 import com.jimuqu.solon.claw.web.DashboardProfileController;
+import com.jimuqu.solon.claw.web.DashboardProfileService;
+import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
 import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
@@ -33,6 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -174,7 +177,7 @@ class ProfileRuntimeIsolationIntegrationTest {
         assertThat(workerConfig.getRuntime().getContextDir())
                 .isEqualTo(root.resolve("profiles/worker/context").toString());
         assertThat(rootConfig.getProviders().get("default").getApiKey()).isEqualTo("root-key");
-        assertThat(workerConfig.getProviders().get("default").getApiKey()).isEqualTo("worker-key");
+        assertThat(workerConfig.getProviders().get("default").getApiKey()).isEqualTo("root-key");
         assertThat(rootConfig.getChannels().getFeishu().getAppSecret()).isEqualTo("root-secret");
         assertThat(workerConfig.getChannels().getFeishu().getAppSecret())
                 .isEqualTo("worker-secret");
@@ -189,6 +192,69 @@ class ProfileRuntimeIsolationIntegrationTest {
             assertThat(ProfileBeanResolver.getBean(LlmGateway.class))
                     .isSameAs(child.getBean(LlmGateway.class));
         }
+
+        ProfileRuntimeBundle workerBeforeConfigRefresh = worker;
+        AppContext childBeforeConfigRefresh = child;
+        ChannelConnectionManager childChannelsBeforeConfigRefresh =
+                child.getBean(ChannelConnectionManager.class);
+        Map<PlatformType, ChannelAdapter> childAdaptersBeforeConfigRefresh =
+                new LinkedHashMap<PlatformType, ChannelAdapter>(
+                        childChannelsBeforeConfigRefresh.adapters());
+        DashboardProviderService providerService =
+                rootContext.getBean(DashboardProviderService.class);
+        Map<String, Object> taskRoutes = new LinkedHashMap<String, Object>();
+        for (String category :
+                new String[] {
+                    "monitor", "background_review", "curator", "approval", "compression", "cron"
+                }) {
+            Map<String, Object> route = new LinkedHashMap<String, Object>();
+            route.put("provider", "");
+            route.put("model", "");
+            taskRoutes.put(category, route);
+        }
+        Map<String, Object> backgroundRoute = new LinkedHashMap<String, Object>();
+        backgroundRoute.put("provider", "default");
+        backgroundRoute.put("model", "background-model");
+        taskRoutes.put("background_review", backgroundRoute);
+        Map<String, Object> request = new LinkedHashMap<String, Object>();
+        request.put("routes", taskRoutes);
+
+        providerService.updateTaskModelRoutes(request, "worker");
+
+        ProfileRuntimeBundle workerAfterConfigRefresh = manager.runtimes().get("worker");
+        assertThat(workerAfterConfigRefresh).isSameAs(workerBeforeConfigRefresh);
+        assertThat(workerAfterConfigRefresh.appContext()).isSameAs(childBeforeConfigRefresh);
+        assertThat(workerAfterConfigRefresh.appContext().getBean(AppConfig.class))
+                .isSameAs(workerConfig);
+        assertThat(workerConfig.getLearning().getModelProvider()).isEqualTo("default");
+        assertThat(workerConfig.getLearning().getModel()).isEqualTo("background-model");
+        assertThat(rootConfig.getLearning().getModelProvider()).isBlank();
+        assertThat(child.getBean(ChannelConnectionManager.class))
+                .isSameAs(childChannelsBeforeConfigRefresh);
+        for (Map.Entry<PlatformType, ChannelAdapter> entry :
+                childAdaptersBeforeConfigRefresh.entrySet()) {
+            assertThat(child.getBean(ChannelConnectionManager.class).adapters().get(entry.getKey()))
+                    .isSameAs(entry.getValue());
+        }
+
+        DashboardProfileService profileService = rootContext.getBean(DashboardProfileService.class);
+        profileService.updateModel("worker", "default", "background-model");
+        assertThat(manager.runtimes().get("worker")).isSameAs(workerBeforeConfigRefresh);
+        assertThat(manager.runtimes().get("worker").appContext())
+                .isSameAs(childBeforeConfigRefresh);
+        assertThat(workerConfig.getModel().getDefault()).isEqualTo("background-model");
+        assertThat(rootConfig.getModel().getDefault()).isBlank();
+        assertThat(child.getBean(ChannelConnectionManager.class))
+                .isSameAs(childChannelsBeforeConfigRefresh);
+
+        profileService.updateModel("default", "default", "background-model");
+        assertThat(rootContext.getBean(AppConfig.class)).isSameAs(rootConfig);
+        assertThat(rootConfig.getModel().getDefault()).isEqualTo("background-model");
+        assertThat(manager.runtimes().get("worker")).isSameAs(workerBeforeConfigRefresh);
+        assertThat(manager.runtimes().get("worker").appContext())
+                .isSameAs(childBeforeConfigRefresh);
+        assertThat(child.getBean(ChannelConnectionManager.class))
+                .isSameAs(childChannelsBeforeConfigRefresh);
 
         Map<PlatformType, ChannelAdapter> rootAdapters =
                 rootContext.getBean(ChannelConnectionManager.class).adapters();
@@ -232,6 +298,7 @@ class ProfileRuntimeIsolationIntegrationTest {
                 + apiKey
                 + "\n"
                 + "    defaultModel: test-model\n"
+                + "    models: [test-model, background-model]\n"
                 + "    dialect: openai-responses\n"
                 + "model:\n"
                 + "  providerKey: default\n"
