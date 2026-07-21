@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 
-/** 旧每日记忆不可变归档、摘要、审批和恢复测试。 */
+/** 每日记忆不可变归档、摘要、审批和恢复测试。 */
 class MemoryArchiveServiceTest {
     /** 固定测试日期。 */
     private static final Clock FIXED_CLOCK =

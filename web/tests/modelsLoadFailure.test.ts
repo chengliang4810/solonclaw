@@ -233,8 +233,8 @@ export function normalizeDialectCatalog(value) {
   assert.ok(settingsSource.includes('function syncTaskRoutesForm()'), 'task route drafts should have an isolated synchronizer')
   assert.ok(!settingsSource.includes('function syncForms()'), 'one settings save must not overwrite every model draft')
   assert.ok(!settingsSource.includes("() => [modelsStore.defaultProvider, modelsStore.defaultModel]"), 'default Provider and model should not share one watcher')
-  assert.ok(settingsSource.includes("t('models.unregisteredProvider'"), 'legacy unregistered Providers should remain visible as disabled options')
-  assert.ok(settingsSource.includes("t('models.unregisteredModel'"), 'legacy unregistered models should remain visible as disabled options')
+  assert.ok(!settingsSource.includes("t('models.unregisteredProvider'"), 'model settings should only expose registered Providers')
+  assert.ok(!settingsSource.includes("t('models.unregisteredModel'"), 'model settings should only expose registered models')
   const settingsTemplateSource = parse(settingsSource).descriptor.template?.content
   assert.ok(settingsTemplateSource, 'ModelSettings should have a renderable template')
 

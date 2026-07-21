@@ -167,7 +167,7 @@ public class DashboardWorkspaceController {
                 });
     }
 
-    /** 返回当前 Profile 的旧每日记忆归档状态。 */
+    /** 返回当前 Profile 的每日记忆归档状态。 */
     @Mapping(value = "/api/workspace/memory/archive", method = MethodType.GET)
     public Map<String, Object> memoryArchiveState(Context context) {
         return execute(
@@ -181,7 +181,7 @@ public class DashboardWorkspaceController {
                 });
     }
 
-    /** 立即执行一轮旧每日记忆归档。 */
+    /** 立即执行一轮每日记忆归档。 */
     @Mapping(value = "/api/workspace/memory/archive/run", method = MethodType.POST)
     public Map<String, Object> runMemoryArchive(Context context) {
         return execute(

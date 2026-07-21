@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.AgentRunCancelledException;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.BlockingLlmGateway;
@@ -46,6 +47,34 @@ public class AgentRunStopCommandTest {
         assertThat(env.agentRunControlService.isRunning("MEMORY:admin-chat:admin-user")).isFalse();
 
         executorService.shutdownNow();
+    }
+
+    /** 内部取消只结束旧运行，不得直接向用户发送含糊的“当前任务已停止”终态。 */
+    @Test
+    void shouldSuppressAmbiguousInternalCancellationReply() throws Exception {
+        FakeLlmGateway cancellingGateway =
+                new FakeLlmGateway() {
+                    /** 仅对指定测试消息模拟内部取消，管理员初始化仍走正常模型回复。 */
+                    @Override
+                    public LlmResult chat(
+                            SessionRecord session,
+                            String systemPrompt,
+                            String userMessage,
+                            List<Object> toolObjects)
+                            throws Exception {
+                        if ("触发内部取消".equals(userMessage)) {
+                            throw new AgentRunCancelledException();
+                        }
+                        return super.chat(session, systemPrompt, userMessage, toolObjects);
+                    }
+                };
+        TestEnvironment env = TestEnvironment.withLlm(cancellingGateway);
+        bootstrapAdmin(env);
+
+        GatewayReply reply = env.send("admin-chat", "admin-user", "触发内部取消");
+
+        assertThat(reply).isNull();
+        assertThat(env.agentRunControlService.isRunning("MEMORY:admin-chat:admin-user")).isFalse();
     }
 
     /** 旧 run 失去输出权后抛 Error 不得补发失败终态，当前 run 的 Error 必须只输出一次。 */

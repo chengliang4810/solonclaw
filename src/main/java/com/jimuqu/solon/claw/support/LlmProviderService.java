@@ -8,8 +8,10 @@ import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** LLM provider 解析服务。 */
 public class LlmProviderService {
@@ -46,18 +48,6 @@ public class LlmProviderService {
      * @return 返回解析后的生效提供方。
      */
     public ResolvedProvider resolveEffectiveProvider(SessionRecord session) {
-        return resolveEffectiveProvider(session, null);
-    }
-
-    /**
-     * 解析生效提供方。
-     *
-     * @param session 会话参数。
-     * @param agentDefaultModel Agent默认模型参数。
-     * @return 返回解析后的生效提供方。
-     */
-    public ResolvedProvider resolveEffectiveProvider(
-            SessionRecord session, String agentDefaultModel) {
         RuntimeConfigResolver resolver = configResolver();
         String providerKey =
                 StrUtil.blankToDefault(
@@ -72,10 +62,6 @@ public class LlmProviderService {
                 session == null
                         ? ""
                         : StrUtil.nullToEmpty(session.getTransientModelOverride()).trim();
-        String transientBaseUrl =
-                session == null
-                        ? ""
-                        : StrUtil.nullToEmpty(session.getTransientBaseUrlOverride()).trim();
         if (StrUtil.isNotBlank(transientProvider)) {
             providerKey = transientProvider;
         }
@@ -85,26 +71,16 @@ public class LlmProviderService {
         String override =
                 session == null ? "" : StrUtil.nullToEmpty(session.getModelOverride()).trim();
         if (StrUtil.isBlank(model) && StrUtil.isNotBlank(override)) {
-            if (override.contains(":")) {
-                String[] parts = override.split(":", 2);
-                providerKey = StrUtil.nullToEmpty(parts[0]).trim();
-                model = StrUtil.nullToEmpty(parts[1]).trim();
-            } else {
-                model = override;
+            int separator = override.indexOf(':');
+            if (separator <= 0 || separator == override.length() - 1) {
+                throw new IllegalStateException("会话模型引用必须使用 provider:model 格式");
             }
-        } else if (StrUtil.isBlank(model) && StrUtil.isNotBlank(agentDefaultModel)) {
-            model = agentDefaultModel.trim();
+            providerKey = override.substring(0, separator).trim();
+            model = override.substring(separator + 1).trim();
         } else if (StrUtil.isBlank(model)) {
             model = StrUtil.nullToEmpty(resolver.get("model.default")).trim();
         }
-        ResolvedProvider resolved = resolveProvider(providerKey, model);
-        if (StrUtil.isNotBlank(transientBaseUrl)) {
-            resolved.setBaseUrl(transientBaseUrl);
-            resolved.setApiUrl(
-                    LlmProviderSupport.buildApiUrl(transientBaseUrl, resolved.getDialect()));
-            resolveContextWindow(resolved);
-        }
-        return resolved;
+        return resolveProvider(providerKey, model);
     }
 
     /**
@@ -147,6 +123,7 @@ public class LlmProviderService {
         if (StrUtil.isBlank(model)) {
             model = StrUtil.nullToEmpty(appConfig.getModel().getDefault()).trim();
         }
+        requireRegisteredModel(key, model, provider);
 
         ResolvedProvider resolved = new ResolvedProvider();
         resolved.setProviderKey(key);
@@ -159,6 +136,68 @@ public class LlmProviderService {
         resolved.setModel(model);
         resolveContextWindow(resolved, allowConfiguredContextWindow);
         return resolved;
+    }
+
+    /**
+     * 校验显式模型已经登记在指定 Provider 中。
+     *
+     * @param providerKey Provider 键。
+     * @param model 模型名称。
+     */
+    public void requireRegisteredModel(String providerKey, String model) {
+        String key = StrUtil.nullToEmpty(providerKey).trim();
+        AppConfig.ProviderConfig provider = appConfig.getProviders().get(key);
+        if (provider == null) {
+            throw new IllegalStateException("未找到 provider：" + key);
+        }
+        requireRegisteredModel(key, model, provider);
+    }
+
+    /**
+     * 返回指定 Provider 已登记的完整模型清单，默认模型始终位于首位。
+     *
+     * @param providerKey Provider 键。
+     * @return 去空去重后的模型清单。
+     */
+    public List<String> registeredModels(String providerKey) {
+        String key = StrUtil.nullToEmpty(providerKey).trim();
+        AppConfig.ProviderConfig provider = appConfig.getProviders().get(key);
+        if (provider == null) {
+            return Collections.emptyList();
+        }
+        return registeredModels(provider);
+    }
+
+    /** 返回已解析 Provider 的完整登记模型清单。 */
+    private List<String> registeredModels(AppConfig.ProviderConfig provider) {
+        Set<String> models = new LinkedHashSet<String>();
+        addRegisteredModel(models, provider.getDefaultModel());
+        if (provider.getModels() != null) {
+            for (String model : provider.getModels()) {
+                addRegisteredModel(models, model);
+            }
+        }
+        return new ArrayList<String>(models);
+    }
+
+    /** 校验模型属于当前 Provider 的默认模型或显式模型清单。 */
+    private void requireRegisteredModel(
+            String providerKey, String model, AppConfig.ProviderConfig provider) {
+        String normalizedModel = StrUtil.nullToEmpty(model).trim();
+        if (StrUtil.isBlank(normalizedModel)) {
+            throw new IllegalArgumentException("Provider " + providerKey + " 未配置可用模型。");
+        }
+        if (!registeredModels(provider).contains(normalizedModel)) {
+            throw new IllegalArgumentException(
+                    "模型未在 Provider " + providerKey + " 中登记：" + normalizedModel);
+        }
+    }
+
+    /** 将非空模型加入去重清单。 */
+    private void addRegisteredModel(Set<String> models, String model) {
+        if (StrUtil.isNotBlank(model)) {
+            models.add(model.trim());
+        }
     }
 
     /** 按候选最终 provider、模型和地址刷新上下文窗口快照。 */

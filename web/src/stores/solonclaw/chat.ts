@@ -788,6 +788,7 @@ export const useChatStore = defineStore('chat', () => {
     // Inherit current global model
     const appStore = useAppStore()
     session.model = appStore.selectedModel || undefined
+    session.provider = appStore.selectedProvider || undefined
     void switchSession(session.key)
   }
 
@@ -915,6 +916,7 @@ export const useChatStore = defineStore('chat', () => {
     const startingRouteToken = chatRouteToken()
     const startingAuthContextVersion = authContextVersion
     const startingModel = startingSession.model || useAppStore().selectedModel || undefined
+    const startingProvider = startingSession.provider || useAppStore().selectedProvider || undefined
     const previousTitle = startingSession.title
     const previousUpdatedAt = startingSession.updatedAt
     const isSlashCommand = content.trim().startsWith('/')
@@ -973,6 +975,7 @@ export const useChatStore = defineStore('chat', () => {
         profile: startingProfile,
         conversation_history: history,
         session_id: startingSessionId,
+        provider: startingProvider,
         model: startingModel,
         attachments: uploadedAttachments,
       })

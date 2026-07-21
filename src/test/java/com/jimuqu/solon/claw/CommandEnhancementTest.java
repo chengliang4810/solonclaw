@@ -806,7 +806,7 @@ public class CommandEnhancementTest {
                         "admin-chat",
                         "admin-user",
                         "/cron add \"every 2h\" \"Check server status\" --skill blogwatcher --skill maps"
-                                + " --model gpt-test-cron --provider default --base-url https://api.example.com/"
+                                + " --model gpt-test-cron --provider default"
                                 + " --deliver feishu --deliver-chat-id chat-create --deliver-thread-id thread-create"
                                 + " --no-wrap-response");
         String jobId =
@@ -820,7 +820,6 @@ public class CommandEnhancementTest {
                 .contains("maps")
                 .contains("model=gpt-test-cron")
                 .contains("provider=default")
-                .contains("base_url=https://api.example.com")
                 .contains("deliver=feishu")
                 .contains("deliver_chat_id=chat-create")
                 .contains("deliver_thread_id=thread-create")
@@ -931,12 +930,12 @@ public class CommandEnhancementTest {
                 env.send(
                         "admin-chat",
                         "admin-user",
-                        "/cron edit " + jobId + " --clear-model --clear-provider --clear-base-url");
+                        "/cron edit " + jobId + " --clear-model --clear-provider");
         assertThat(clearedModelPinning.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("model=null")
                 .contains("provider=null")
-                .contains("base_url=null");
+                .doesNotContain("base_url");
 
         GatewayReply clearedRuntime =
                 env.send(
@@ -1380,7 +1379,7 @@ public class CommandEnhancementTest {
                                 + workspaceHome
                                 + "\" --no-agent --repeat 3 --deliver feishu --no-wrap-response"
                                 + " --deliver-chat-id chat-1 --deliver-thread-id topic-2"
-                                + " --model gpt-cron --provider default --base-url https://api.cron.example/v1/"
+                                + " --model gpt-cron --provider default"
                                 + " --toolsets shell,file");
         assertThat(created.getContent()).contains("已创建定时任务");
         String jobId =
@@ -1424,7 +1423,6 @@ public class CommandEnhancementTest {
                 .contains("Toolsets: shell, file")
                 .contains("Model: gpt-cron")
                 .contains("Provider: default")
-                .contains("Base URL: https://api.cron.example/v1")
                 .contains("Last run:")
                 .contains("(error)")
                 .contains("Delivery failed: send timeout");

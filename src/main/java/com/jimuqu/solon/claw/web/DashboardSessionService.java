@@ -913,19 +913,23 @@ public class DashboardSessionService {
             }
         }
 
+        String provider = StrUtil.nullToEmpty(record.getLastResolvedProvider()).trim();
+        String model = StrUtil.nullToEmpty(record.getLastResolvedModel()).trim();
+        if (StrUtil.isBlank(model)) {
+            String override = StrUtil.nullToEmpty(record.getModelOverride()).trim();
+            int delimiter = override.indexOf(':');
+            if (delimiter > 0 && delimiter < override.length() - 1) {
+                provider = override.substring(0, delimiter).trim();
+                model = override.substring(delimiter + 1).trim();
+            } else {
+                model = override;
+            }
+        }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("id", safe(record.getSessionId(), 400));
         result.put("source", parseSource(record.getSourceKey()));
-        result.put(
-                "model",
-                safe(
-                        StrUtil.blankToDefault(
-                                record.getLastResolvedModel(),
-                                StrUtil.blankToDefault(record.getModelOverride(), null)),
-                        400));
-        result.put(
-                "provider",
-                safe(StrUtil.blankToDefault(record.getLastResolvedProvider(), null), 400));
+        result.put("model", safe(StrUtil.blankToDefault(model, null), 400));
+        result.put("provider", safe(StrUtil.blankToDefault(provider, null), 400));
         result.put("title", safe(record.getTitle(), 400));
         result.put("started_at", record.getCreatedAt());
         result.put("ended_at", null);

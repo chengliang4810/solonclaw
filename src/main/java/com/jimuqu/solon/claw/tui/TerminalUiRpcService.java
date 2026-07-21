@@ -35,7 +35,6 @@ import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
-import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.ToolMessageStatusSupport;
 import com.jimuqu.solon.claw.support.TuiRuntimeProtocolService;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
@@ -720,7 +719,19 @@ public class TerminalUiRpcService {
             throws Exception {
         if ("model".equals(StrUtil.nullToEmpty(key).trim())) {
             Map<String, Object> result = runtimeProtocolService.configSet(key, value, sessionId);
-            result.put("info", sessionInfo(findSession(sessionId)));
+            SessionRecord session = findSession(sessionId);
+            if (!Boolean.TRUE.equals(result.get("global"))) {
+                if (sessionRepository == null || session == null) {
+                    throw new IllegalArgumentException("未找到要切换模型的 TUI 会话：" + sessionId);
+                }
+                String provider =
+                        StrUtil.nullToEmpty(String.valueOf(result.get("provider"))).trim();
+                String model = StrUtil.nullToEmpty(String.valueOf(result.get("value"))).trim();
+                String override = provider + ":" + model;
+                sessionRepository.setModelOverride(session.getSessionId(), override);
+                session.setModelOverride(override);
+            }
+            result.put("info", sessionInfo(session));
             return result;
         }
         String stored = applyConfigSet(key, value, sessionId);
@@ -775,33 +786,47 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 返回模型选择器需要的 provider/model 列表。 */
-    public Map<String, Object> modelOptions() {
-        return runtimeProtocolService.modelOptions("");
+    /** 返回模型选择器需要的 provider/model 列表，并优先展示会话当前覆盖。 */
+    public Map<String, Object> modelOptions(String sessionId) throws Exception {
+        Map<String, Object> result = runtimeProtocolService.modelOptions(sessionId);
+        SessionRecord session = findSession(sessionId);
+        String override =
+                session == null ? "" : StrUtil.nullToEmpty(session.getModelOverride()).trim();
+        int delimiter = override.indexOf(':');
+        if (delimiter <= 0 || delimiter >= override.length() - 1) {
+            return result;
+        }
+        String provider = override.substring(0, delimiter).trim();
+        String model = override.substring(delimiter + 1).trim();
+        if (StrUtil.isBlank(provider) || StrUtil.isBlank(model)) {
+            return result;
+        }
+        result.put("provider", provider);
+        result.put("model", model);
+        Object options = result.get("providers");
+        if (options instanceof List) {
+            for (Object option : (List<?>) options) {
+                if (option instanceof Map) {
+                    Map<?, ?> item = (Map<?, ?>) option;
+                    Object slug = item.get("slug");
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> mutable = (Map<String, Object>) item;
+                    mutable.put(
+                            "is_current", Boolean.valueOf(provider.equals(String.valueOf(slug))));
+                }
+            }
+        }
+        return result;
     }
 
     /** 保存模型提供方 API Key，并返回模型选择器需要的 provider 状态。 */
-    public Map<String, Object> modelSaveKey(String slug, String apiKey) {
-        return runtimeProtocolService.modelSaveKey(slug, apiKey, "");
+    public Map<String, Object> modelSaveKey(String slug, String apiKey, String sessionId) {
+        return runtimeProtocolService.modelSaveKey(slug, apiKey, sessionId);
     }
 
     /** 清空模型提供方 API Key，并返回断开状态。 */
-    public Map<String, Object> modelDisconnect(String slug) {
-        String providerSlug = StrUtil.blankToDefault(slug, providerName());
-        boolean persisted = setRuntimeSecret("providers." + providerSlug + ".apiKey", "");
-        AppConfig.ProviderConfig provider =
-                appConfig == null ? null : appConfig.getProviders().get(providerSlug);
-        if (provider != null) {
-            provider.setApiKey("");
-        }
-        if (isCurrentProvider(providerSlug) && appConfig != null && appConfig.getLlm() != null) {
-            appConfig.getLlm().setApiKey("");
-        }
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("disconnected", Boolean.TRUE);
-        result.put("provider", modelProviderItem(providerSlug, false));
-        result.put("persisted", Boolean.valueOf(persisted));
-        return result;
+    public Map<String, Object> modelDisconnect(String slug, String sessionId) {
+        return runtimeProtocolService.modelDisconnect(slug, sessionId);
     }
 
     /** 返回独立终端 UI 需要展示的国内渠道 setup 清单。 */
@@ -918,11 +943,6 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 兼容旧调用入口；没有会话标识时只会返回未附加结果。 */
-    public Map<String, Object> imageAttach(String path) {
-        return imageAttach("", path);
-    }
-
     /** 解析本地图片路径、写入指定会话的下一轮附件队列并返回 attach 结果。 */
     public Map<String, Object> imageAttach(String sessionId, String path) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -988,11 +1008,6 @@ public class TerminalUiRpcService {
         Map<String, Object> result = attachedImageResult(attachment, count, "");
         result.put("bytes", Integer.valueOf(bytes.length));
         return result;
-    }
-
-    /** 兼容旧调用入口；没有会话标识时无法安全绑定剪贴板附件。 */
-    public Map<String, Object> clipboardPaste() {
-        return clipboardPaste("");
     }
 
     /** 返回服务端剪贴板不可用提示；远程客户端应使用 image.attach_bytes 上传本机图片。 */
@@ -1760,12 +1775,6 @@ public class TerminalUiRpcService {
     private String applyConfigSet(String key, String value, String sessionId) throws Exception {
         String normalized = StrUtil.nullToEmpty(key).trim();
         String raw = StrUtil.nullToEmpty(value).trim();
-        if ("model".equals(normalized)) {
-            if (StrUtil.isNotBlank(raw)) {
-                setRuntimeConfig("model.default", raw);
-            }
-            return currentModel();
-        }
         if ("reasoning".equals(normalized)) {
             return applyReasoning(raw, sessionId);
         }
@@ -1855,30 +1864,12 @@ public class TerminalUiRpcService {
         if (appConfig == null) {
             return;
         }
-        if ("model.default".equals(key)) {
-            appConfig.getModel().setDefault(value);
-        } else if ("llm.reasoningEffort".equals(key)) {
+        if ("llm.reasoningEffort".equals(key)) {
             appConfig.getLlm().setReasoningEffort(value);
         } else if ("task.busyPolicy".equals(key)) {
             appConfig.getTask().setBusyPolicy(value);
         } else if ("display.showReasoning".equals(key)) {
             appConfig.getDisplay().setShowReasoning(Boolean.parseBoolean(value));
-        }
-    }
-
-    /** 写入运行时密钥配置；非默认 provider 尚未进入配置白名单时允许前端继续使用内存状态。 */
-    private boolean setRuntimeSecret(String key, String value) {
-        if (runtimeSettingsService == null) {
-            return false;
-        }
-        try {
-            runtimeSettingsService.setSecretValue(key, value);
-            return true;
-        } catch (IllegalStateException e) {
-            if (StrUtil.containsIgnoreCase(e.getMessage(), "Unsupported workspace config item")) {
-                return false;
-            }
-            throw e;
         }
     }
 
@@ -1903,46 +1894,6 @@ public class TerminalUiRpcService {
                 || normalized.startsWith("compression.")
                 || normalized.startsWith("react.")
                 || normalized.startsWith("skills.");
-    }
-
-    /** 判断指定 provider 是否为当前会话实际使用的 provider。 */
-    private boolean isCurrentProvider(String providerSlug) {
-        return StrUtil.equals(providerSlug, providerName());
-    }
-
-    /** 构造模型选择器 provider 项。 */
-    private Map<String, Object> modelProviderItem(String slug, boolean authenticated) {
-        String providerSlug = StrUtil.blankToDefault(slug, providerName());
-        AppConfig.ProviderConfig configured =
-                appConfig == null ? null : appConfig.getProviders().get(providerSlug);
-        String model =
-                configured == null
-                        ? currentModel()
-                        : StrUtil.blankToDefault(configured.getDefaultModel(), currentModel());
-        boolean hasKey =
-                authenticated
-                        && (configured == null
-                                ? runtimeSettingsService == null
-                                : SecretValueGuard.hasUsableSecret(configured.getApiKey()));
-        Map<String, Object> provider = new LinkedHashMap<String, Object>();
-        provider.put("slug", providerSlug);
-        provider.put(
-                "name",
-                configured == null
-                        ? providerSlug
-                        : StrUtil.blankToDefault(configured.getName(), providerSlug));
-        provider.put("auth_type", "api_key");
-        provider.put("key_env", providerSlug.toUpperCase(Locale.ROOT) + "_API_KEY");
-        provider.put("authenticated", Boolean.valueOf(hasKey));
-        provider.put("is_current", Boolean.valueOf(StrUtil.equals(providerSlug, providerName())));
-        provider.put(
-                "models",
-                hasKey ? java.util.Collections.singletonList(model) : new ArrayList<Object>());
-        provider.put("total_models", Integer.valueOf(hasKey ? 1 : 0));
-        if (!hasKey) {
-            provider.put("warning", "paste API key to activate");
-        }
-        return provider;
     }
 
     /** 返回当前 busy 策略，优先使用内存配置以反映最新生效状态。 */

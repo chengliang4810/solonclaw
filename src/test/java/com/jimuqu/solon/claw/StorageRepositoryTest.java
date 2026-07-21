@@ -79,7 +79,6 @@ public class StorageRepositoryTest {
         env.sessionRepository.setModelOverride(created.getSessionId(), "openai:gpt-5.4");
         env.sessionRepository.setServiceTierOverride(created.getSessionId(), "priority");
         env.sessionRepository.setReasoningEffortOverride(created.getSessionId(), "high");
-        env.sessionRepository.setActiveAgentName(created.getSessionId(), "reviewer");
         env.sessionRepository.setGoalState(created.getSessionId(), "{\"goal\":\"active\"}");
         env.sessionRepository.setLastLearningAt(created.getSessionId(), 42L);
         firstStale.setNdjson("runtime result");
@@ -96,7 +95,6 @@ public class StorageRepositoryTest {
         assertThat(stored.getModelOverride()).isEqualTo("openai:gpt-5.4");
         assertThat(stored.getServiceTierOverride()).isEqualTo("priority");
         assertThat(stored.getReasoningEffortOverride()).isEqualTo("high");
-        assertThat(stored.getActiveAgentName()).isEqualTo("reviewer");
         assertThat(stored.getGoalStateJson()).isEqualTo("{\"goal\":\"active\"}");
         assertThat(stored.getLastLearningAt()).isEqualTo(42L);
         assertThat(stored.getNdjson()).isEqualTo("third runtime result");
@@ -112,7 +110,6 @@ public class StorageRepositoryTest {
         current.setModelOverride("openai:gpt-5.4");
         current.setServiceTierOverride("priority");
         current.setReasoningEffortOverride("high");
-        current.setActiveAgentName("reviewer");
         current.setGoalStateJson("{\"goal\":\"active\"}");
         current.setLastLearningAt(42L);
 
@@ -122,7 +119,6 @@ public class StorageRepositoryTest {
         assertThat(stored.getModelOverride()).isEqualTo("openai:gpt-5.4");
         assertThat(stored.getServiceTierOverride()).isEqualTo("priority");
         assertThat(stored.getReasoningEffortOverride()).isEqualTo("high");
-        assertThat(stored.getActiveAgentName()).isEqualTo("reviewer");
         assertThat(stored.getGoalStateJson()).isEqualTo("{\"goal\":\"active\"}");
         assertThat(stored.getLastLearningAt()).isEqualTo(42L);
     }
@@ -193,7 +189,6 @@ public class StorageRepositoryTest {
         current.setModelOverride("openai:gpt-5.4");
         current.setServiceTierOverride("priority");
         current.setReasoningEffortOverride("high");
-        current.setActiveAgentName("reviewer");
         current.setGoalStateJson("{\"goal\":\"active\"}");
         current.setLastLearningAt(42L);
         current.setUpdatedAt(System.currentTimeMillis());
@@ -203,7 +198,6 @@ public class StorageRepositoryTest {
         assertThat(stored.getModelOverride()).isEqualTo("openai:gpt-5.4");
         assertThat(stored.getServiceTierOverride()).isEqualTo("priority");
         assertThat(stored.getReasoningEffortOverride()).isEqualTo("high");
-        assertThat(stored.getActiveAgentName()).isEqualTo("reviewer");
         assertThat(stored.getGoalStateJson()).isEqualTo("{\"goal\":\"active\"}");
         assertThat(stored.getLastLearningAt()).isEqualTo(42L);
     }
@@ -219,7 +213,6 @@ public class StorageRepositoryTest {
         initial.setModelOverride("old-model");
         initial.setServiceTierOverride("priority");
         initial.setReasoningEffortOverride("high");
-        initial.setActiveAgentName("reviewer");
         initial.setGoalStateJson("{\"goal\":\"old\"}");
         initial.setLastLearningAt(42L);
         env.sessionRepository.save(initial);
@@ -228,7 +221,6 @@ public class StorageRepositoryTest {
         env.sessionRepository.setModelOverride(initial.getSessionId(), null);
         env.sessionRepository.setServiceTierOverride(initial.getSessionId(), null);
         env.sessionRepository.setReasoningEffortOverride(initial.getSessionId(), null);
-        env.sessionRepository.setActiveAgentName(initial.getSessionId(), null);
         env.sessionRepository.setGoalState(initial.getSessionId(), null);
         env.sessionRepository.setLastLearningAt(initial.getSessionId(), 0L);
         env.sessionRepository.save(stale);
@@ -238,7 +230,6 @@ public class StorageRepositoryTest {
         assertThat(stored.getModelOverride()).isNull();
         assertThat(stored.getServiceTierOverride()).isNull();
         assertThat(stored.getReasoningEffortOverride()).isNull();
-        assertThat(stored.getActiveAgentName()).isNull();
         assertThat(stored.getGoalStateJson()).isNull();
         assertThat(stored.getLastLearningAt()).isZero();
     }

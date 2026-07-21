@@ -139,7 +139,7 @@ public class AttachmentAwareConversationTest {
                         (com.jimuqu.solon.claw.engine.AgentRunSupervisor)
                                 env.agentRunControlService,
                         new com.jimuqu.solon.claw.support.RuntimeFooterService(env.appConfig),
-                        env.agentRuntimeService,
+                        env.appConfig,
                         env.memoryManager,
                         null,
                         speechService);

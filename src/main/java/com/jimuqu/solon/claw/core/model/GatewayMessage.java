@@ -21,6 +21,9 @@ public class GatewayMessage {
     /** 后台委派完成结果回流父会话时使用的内部运行类型。 */
     public static final String RUN_KIND_DELEGATION_COMPLETION = "delegation_completion";
 
+    /** 一次性子代理任务使用的内部运行类型。 */
+    public static final String RUN_KIND_SUBAGENT = "subagent";
+
     /** 消息归属的 Profile；default 或空值保持单 Profile 旧会话键。 */
     private String profile;
 
@@ -68,9 +71,6 @@ public class GatewayMessage {
 
     /** 本轮消息使用的临时模型覆盖；不会持久化到会话。 */
     private String modelOverride;
-
-    /** 本轮消息使用的精简系统提示；非空时跳过 Profile 上下文与长期记忆。 */
-    private String systemPromptOverride;
 
     /** 本轮消息使用的临时工具集覆盖；不会持久化到会话。 */
     private List<String> enabledToolsetsOverride = new ArrayList<String>();

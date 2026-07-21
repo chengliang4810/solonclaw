@@ -80,9 +80,6 @@ class CronFlagOptions {
     /** 记录定时任务模型提供方。 */
     String provider;
 
-    /** 记录定时任务模型基础 URL。 */
-    String baseUrl;
-
     /** 记录定时任务状态过滤条件。 */
     String status;
 
@@ -97,9 +94,6 @@ class CronFlagOptions {
 
     /** 标记是否清空模型提供方配置。 */
     boolean clearProvider;
-
-    /** 标记是否清空模型基础 URL 配置。 */
-    boolean clearBaseUrl;
 
     /** 标记是否清空脚本配置。 */
     boolean clearScript;

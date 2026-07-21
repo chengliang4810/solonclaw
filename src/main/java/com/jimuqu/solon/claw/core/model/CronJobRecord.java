@@ -69,9 +69,6 @@ public class CronJobRecord {
     /** 任务固定 provider。 */
     private String provider;
 
-    /** 任务固定 base URL。 */
-    private String baseUrl;
-
     /** 是否包装 Cron 投递结果。 */
     private boolean wrapResponse = true;
 

@@ -10,7 +10,6 @@ export interface Job {
   skill: string | null
   model: string | null
   provider: string | null
-  base_url: string | null
   script: string | null
   workdir: string | null
   no_agent: boolean
@@ -189,7 +188,6 @@ export interface CreateJobRequest {
   enabled_toolsets?: string[]
   model?: string
   provider?: string
-  base_url?: string
 }
 
 export interface UpdateJobRequest {
@@ -223,7 +221,6 @@ export interface UpdateJobRequest {
   enabled_toolsets?: string[]
   model?: string | null
   provider?: string | null
-  base_url?: string | null
 }
 
 interface DashboardJob {
@@ -236,7 +233,6 @@ interface DashboardJob {
   skill?: string | null
   model?: string | null
   provider?: string | null
-  base_url?: string | null
   script?: string | null
   workdir?: string | null
   no_agent?: boolean
@@ -276,7 +272,6 @@ function mapJob(job: DashboardJob): Job {
     skill: job.skill || null,
     model: job.model || null,
     provider: job.provider || null,
-    base_url: job.base_url || null,
     script: job.script || null,
     workdir: job.workdir || null,
     no_agent: Boolean(job.no_agent),
@@ -330,7 +325,6 @@ function buildJobMutationPayload(data: CreateJobRequest | UpdateJobRequest, upda
     enabled_toolsets: data.enabled_toolsets,
     model: data.model,
     provider: data.provider,
-    base_url: data.base_url,
   }
   if (update) {
     const updateData = data as UpdateJobRequest

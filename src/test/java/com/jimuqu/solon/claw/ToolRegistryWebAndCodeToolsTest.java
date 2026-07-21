@@ -299,7 +299,6 @@ class ToolRegistryWebAndCodeToolsTest {
                         .appConfig(env.appConfig)
                         .preferenceStore(new SqlitePreferenceStore(env.sqliteDatabase))
                         .sessionRepository(env.sessionRepository)
-                        .agentProfileService(env.agentProfileService)
                         .deliveryService(env.deliveryService)
                         .memoryService(env.memoryService)
                         .sessionSearchService(env.sessionSearchService)

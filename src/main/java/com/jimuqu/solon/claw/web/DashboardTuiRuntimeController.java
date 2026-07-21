@@ -107,12 +107,6 @@ public class DashboardTuiRuntimeController {
         if ("config.get".equals(method)) {
             return protocolService.configGet(stringParam(params, "key"));
         }
-        if ("config.set".equals(method)) {
-            return protocolService.configSet(
-                    stringParam(params, "key"),
-                    stringParam(params, "value"),
-                    stringParam(params, "session_id"));
-        }
         throw new UnsupportedOperationException("unknown method: " + method);
     }
 

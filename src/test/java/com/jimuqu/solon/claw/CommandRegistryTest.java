@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.command.CommandDescriptor;
@@ -13,6 +14,13 @@ import org.junit.jupiter.api.Test;
 
 /** 验证命令注册表在初始化和维护时不会静默覆盖命令别名。 */
 public class CommandRegistryTest {
+    /** 人格只由 SOUL.md 定义，不再暴露独立 personality 命令。 */
+    @Test
+    void shouldNotExposePersonalityCommand() {
+        assertThat(CommandRegistry.resolve("/personality")).isNull();
+        assertThat(CommandRegistry.slashCommands()).doesNotContain("/personality");
+    }
+
     /** 重复别名必须快速失败，避免新命令覆盖已有 slash command 解析结果。 */
     @Test
     void shouldRejectDuplicateCommandAliases() throws Exception {

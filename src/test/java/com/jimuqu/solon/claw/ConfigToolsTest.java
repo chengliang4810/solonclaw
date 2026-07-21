@@ -97,7 +97,9 @@ public class ConfigToolsTest {
         String response =
                 (String)
                         method.invoke(
-                                configSetSecretTool, "providers.default.apiKey", "your-api-key");
+                                configSetSecretTool,
+                                "solonclaw.gateway.injectionSecret",
+                                "your-api-key");
 
         assertThat(ONode.ofJson(response).get("status").getString()).isEqualTo("error");
         assertThat(ONode.ofJson(response).get("error").getString()).contains("占位符密钥");
@@ -124,8 +126,7 @@ public class ConfigToolsTest {
                 (String) method.invoke(configSetTool, "channels.dingtalk.clientSecret", "none");
 
         assertThat(ONode.ofJson(providerResponse).get("status").getString()).isEqualTo("error");
-        assertThat(ONode.ofJson(providerResponse).get("error").getString())
-                .contains("config_set_secret");
+        assertThat(ONode.ofJson(providerResponse).get("error").getString()).contains("Provider 管理");
         assertThat(ONode.ofJson(channelResponse).get("status").getString()).isEqualTo("error");
         assertThat(ONode.ofJson(channelResponse).get("error").getString())
                 .contains("config_set_secret");
@@ -143,7 +144,7 @@ public class ConfigToolsTest {
 
         assertThat(ONode.ofJson(response).get("status").getString()).isEqualTo("error");
         assertThat(ONode.ofJson(response).get("error").getString())
-                .contains("providers.***.apiKey")
+                .contains("Provider 管理")
                 .doesNotContain("ghp_1234567890abcdef");
     }
 
@@ -161,11 +162,11 @@ public class ConfigToolsTest {
                 (String)
                         method.invoke(
                                 configSetSecretTool,
-                                "providers.default.apiKey",
+                                "solonclaw.gateway.injectionSecret",
                                 "ghp_configvaluesecret12345");
 
         assertThat(response)
-                .contains("providers.default.apiKey")
+                .contains("solonclaw.gateway.injectionSecret")
                 .doesNotContain("ghp_configvaluesecret12345");
     }
 
@@ -196,35 +197,7 @@ public class ConfigToolsTest {
         assertThat(writeResponse.get("status").getString()).isEqualTo("success");
         assertThat(env.appConfig.getChannels().getWeixin().isEnabled()).isTrue();
 
-        Method secret =
-                configSetSecretTool
-                        .getClass()
-                        .getMethod("configSetSecret", String.class, String.class);
-        ONode secretResponse =
-                ONode.ofJson(
-                        (String)
-                                secret.invoke(
-                                        configSetSecretTool,
-                                        "providers.default.apiKey",
-                                        "sk-test-real-secret-12345"));
-        assertThat(secretResponse.get("status").getString()).isEqualTo("success");
-        assertThat(secretResponse.toString()).doesNotContain("sk-test-real-secret-12345");
-
         Method read = configGetTool.getClass().getMethod("configGet", String.class);
-        ONode providerSecretRead =
-                ONode.ofJson((String) read.invoke(configGetTool, "providers.default.apiKey"));
-        assertThat(providerSecretRead.get("status").getString()).isEqualTo("success");
-        assertThat(providerSecretRead.get("value").getString()).isEqualTo("***");
-        assertThat(providerSecretRead.get("redacted").getBoolean()).isTrue();
-        assertThat(providerSecretRead.get("preview").getString())
-                .isEqualTo("providers.default.apiKey=***");
-        assertThat(providerSecretRead.toString()).doesNotContain("sk-test-real-secret-12345");
-
-        ONode providerModelRead =
-                ONode.ofJson((String) read.invoke(configGetTool, "providers.default.defaultModel"));
-        assertThat(providerModelRead.get("status").getString()).isEqualTo("success");
-        assertThat(providerModelRead.get("value").getString()).isNotBlank();
-
         Method writeSecret =
                 configSetSecretTool
                         .getClass()
@@ -246,7 +219,7 @@ public class ConfigToolsTest {
         assertThat(readResponse.get("redacted").getBoolean()).isTrue();
         assertThat(readResponse.get("preview").getString())
                 .isEqualTo("gateway.injectionSecret=***");
-        assertThat(readResponse.toString()).doesNotContain("sk-test-real-secret-12345");
+        assertThat(readResponse.toString()).doesNotContain("gateway-secret-12345");
     }
 
     @Test
@@ -305,7 +278,7 @@ public class ConfigToolsTest {
                                         "sk-regular-write-secret-12345"));
         assertThat(rejectedSecretWrite.get("status").getString()).isEqualTo("error");
         assertThat(rejectedSecretWrite.get("error").getString())
-                .contains("config_set_secret")
+                .contains("Provider 管理")
                 .doesNotContain("sk-regular-write-secret-12345");
 
         Method writeSecret =
@@ -320,25 +293,23 @@ public class ConfigToolsTest {
                                         "providers.default.defaultModel",
                                         "gpt-5"));
         assertThat(rejectedNonSecret.get("status").getString()).isEqualTo("error");
-        assertThat(rejectedNonSecret.get("error").getString()).contains("不是密钥配置");
+        assertThat(rejectedNonSecret.get("error").getString()).contains("Provider 管理");
 
         ONode secretWrite =
                 ONode.ofJson(
                         (String)
                                 writeSecret.invoke(
                                         configSetSecretTool,
-                                        "providers.default.apiKey",
+                                        "solonclaw.gateway.injectionSecret",
                                         "sk-secret-update-real-12345"));
         assertThat(secretWrite.get("status").getString()).isEqualTo("success");
         assertThat(secretWrite.toString()).doesNotContain("sk-secret-update-real-12345");
-        assertThat(env.appConfig.getProviders().get("default").getApiKey())
-                .isEqualTo("sk-secret-update-real-12345");
         assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
-                .contains("apiKey: sk-secret-update-real-12345");
+                .contains("injectionSecret: sk-secret-update-real-12345");
 
         Method read = configGetTool.getClass().getMethod("configGet", String.class);
         ONode secretRead =
-                ONode.ofJson((String) read.invoke(configGetTool, "providers.default.apiKey"));
+                ONode.ofJson((String) read.invoke(configGetTool, "gateway.injectionSecret"));
         assertThat(secretRead.get("status").getString()).isEqualTo("success");
         assertThat(secretRead.get("value").getString()).isEqualTo("***");
         assertThat(secretRead.get("redacted").getBoolean()).isTrue();

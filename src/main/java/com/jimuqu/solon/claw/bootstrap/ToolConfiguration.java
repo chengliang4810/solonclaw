@@ -1,7 +1,5 @@
 package com.jimuqu.solon.claw.bootstrap;
 
-import com.jimuqu.solon.claw.agent.AgentProfileService;
-import com.jimuqu.solon.claw.agent.AgentRuntimeService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
@@ -298,7 +296,6 @@ public class ToolConfiguration {
      * @param appConfig 应用运行配置。
      * @param preferenceStore 本地偏好存储依赖。
      * @param sessionRepository 会话仓储依赖。
-     * @param agentProfileService 文件或目录路径参数。
      * @param cronJobService 定时任务Job服务依赖。
      * @param deliveryService 投递服务依赖。
      * @param memoryService 记忆服务依赖。
@@ -344,7 +341,6 @@ public class ToolConfiguration {
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
             SessionRepository sessionRepository,
-            AgentProfileService agentProfileService,
             CronJobService cronJobService,
             DeliveryService deliveryService,
             MemoryService memoryService,
@@ -387,7 +383,6 @@ public class ToolConfiguration {
                         appConfig,
                         preferenceStore,
                         sessionRepository,
-                        agentProfileService,
                         cronJobService,
                         deliveryService,
                         memoryService,
@@ -434,7 +429,6 @@ public class ToolConfiguration {
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
             SessionRepository sessionRepository,
-            AgentProfileService agentProfileService,
             CronJobService cronJobService,
             DeliveryService deliveryService,
             MemoryService memoryService,
@@ -455,7 +449,6 @@ public class ToolConfiguration {
         return builder.appConfig(appConfig)
                 .preferenceStore(preferenceStore)
                 .sessionRepository(sessionRepository)
-                .agentProfileService(agentProfileService)
                 .cronJobService(cronJobService)
                 .deliveryService(deliveryService)
                 .memoryService(memoryService)
@@ -667,7 +660,7 @@ public class ToolConfiguration {
      * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
      * @param agentRunSupervisor Agent运行Supervisor参数。
      * @param runtimeFooterService 运行时Footer服务依赖。
-     * @param agentRuntimeService Agent运行时服务依赖。
+     * @param appConfig 当前 Profile 的应用配置。
      * @param memoryManager 记忆Manager参数。
      * @param goalService 目标服务依赖。
      * @param speechService 语音服务依赖。
@@ -687,7 +680,7 @@ public class ToolConfiguration {
             DangerousCommandApprovalService dangerousCommandApprovalService,
             AgentRunSupervisor agentRunSupervisor,
             RuntimeFooterService runtimeFooterService,
-            AgentRuntimeService agentRuntimeService,
+            AppConfig appConfig,
             MemoryManager memoryManager,
             GoalService goalService,
             SpeechService speechService) {
@@ -704,7 +697,7 @@ public class ToolConfiguration {
                         dangerousCommandApprovalService,
                         agentRunSupervisor,
                         runtimeFooterService,
-                        agentRuntimeService,
+                        appConfig,
                         memoryManager,
                         goalService,
                         speechService);

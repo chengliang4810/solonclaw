@@ -35,8 +35,9 @@ public class ConfigTools {
     @ToolMapping(
             name = "config_get",
             description =
-                    "Read a whitelisted workspace config key, such as llm.model or channels.weixin.enabled.")
-    public String configGet(@Param(name = "key", description = "配置键，例如 llm.model") String key) {
+                    "Read a whitelisted workspace config key, such as llm.temperature or channels.weixin.enabled.")
+    public String configGet(
+            @Param(name = "key", description = "配置键，例如 llm.temperature") String key) {
         try {
             Object value = runtimeSettingsService.getConfigValue(key);
             Object safeValue = safeValue(key, value);
@@ -66,13 +67,10 @@ public class ConfigTools {
             description =
                     "Update a whitelisted workspace config key. Global config changes take effect on the next message.")
     public String configSet(
-            @Param(name = "key", description = "配置键，例如 llm.model 或 channels.weixin.enabled")
+            @Param(name = "key", description = "配置键，例如 llm.temperature 或 channels.weixin.enabled")
                     String key,
             @Param(name = "value", description = "新的配置值，列表键使用逗号分隔") String value) {
         try {
-            if (runtimeSettingsService.isSecretConfigKey(key)) {
-                throw new IllegalArgumentException(key + " 是密钥配置，请使用 config_set_secret 更新。");
-            }
             runtimeSettingsService.setConfigValue(key, value);
             Object current = runtimeSettingsService.getConfigValue(key);
             return ToolResultEnvelope.ok("已更新工作区配置：" + safeText(key, 400))
@@ -161,9 +159,10 @@ public class ConfigTools {
     @ToolMapping(
             name = "config_set_secret",
             description =
-                    "Update a whitelisted workspace secret key, such as providers.default.apiKey.")
+                    "Update a whitelisted workspace secret key, such as solonclaw.gateway.injectionSecret.")
     public String configSetSecret(
-            @Param(name = "key", description = "配置键，例如 providers.default.apiKey") String key,
+            @Param(name = "key", description = "配置键，例如 solonclaw.gateway.injectionSecret")
+                    String key,
             @Param(name = "value", description = "新的密钥值") String value) {
         try {
             runtimeSettingsService.setSecretValue(key, value);
@@ -330,8 +329,9 @@ public class ConfigTools {
         @ToolMapping(
                 name = "config_get",
                 description =
-                        "Read a whitelisted workspace config key, such as llm.model or channels.weixin.enabled.")
-        public String configGet(@Param(name = "key", description = "配置键，例如 llm.model") String key) {
+                        "Read a whitelisted workspace config key, such as llm.temperature or channels.weixin.enabled.")
+        public String configGet(
+                @Param(name = "key", description = "配置键，例如 llm.temperature") String key) {
             return delegate.configGet(key);
         }
 
@@ -370,7 +370,9 @@ public class ConfigTools {
                 description =
                         "Update a whitelisted workspace config key. Global config changes take effect on the next message.")
         public String configSet(
-                @Param(name = "key", description = "配置键，例如 llm.model 或 channels.weixin.enabled")
+                @Param(
+                                name = "key",
+                                description = "配置键，例如 llm.temperature 或 channels.weixin.enabled")
                         String key,
                 @Param(name = "value", description = "新的配置值，列表键使用逗号分隔") String value) {
             return delegate.configSet(key, value);
@@ -393,9 +395,10 @@ public class ConfigTools {
         @ToolMapping(
                 name = "config_set_secret",
                 description =
-                        "Update a whitelisted workspace secret key, such as providers.default.apiKey.")
+                        "Update a whitelisted workspace secret key, such as solonclaw.gateway.injectionSecret.")
         public String configSetSecret(
-                @Param(name = "key", description = "配置键，例如 providers.default.apiKey") String key,
+                @Param(name = "key", description = "配置键，例如 solonclaw.gateway.injectionSecret")
+                        String key,
                 @Param(name = "value", description = "新的密钥值") String value) {
             return delegate.configSetSecret(key, value);
         }

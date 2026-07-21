@@ -207,6 +207,7 @@ public class SolonAiLlmGatewayFailoverTest {
         primary.setBaseUrl("https://api.openai.com");
         primary.setApiKey("primary-key");
         primary.setDefaultModel("gpt-5-mini");
+        primary.setModels(java.util.Arrays.asList("gpt-5-mini", "approval-primary"));
         primary.setDialect("openai-responses");
         config.getProviders().put("primary", primary);
 

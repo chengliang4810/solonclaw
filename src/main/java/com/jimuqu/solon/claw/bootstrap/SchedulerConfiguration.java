@@ -202,7 +202,7 @@ public class SchedulerConfiguration {
     }
 
     /**
-     * 创建并启动旧每日记忆归档调度器。
+     * 创建并启动每日记忆归档调度器。
      *
      * @param appConfig 应用配置。
      * @param memoryArchiveService 记忆归档服务。

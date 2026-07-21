@@ -1,7 +1,6 @@
 package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.agent.AgentDefaultMetadata;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
@@ -29,13 +28,6 @@ public class RuntimeSettingsService {
     /** 配置键WHITE列表的统一常量值。 */
     private static final List<String> CONFIG_KEY_WHITELIST =
             Arrays.asList(
-                    "model.providerKey",
-                    "model.default",
-                    "providers.default.name",
-                    "providers.default.baseUrl",
-                    "providers.default.apiKey",
-                    "providers.default.defaultModel",
-                    "providers.default.dialect",
                     "llm.stream",
                     "llm.reasoningEffort",
                     "llm.temperature",
@@ -61,7 +53,6 @@ public class RuntimeSettingsService {
                     "scheduler.enabledToolsets",
                     "compression.enabled",
                     "compression.thresholdPercent",
-                    "compression.summaryModel",
                     "compression.protectHeadMessages",
                     "compression.tailRatio",
                     "learning.enabled",
@@ -259,23 +250,10 @@ public class RuntimeSettingsService {
      * @return 返回解析后的生效模型。
      */
     public ResolvedModel resolveEffectiveModel(SessionRecord session) {
-        return resolveEffectiveModel(session, null);
-    }
-
-    /**
-     * 解析生效模型。
-     *
-     * @param session 会话参数。
-     * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @return 返回解析后的生效模型。
-     */
-    public ResolvedModel resolveEffectiveModel(
-            SessionRecord session, AgentRuntimeScope agentScope) {
         String override =
                 session == null ? "" : StrUtil.nullToEmpty(session.getModelOverride()).trim();
         LlmProviderService.ResolvedProvider resolved =
-                llmProviderService.resolveEffectiveProvider(
-                        session, agentScope == null ? null : agentScope.getDefaultModel());
+                llmProviderService.resolveEffectiveProvider(session);
         return new ResolvedModel(
                 resolved.getProviderKey(),
                 resolved.getDialect(),
@@ -311,7 +289,7 @@ public class RuntimeSettingsService {
             List<String> enabledToolNames,
             AgentRuntimeScope agentScope) {
         String[] parts = SourceKeySupport.split(sourceKey);
-        ResolvedModel resolved = resolveEffectiveModel(session, agentScope);
+        ResolvedModel resolved = resolveEffectiveModel(session);
         List<String> channelStates = new ArrayList<String>();
         try {
             for (ChannelStatus status : deliveryService.statuses()) {
@@ -338,15 +316,6 @@ public class RuntimeSettingsService {
                         ? StrUtil.nullToEmpty(appConfig.getWorkspace().getDir())
                         : StrUtil.nullToEmpty(agentScope.getWorkspaceDir());
         buffer.append("[Agent Runtime]\n");
-        buffer.append("agent_name=")
-                .append(agentScope == null ? "default" : agentScope.getEffectiveName())
-                .append('\n');
-        buffer.append("agent_display_name=")
-                .append(
-                        agentScope == null
-                                ? AgentDefaultMetadata.displayName()
-                                : StrUtil.nullToEmpty(agentScope.getDisplayName()))
-                .append('\n');
         buffer.append("source_key=").append(StrUtil.nullToEmpty(sourceKey)).append('\n');
         buffer.append("platform=").append(StrUtil.nullToEmpty(parts[0])).append('\n');
         buffer.append("chat_id=").append(StrUtil.nullToEmpty(parts[1])).append('\n');
@@ -362,9 +331,6 @@ public class RuntimeSettingsService {
                 .append('\n');
         buffer.append("default_model=")
                 .append(StrUtil.nullToEmpty(globalResolved.getModel()))
-                .append('\n');
-        buffer.append("agent_default_model=")
-                .append(agentScope == null ? "" : StrUtil.nullToEmpty(agentScope.getDefaultModel()))
                 .append('\n');
         buffer.append("effective_provider=")
                 .append(StrUtil.nullToEmpty(resolved.provider))
@@ -463,17 +429,31 @@ public class RuntimeSettingsService {
     }
 
     /**
+     * 校验会话级模型并生成带 Provider 的稳定覆盖值。
+     *
+     * @param provider 可选 Provider；为空时使用当前全局 Provider。
+     * @param model 待选择的模型。
+     * @return provider:model 形式的会话覆盖值。
+     */
+    public String normalizeSessionModelOverride(String provider, String model) {
+        String providerKey = StrUtil.nullToEmpty(provider).trim();
+        if (StrUtil.isBlank(providerKey)) {
+            providerKey = llmProviderService.resolveEffectiveProvider(null).getProviderKey();
+        }
+        LlmProviderService.ResolvedProvider resolved =
+                llmProviderService.resolveProvider(providerKey, model);
+        return resolved.getProviderKey() + ":" + resolved.getModel();
+    }
+
+    /**
      * 读取配置Value。
      *
      * @param key 配置键或映射键。
      * @return 返回读取到的配置Value。
      */
     public Object getConfigValue(String key) {
+        rejectModelOrProviderConfigKey(key);
         ensureConfigKeyAllowed(key);
-        Object value = readAppConfigValue(key);
-        if (value != null) {
-            return value;
-        }
         Object raw = RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome()).getRaw(key);
         if (raw != null) {
             return raw;
@@ -488,12 +468,18 @@ public class RuntimeSettingsService {
      * @param rawValue 原始值参数。
      */
     public void setConfigValue(String key, String rawValue) {
+        rejectModelOrProviderConfigKey(key);
         ensureConfigKeyAllowed(key);
         if (isSecretConfigKey(key)) {
             throw new IllegalArgumentException(key + " 是密钥配置，请使用 config_set_secret 更新。");
         }
         persistConfigValue(
                 key, parseValueForKey(key, rawValue), shouldReconnectChannelsForConfigKey(key));
+    }
+
+    /** 拒绝模型或 Provider 配置通过通用配置工具读写。 */
+    private void rejectModelOrProviderConfigKey(String key) {
+        ModelConfigKeySupport.requireGeneralConfigKey(key);
     }
 
     /**
@@ -503,6 +489,7 @@ public class RuntimeSettingsService {
      * @param value 待规范化或校验的原始值。
      */
     public void setSecretValue(String key, String value) {
+        rejectModelOrProviderConfigKey(key);
         dashboardRuntimeConfigService.updateSecret(
                 key, value, shouldReconnectChannelsForRuntimeKey(key));
     }
@@ -516,6 +503,7 @@ public class RuntimeSettingsService {
         if (CONFIG_KEY_WHITELIST.contains(key)) {
             return;
         }
+        rejectModelOrProviderConfigKey(key);
         if (key != null
                 && (key.startsWith("channels.feishu.")
                         || key.startsWith("channels.dingtalk.")
@@ -688,46 +676,6 @@ public class RuntimeSettingsService {
             current = ((Map<String, Object>) current).get(part);
         }
         return current;
-    }
-
-    /**
-     * 读取App配置Value。
-     *
-     * @param key 配置键或映射键。
-     * @return 返回读取到的App配置Value。
-     */
-    private Object readAppConfigValue(String key) {
-        if (key == null) {
-            return null;
-        }
-        if ("model.providerKey".equals(key)) {
-            return appConfig.getModel().getProviderKey();
-        }
-        if ("model.default".equals(key)) {
-            return appConfig.getModel().getDefault();
-        }
-        if (key.startsWith("providers.default.")) {
-            AppConfig.ProviderConfig provider = appConfig.getProviders().get("default");
-            if (provider == null) {
-                return null;
-            }
-            if ("providers.default.name".equals(key)) {
-                return provider.getName();
-            }
-            if ("providers.default.baseUrl".equals(key)) {
-                return provider.getBaseUrl();
-            }
-            if ("providers.default.apiKey".equals(key)) {
-                return provider.getApiKey();
-            }
-            if ("providers.default.defaultModel".equals(key)) {
-                return provider.getDefaultModel();
-            }
-            if ("providers.default.dialect".equals(key)) {
-                return provider.getDialect();
-            }
-        }
-        return null;
     }
 
     /**

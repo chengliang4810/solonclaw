@@ -1,9 +1,6 @@
 package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.agent.AgentProfileRepository;
-import com.jimuqu.solon.claw.agent.AgentProfileService;
-import com.jimuqu.solon.claw.agent.AgentRuntimeService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.context.AsyncSkillLearningService;
@@ -70,7 +67,6 @@ import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.GitHubAuth;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
-import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteChannelInboundMessageRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteChannelStateRepository;
@@ -145,8 +141,6 @@ public class TestEnvironment {
     public final SkillHubService skillHubService;
     public final DangerousCommandApprovalService dangerousCommandApprovalService;
     public final AgentRunControlService agentRunControlService;
-    public final AgentProfileService agentProfileService;
-    public final AgentRuntimeService agentRuntimeService;
     public final RuntimeSettingsService runtimeSettingsService;
     public final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
     public final SqliteDatabase sqliteDatabase;
@@ -224,11 +218,6 @@ public class TestEnvironment {
         GatewayPolicyRepository gatewayPolicyRepository =
                 new SqliteGatewayPolicyRepository(database);
         ChannelStateRepository channelStateRepository = new SqliteChannelStateRepository(database);
-        AgentProfileRepository agentProfileRepository = new SqliteAgentProfileRepository(database);
-        AgentRuntimeService agentRuntimeService =
-                new AgentRuntimeService(config, agentProfileRepository);
-        AgentProfileService agentProfileService =
-                new AgentProfileService(agentProfileRepository, agentRuntimeService);
         ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
         SkillHubStateStore skillHubStateStore =
                 new SkillHubStateStore(new File(config.getRuntime().getSkillsDir()));
@@ -389,7 +378,6 @@ public class TestEnvironment {
                         .appConfig(config)
                         .preferenceStore(preferenceStore)
                         .sessionRepository(sessionRepository)
-                        .agentProfileService(agentProfileService)
                         .cronJobService(cronJobService)
                         .deliveryService(deliveryService)
                         .memoryService(memoryService)
@@ -450,9 +438,10 @@ public class TestEnvironment {
                         dangerousCommandApprovalService,
                         agentRunSupervisor,
                         runtimeFooterService,
-                        agentRuntimeService,
+                        config,
                         memoryManager,
-                        goalService);
+                        goalService,
+                        null);
         holder.set(orchestrator);
         SkillLearningService skillLearningService =
                 new AsyncSkillLearningService(
@@ -494,7 +483,6 @@ public class TestEnvironment {
                         appUpdateService,
                         dangerousCommandApprovalService,
                         agentRunSupervisor,
-                        agentProfileService,
                         agentRunRepository,
                         dashboardMcpService,
                         goalService,
@@ -543,8 +531,6 @@ public class TestEnvironment {
                 skillHubService,
                 dangerousCommandApprovalService,
                 agentRunSupervisor,
-                agentProfileService,
-                agentRuntimeService,
                 runtimeSettingsService,
                 refreshService,
                 database,

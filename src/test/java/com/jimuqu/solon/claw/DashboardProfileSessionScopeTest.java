@@ -27,6 +27,26 @@ import org.noear.solon.core.handle.ContextEmpty;
 
 /** 验证机器 Dashboard 的 Profile 会话只读范围和聚合分页。 */
 public class DashboardProfileSessionScopeTest {
+    /** Profile 快照解析器必须拒绝未登记模型，不能绕过统一 Provider 校验。 */
+    @Test
+    void snapshotProviderServiceRejectsUnregisteredModel() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("registered-model");
+        provider.setModels(java.util.Collections.singletonList("registered-model"));
+        config.getProviders().put("configured", provider);
+        config.getModel().setProviderKey("configured");
+        config.getModel().setDefault("registered-model");
+
+        assertThatThrownBy(
+                        () ->
+                                DashboardProfileContext.snapshotProviderService(config)
+                                        .resolveProvider("configured", "missing-model"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("模型未在 Provider configured 中登记")
+                .hasMessageContaining("missing-model");
+    }
+
     @Test
     void shouldReadAndAggregateSessionsWithoutWritingTargetProfile() throws Exception {
         Path root = Files.createTempDirectory("dashboard-profile-sessions-");

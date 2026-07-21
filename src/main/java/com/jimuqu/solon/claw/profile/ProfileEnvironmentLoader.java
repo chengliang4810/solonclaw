@@ -107,10 +107,9 @@ public final class ProfileEnvironmentLoader {
         return value;
     }
 
-    /** 为每个 provider 读取当前项目专属键，并为限定协议提供标准协议键回退。 */
+    /** 为每个 Provider 只读取当前项目专属的显式凭据键。 */
     private static void applyProviderCredentials(
             AppConfig config, Map<String, String> environment) {
-        String active = StrUtil.nullToEmpty(config.getModel().getProviderKey()).trim();
         for (Map.Entry<String, AppConfig.ProviderConfig> entry : config.getProviders().entrySet()) {
             AppConfig.ProviderConfig provider = entry.getValue();
             if (provider == null || StrUtil.isNotBlank(provider.getApiKey())) {
@@ -118,26 +117,23 @@ public final class ProfileEnvironmentLoader {
             }
             String providerKey = normalizedProviderEnvKey(entry.getKey());
             String value = environment.get("SOLONCLAW_PROVIDER_" + providerKey + "_API_KEY");
-            if (StrUtil.isBlank(value) && entry.getKey().equals(active)) {
-                value = protocolCredential(environment, provider.getDialect());
-            }
             if (StrUtil.isNotBlank(value)) {
                 provider.setApiKey(value.trim());
             }
         }
     }
 
-    /** 复用 OpenAI 协议密钥补齐独立 TTS/STT，仍以各自显式配置为最高优先级。 */
+    /** 使用当前项目专属语音凭据补齐 TTS/STT，仍以各自显式配置为最高优先级。 */
     private static void applySpeechCredentials(AppConfig config, Map<String, String> environment) {
-        String openAi = first(environment, "SOLONCLAW_SPEECH_API_KEY", "OPENAI_API_KEY");
-        if (config.getSpeech() != null && StrUtil.isNotBlank(openAi)) {
+        String speechApiKey = first(environment, "SOLONCLAW_SPEECH_API_KEY");
+        if (config.getSpeech() != null && StrUtil.isNotBlank(speechApiKey)) {
             if (config.getSpeech().getTts() != null
                     && StrUtil.isBlank(config.getSpeech().getTts().getApiKey())) {
-                config.getSpeech().getTts().setApiKey(openAi);
+                config.getSpeech().getTts().setApiKey(speechApiKey);
             }
             if (config.getSpeech().getStt() != null
                     && StrUtil.isBlank(config.getSpeech().getStt().getApiKey())) {
-                config.getSpeech().getStt().setApiKey(openAi);
+                config.getSpeech().getStt().setApiKey(speechApiKey);
             }
         }
     }
@@ -226,21 +222,6 @@ public final class ProfileEnvironmentLoader {
                 config.setAppSecret(secret);
             }
         }
-    }
-
-    /** 根据限定协议读取标准凭据键。 */
-    private static String protocolCredential(Map<String, String> environment, String dialect) {
-        String normalized = StrUtil.nullToEmpty(dialect).trim().toLowerCase(Locale.ROOT);
-        if ("openai".equals(normalized) || "openai-responses".equals(normalized)) {
-            return first(environment, "OPENAI_API_KEY");
-        }
-        if ("gemini".equals(normalized)) {
-            return first(environment, "GEMINI_API_KEY", "GOOGLE_API_KEY");
-        }
-        if ("anthropic".equals(normalized)) {
-            return first(environment, "ANTHROPIC_API_KEY");
-        }
-        return "";
     }
 
     /** 把 provider key 转为当前项目环境变量片段。 */

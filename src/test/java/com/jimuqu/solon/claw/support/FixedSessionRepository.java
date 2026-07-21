@@ -137,14 +137,6 @@ public class FixedSessionRepository implements SessionRepository {
     @Override
     public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride) {}
 
-    /** 固定不切换激活 Agent。 */
-    @Override
-    public void setActiveAgentName(String sessionId, String agentName) {}
-
-    /** 固定不清理激活 Agent。 */
-    @Override
-    public void clearActiveAgentName(String agentName) {}
-
     /** 固定不写入目标状态。 */
     @Override
     public void setGoalState(String sessionId, String goalStateJson) {}

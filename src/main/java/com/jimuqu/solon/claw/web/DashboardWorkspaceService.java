@@ -191,12 +191,12 @@ public class DashboardWorkspaceService {
         return describeArchiveState(requireMemoryArchiveService(profile).state());
     }
 
-    /** 立即执行一轮旧每日记忆归档，并返回持久化诊断状态。 */
+    /** 立即执行一轮每日记忆归档，并返回持久化诊断状态。 */
     public Map<String, Object> runMemoryArchive() throws Exception {
         return runMemoryArchive(null);
     }
 
-    /** 立即执行指定 Profile 的旧每日记忆归档。 */
+    /** 立即执行指定 Profile 的每日记忆归档。 */
     public Map<String, Object> runMemoryArchive(String profile) throws Exception {
         return describeArchiveState(requireMemoryArchiveService(profile).runOnce());
     }

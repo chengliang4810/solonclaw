@@ -75,9 +75,7 @@ final class DefaultSessionSettingsCommandHandler {
         }
 
         String override =
-                StrUtil.isNotBlank(input.provider)
-                        ? input.provider + ":" + input.model
-                        : input.model;
+                runtimeSettingsService.normalizeSessionModelOverride(input.provider, input.model);
         sessionRepository.setModelOverride(session.getSessionId(), override);
         return GatewayReply.ok("已切换当前会话模型为：" + override + "（下一条消息生效）");
     }
@@ -187,13 +185,16 @@ final class DefaultSessionSettingsCommandHandler {
             result.clear = true;
             return result;
         }
-        if (spec.contains(":")) {
-            String[] parts = spec.split(":", 2);
-            result.provider = parts[0].trim();
-            result.model = parts[1].trim();
-        } else {
-            result.model = spec;
+        int separator = spec.indexOf(':');
+        if (separator > 0) {
+            String candidateProvider = spec.substring(0, separator).trim();
+            if (appConfig.getProviders().containsKey(candidateProvider)) {
+                result.provider = candidateProvider;
+                result.model = spec.substring(separator + 1).trim();
+                return result;
+            }
         }
+        result.model = spec;
         return result;
     }
 

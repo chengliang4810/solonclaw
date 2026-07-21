@@ -23,30 +23,13 @@ const taskCategories: TaskModelCategory[] = [
   'cron',
 ]
 
-const providerOptions = computed(() => {
-  const options = modelsStore.providers.map(provider => ({
+const providerOptions = computed(() =>
+  modelsStore.providers.map(provider => ({
     label: provider.label,
     value: provider.provider,
     disabled: false,
-  }))
-  const registered = new Set(options.map(option => option.value))
-  const currentProviders = [
-    defaultProvider.value,
-    ...fallbackRows.value.map(row => row.provider),
-    ...taskCategories.map(category => taskRoutes.value[category].provider),
-  ]
-  for (const provider of currentProviders) {
-    if (provider && !registered.has(provider)) {
-      registered.add(provider)
-      options.push({
-        label: t('models.unregisteredProvider', { provider }),
-        value: provider,
-        disabled: true,
-      })
-    }
-  }
-  return options
-})
+  })),
+)
 
 /** 同步主模型 Provider 草稿，不覆盖未保存的模型选择。 */
 function syncDefaultProviderForm() {
@@ -125,19 +108,11 @@ async function handleSaveDefault() {
   }
 }
 
-/** 返回指定 Provider 的模型选项，并以禁用项保留历史未登记值。 */
-function modelOptions(providerKey: string, currentModel = '') {
+/** 返回指定 Provider 当前登记的模型选项。 */
+function modelOptions(providerKey: string) {
   const provider = modelsStore.providers.find(item => item.provider === providerKey)
   const models = Array.from(new Set(provider?.models || []))
-  const options = models.map(model => ({ label: model, value: model, disabled: false }))
-  if (currentModel && !models.includes(currentModel)) {
-    options.push({
-      label: t('models.unregisteredModel', { model: currentModel }),
-      value: currentModel,
-      disabled: true,
-    })
-  }
-  return options
+  return models.map(model => ({ label: model, value: model, disabled: false }))
 }
 
 function providerDefaultModel(providerKey: string) {
@@ -242,7 +217,7 @@ async function handleSaveTaskRoutes() {
             />
             <Select
               v-model:value="defaultModel"
-              :options="modelOptions(defaultProvider, defaultModel)"
+              :options="modelOptions(defaultProvider)"
               :placeholder="t('models.selectModel')"
               :disabled="!defaultProvider"
             />
@@ -278,7 +253,7 @@ async function handleSaveTaskRoutes() {
               />
               <Select
                 v-model:value="taskRoutes[category].model"
-                :options="modelOptions(taskRoutes[category].provider, taskRoutes[category].model)"
+                :options="modelOptions(taskRoutes[category].provider)"
                 :placeholder="t('models.selectModel')"
                 :disabled="!taskRoutes[category].provider"
               />
@@ -312,7 +287,7 @@ async function handleSaveTaskRoutes() {
             />
             <Select
               v-model:value="row.model"
-              :options="modelOptions(row.provider, row.model)"
+              :options="modelOptions(row.provider)"
               :placeholder="t('models.optionalModelOverride')"
               :disabled="!row.provider"
               allow-clear

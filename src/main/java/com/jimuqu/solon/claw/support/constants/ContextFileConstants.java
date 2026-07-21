@@ -9,7 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 人格工作区上下文文件常量。 */
+/** 工作区上下文文件常量。 */
 public final class ContextFileConstants {
     /** 键AGENTS的统一常量值。 */
     public static final String KEY_AGENTS = "agents";

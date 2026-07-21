@@ -2,17 +2,12 @@ package com.jimuqu.solon.claw.web.profile;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.core.model.SessionRecord;
-import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.profile.ProfileGatewayStatus;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.noear.solon.core.handle.Context;
@@ -119,7 +114,7 @@ public final class DashboardProfileContext {
      * @return Profile 独立 Provider 解析服务。
      */
     public static LlmProviderService snapshotProviderService(AppConfig config) {
-        return new SnapshotLlmProviderService(config);
+        return new LlmProviderService(config);
     }
 
     /** 创建当前 JVM Scope。 */
@@ -194,78 +189,6 @@ public final class DashboardProfileContext {
          */
         public DashboardProfileConfigFile configFile() {
             return new DashboardProfileConfigFile(home.resolve("config.yml"));
-        }
-    }
-
-    /** 只使用内存配置快照的 Provider 解析器。 */
-    private static final class SnapshotLlmProviderService extends LlmProviderService {
-        /** Profile 配置快照。 */
-        private final AppConfig config;
-
-        /** 创建快照 Provider 解析器。 */
-        private SnapshotLlmProviderService(AppConfig config) {
-            super(config);
-            this.config = config;
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public ResolvedProvider resolveEffectiveProvider(SessionRecord session) {
-            return resolveEffectiveProvider(session, null);
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public ResolvedProvider resolveEffectiveProvider(
-                SessionRecord session, String agentDefaultModel) {
-            String providerKey = StrUtil.nullToEmpty(config.getModel().getProviderKey()).trim();
-            String model = StrUtil.nullToEmpty(agentDefaultModel).trim();
-            if (session != null && StrUtil.isNotBlank(session.getTransientProviderOverride())) {
-                providerKey = session.getTransientProviderOverride().trim();
-            }
-            if (session != null && StrUtil.isNotBlank(session.getTransientModelOverride())) {
-                model = session.getTransientModelOverride().trim();
-            }
-            if (StrUtil.isBlank(model)) {
-                model = StrUtil.nullToEmpty(config.getModel().getDefault()).trim();
-            }
-            return resolveProvider(providerKey, model);
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public ResolvedProvider resolveProvider(String providerKey, String explicitModel) {
-            String key = StrUtil.nullToEmpty(providerKey).trim();
-            AppConfig.ProviderConfig provider = config.getProviders().get(key);
-            if (provider == null) {
-                throw new IllegalStateException("未找到 provider：" + key);
-            }
-            String dialect = LlmProviderSupport.normalizeDialect(provider.getDialect());
-            String model = StrUtil.blankToDefault(explicitModel, provider.getDefaultModel());
-            ResolvedProvider result = new ResolvedProvider();
-            result.setProviderKey(key);
-            result.setLabel(StrUtil.blankToDefault(provider.getName(), key));
-            result.setDialect(dialect);
-            result.setBaseUrl(StrUtil.nullToEmpty(provider.getBaseUrl()).trim());
-            result.setApiUrl(LlmProviderSupport.buildApiUrl(provider.getBaseUrl(), dialect));
-            result.setApiKey(StrUtil.nullToEmpty(provider.getApiKey()).trim());
-            result.setModel(StrUtil.nullToEmpty(model).trim());
-            return result;
-        }
-
-        /** {@inheritDoc} */
-        @Override
-        public List<ResolvedProvider> resolveFallbackProviders() {
-            if (config.getFallbackProviders() == null) {
-                return Collections.emptyList();
-            }
-            List<ResolvedProvider> result = new ArrayList<ResolvedProvider>();
-            for (AppConfig.FallbackProviderConfig fallback : config.getFallbackProviders()) {
-                if (fallback != null && StrUtil.isNotBlank(fallback.getProvider())) {
-                    result.add(resolveProvider(fallback.getProvider(), fallback.getModel()));
-                }
-            }
-            return result;
         }
     }
 }

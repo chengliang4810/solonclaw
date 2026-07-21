@@ -1,6 +1,5 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
-import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
@@ -59,9 +58,6 @@ public class DefaultToolRegistryBuilder {
 
     /** 会话仓储。 */
     private SessionRepository sessionRepository;
-
-    /** Agent 配置服务。 */
-    private AgentProfileService agentProfileService;
 
     /** 定时任务服务。 */
     private CronJobService cronJobService;
@@ -192,12 +188,6 @@ public class DefaultToolRegistryBuilder {
     /** 设置会话仓储。 */
     public DefaultToolRegistryBuilder sessionRepository(SessionRepository sessionRepository) {
         this.sessionRepository = sessionRepository;
-        return this;
-    }
-
-    /** 设置 Agent 配置服务。 */
-    public DefaultToolRegistryBuilder agentProfileService(AgentProfileService agentProfileService) {
-        this.agentProfileService = agentProfileService;
         return this;
     }
 
@@ -462,7 +452,6 @@ public class DefaultToolRegistryBuilder {
                 appConfig,
                 preferenceStore,
                 sessionRepository,
-                agentProfileService,
                 cronJobService,
                 deliveryService,
                 memoryService,

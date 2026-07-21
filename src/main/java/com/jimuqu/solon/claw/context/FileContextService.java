@@ -92,6 +92,19 @@ public class FileContextService implements ContextService {
     }
 
     /**
+     * 只构建当前 Profile 的 SOUL 人格提示词，供隔离任务继承人格但不读取主人上下文。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 仅包含 SOUL.md 的系统提示词。
+     */
+    @Override
+    public String buildSoulPrompt(String sourceKey) {
+        List<PromptBlock> blocks = new ArrayList<PromptBlock>();
+        appendWorkspaceFile(blocks, ContextFileConstants.KEY_SOUL, "Soul", PromptPriority.PERSONA);
+        return renderPrompt(blocks);
+    }
+
+    /**
      * 构建System提示词。
      *
      * @param sourceKey 渠道来源键。
@@ -113,7 +126,6 @@ public class FileContextService implements ContextService {
         appendWorkspaceFile(
                 blocks, ContextFileConstants.KEY_AGENTS, "Workspace Rules", PromptPriority.RULES);
         appendProjectContextFiles(blocks, agentScope);
-        appendAgentBlock(blocks, agentScope);
         appendMemoryBlocks(blocks, sourceKey);
         appendWorkspaceFile(
                 blocks,
@@ -160,37 +172,6 @@ public class FileContextService implements ContextService {
         appendWorkspaceFile(
                 blocks, ContextFileConstants.KEY_IDENTITY, "Identity", PromptPriority.PERSONA);
         return renderPrompt(blocks);
-    }
-
-    /**
-     * 追加Agent 块。
-     *
-     * @param blocks 待渲染的系统提示词块。
-     * @param agentScope 当前运行冻结后的 Agent 范围。
-     */
-    private void appendAgentBlock(List<PromptBlock> blocks, AgentRuntimeScope agentScope) {
-        if (agentScope == null || agentScope.isDefaultAgentName()) {
-            return;
-        }
-        appendBlock(
-                blocks,
-                "Agent",
-                "name="
-                        + agentScope.getEffectiveName()
-                        + "\nworkspace="
-                        + StrUtil.nullToEmpty(agentScope.getWorkspaceDir()),
-                PromptPriority.PERSONA);
-        appendBlock(blocks, "Agent Role", agentScope.getRolePrompt(), PromptPriority.PERSONA);
-        appendBlock(
-                blocks,
-                "Agent File",
-                readIfExists(agentScope.getAgentFilePath()),
-                PromptPriority.PERSONA);
-        appendBlock(
-                blocks,
-                "Agent Memory",
-                joinNonBlank(agentScope.getMemory(), readIfExists(agentScope.getMemoryFilePath())),
-                PromptPriority.PERSONA);
     }
 
     /**
@@ -245,23 +226,6 @@ public class FileContextService implements ContextService {
         } catch (Exception e) {
             return "Failed to load file: " + safeError(e);
         }
-    }
-
-    /**
-     * 执行joinNon空白值相关逻辑。
-     *
-     * @param left 左侧比较对象。
-     * @param right 右侧比较对象。
-     * @return 返回join Non Blank结果。
-     */
-    private String joinNonBlank(String left, String right) {
-        if (StrUtil.isBlank(left)) {
-            return StrUtil.nullToEmpty(right);
-        }
-        if (StrUtil.isBlank(right)) {
-            return StrUtil.nullToEmpty(left);
-        }
-        return left.trim() + "\n\n" + right.trim();
     }
 
     /** 追加记忆管理器提供的结构化系统提示块。 */

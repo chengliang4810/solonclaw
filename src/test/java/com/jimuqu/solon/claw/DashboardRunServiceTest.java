@@ -107,9 +107,6 @@ public class DashboardRunServiceTest {
         run.setFinalReplyPreview("done token=ghp_runreplysecret123");
         run.setProvider("provider-ghp_runprovider12345");
         run.setModel("model-ghp_runmodel12345");
-        run.setAgentSnapshotJson(
-                ONode.serialize(
-                        Collections.singletonMap("env", "OPENAI_API_KEY=sk-test-snapshotsecret")));
         run.setRecoveryHint("retry with password=run-password");
         run.setError("failed with Authorization: Bearer ghp_runerrorsecret123");
         repository.runs.add(run);
@@ -174,7 +171,6 @@ public class DashboardRunServiceTest {
         assertThat(response).doesNotContain("runmodel12345");
         assertThat(response).doesNotContain("eventprovider12345");
         assertThat(response).doesNotContain("eventmodel12345");
-        assertThat(response).doesNotContain("sk-test-snapshotsecret");
         assertThat(response).doesNotContain("run-password");
         assertThat(response).doesNotContain("ghp_runerrorsecret123");
         assertThat(response).doesNotContain("ghp_eventsummary123");
@@ -212,7 +208,6 @@ public class DashboardRunServiceTest {
         run.setSessionId("session-" + sessionSecret);
         run.setSourceKey("MEMORY:room-" + sourceSecret + ":user");
         run.setParentRunId("parent-" + childRunSecret);
-        run.setAgentName("agent-" + subagentSecret);
         repository.runs.add(run);
 
         AgentRunEventRecord event = new AgentRunEventRecord();

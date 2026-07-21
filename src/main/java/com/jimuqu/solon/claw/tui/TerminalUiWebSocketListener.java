@@ -544,14 +544,17 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return rpcService.configValue(params.get("key").getString());
         }
         if ("model.options".equals(method)) {
-            return rpcService.modelOptions();
+            return rpcService.modelOptions(params.get("session_id").getString());
         }
         if ("model.save_key".equals(method)) {
             return rpcService.modelSaveKey(
-                    params.get("slug").getString(), params.get("api_key").getString());
+                    params.get("slug").getString(),
+                    params.get("api_key").getString(),
+                    params.get("session_id").getString());
         }
         if ("model.disconnect".equals(method)) {
-            return rpcService.modelDisconnect(params.get("slug").getString());
+            return rpcService.modelDisconnect(
+                    params.get("slug").getString(), params.get("session_id").getString());
         }
         if ("channel.options".equals(method)) {
             return rpcService.channelOptions();

@@ -63,7 +63,6 @@ public class CronjobTools {
      * @param enabledToolsets 启用状态Toolsets开关值。
      * @param model 模型名称。
      * @param provider 模型或能力提供方。
-     * @param baseUrl 待校验或访问的地址参数。
      * @param enabled 启用状态开关值。
      * @param jobStatus job状态参数。
      * @param state 状态参数。
@@ -76,7 +75,7 @@ public class CronjobTools {
     @ToolMapping(
             name = "cronjob",
             description =
-                    "管理定时任务。删除任务前必须先用 action='list'、action='status' 或 action='next' 查看任务，禁止猜测 job_id。action 可使用 guide、policy、create/add、list、status、inspect/show/detail、next/upcoming、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun 或 history。任务会在独立会话中运行，因此 prompt 必须自包含；定时任务不应递归创建新的定时任务。支持按任务绑定 skills、delivery、deliver_chat_id、deliver_thread_id、script、workdir、no_agent、context_from、enabled_toolsets、wrap_response、model、provider 和 base_url。用户明确要求 no_agent=true 或 wrap_response=false 时，必须在工具参数中显式传入对应布尔值；仅设置 script 不会隐式启用 no_agent。")
+                    "管理定时任务。删除任务前必须先用 action='list'、action='status' 或 action='next' 查看任务，禁止猜测 job_id。action 可使用 guide、policy、create/add、list、status、inspect/show/detail、next/upcoming、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun 或 history。任务会在独立会话中运行，因此 prompt 必须自包含；定时任务不应递归创建新的定时任务。支持按任务绑定 skills、delivery、deliver_chat_id、deliver_thread_id、script、workdir、no_agent、context_from、enabled_toolsets、wrap_response、model 和 provider。用户明确要求 no_agent=true 或 wrap_response=false 时，必须在工具参数中显式传入对应布尔值；仅设置 script 不会隐式启用 no_agent。")
     public String cronjob(
             @Param(
                             name = "action",
@@ -167,18 +166,13 @@ public class CronjobTools {
                             description = "工具集限制列表，例如 web、terminal、file、delegation；update 传空数组清空",
                             required = false)
                     Object enabledToolsets,
-            @Param(
-                            name = "model",
-                            description = "任务固定模型；支持字符串或 {provider, model} 对象，固定时必须同时提供 provider",
-                            required = false)
-                    Object model,
+            @Param(name = "model", description = "任务固定模型名称；固定时必须同时提供 provider", required = false)
+                    String model,
             @Param(
                             name = "provider",
                             description = "任务固定 provider；固定时必须同时提供 model",
                             required = false)
                     String provider,
-            @Param(name = "base_url", description = "任务固定模型 API base URL", required = false)
-                    String baseUrl,
             @Param(name = "enabled", description = "编辑任务启用状态；false 会暂停，true 会恢复", required = false)
                     Boolean enabled,
             @Param(
@@ -331,7 +325,6 @@ public class CronjobTools {
                                 enabledToolsets,
                                 model,
                                 provider,
-                                baseUrl,
                                 enabled,
                                 jobStatus,
                                 state,
@@ -542,9 +535,8 @@ public class CronjobTools {
             Boolean noAgent,
             Object contextFrom,
             Object enabledToolsets,
-            Object model,
-            String provider,
-            String baseUrl)
+            String model,
+            String provider)
             throws Exception {
         return cronjob(
                 action,
@@ -565,7 +557,6 @@ public class CronjobTools {
                 enabledToolsets,
                 model,
                 provider,
-                baseUrl,
                 null,
                 null);
     }
@@ -599,7 +590,6 @@ public class CronjobTools {
      * @param enabledToolsets 启用状态Toolsets开关值。
      * @param model 模型名称。
      * @param provider 模型或能力提供方。
-     * @param baseUrl 待校验或访问的地址参数。
      * @param limit 最大返回数量。
      * @param reason 原因参数。
      * @return 返回cronjob结果。
@@ -629,9 +619,8 @@ public class CronjobTools {
             Object contextFrom,
             Object dependsOn,
             Object enabledToolsets,
-            Object model,
+            String model,
             String provider,
-            String baseUrl,
             Integer limit,
             String reason)
             throws Exception {
@@ -662,7 +651,6 @@ public class CronjobTools {
                 enabledToolsets,
                 model,
                 provider,
-                baseUrl,
                 null,
                 null,
                 null,
@@ -698,9 +686,8 @@ public class CronjobTools {
             Boolean noAgent,
             Object contextFrom,
             Object enabledToolsets,
-            Object model,
+            String model,
             String provider,
-            String baseUrl,
             Integer limit)
             throws Exception {
         return cronjob(
@@ -722,7 +709,6 @@ public class CronjobTools {
                 enabledToolsets,
                 model,
                 provider,
-                baseUrl,
                 limit,
                 null);
     }
@@ -760,9 +746,8 @@ public class CronjobTools {
             Object contextFrom,
             Object dependsOn,
             Object enabledToolsets,
-            Object model,
+            String model,
             String provider,
-            String baseUrl,
             Integer limit,
             String reason)
             throws Exception {
@@ -788,7 +773,6 @@ public class CronjobTools {
                 enabledToolsets,
                 model,
                 provider,
-                baseUrl,
                 null,
                 null,
                 null,
@@ -834,9 +818,8 @@ public class CronjobTools {
             Object contextFrom,
             Object dependsOn,
             Object enabledToolsets,
-            Object model,
+            String model,
             String provider,
-            String baseUrl,
             Boolean enabled,
             String status,
             String state,
@@ -871,7 +854,6 @@ public class CronjobTools {
                 enabledToolsets,
                 model,
                 provider,
-                baseUrl,
                 enabled,
                 status,
                 state,
@@ -908,9 +890,8 @@ public class CronjobTools {
             Boolean noAgent,
             Object contextFrom,
             Object enabledToolsets,
-            Object model,
+            String model,
             String provider,
-            String baseUrl,
             Integer limit,
             String reason)
             throws Exception {
@@ -941,7 +922,6 @@ public class CronjobTools {
                 enabledToolsets,
                 model,
                 provider,
-                baseUrl,
                 null,
                 null,
                 null,
@@ -977,7 +957,6 @@ public class CronjobTools {
      * @param enabledToolsets 启用状态Toolsets开关值。
      * @param model 模型名称。
      * @param provider 模型或能力提供方。
-     * @param baseUrl 待校验或访问的地址参数。
      * @param enabled 启用状态开关值。
      * @param status 状态参数。
      * @param state 状态参数。
@@ -1006,9 +985,8 @@ public class CronjobTools {
             Object contextFrom,
             Object dependsOn,
             Object enabledToolsets,
-            Object model,
+            String model,
             String provider,
-            String baseUrl,
             Boolean enabled,
             String status,
             String state,
@@ -1047,7 +1025,6 @@ public class CronjobTools {
         put(body, "enabled_toolsets", enabledToolsets);
         put(body, "model", model);
         put(body, "provider", provider);
-        put(body, "base_url", baseUrl);
         if (enabled != null) {
             body.put("enabled", enabled);
         }
@@ -1394,7 +1371,6 @@ public class CronjobTools {
         result.put("prompt_preview", safeValue(base.get("prompt_preview")));
         result.put("model", safeText(job.getModel()));
         result.put("provider", safeText(job.getProvider()));
-        result.put("base_url", safeObjectText(base.get("base_url")));
         result.put("schedule", safeText(job.getCronExpr()));
         result.put("schedule_detail", safeValue(base.get("schedule")));
         result.put("schedule_display", safeValue(base.get("schedule_display")));

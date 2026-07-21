@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.ChannelConfigSupport;
+import com.jimuqu.solon.claw.support.ModelConfigKeySupport;
 import com.jimuqu.solon.claw.support.RuntimeConfigResolverSupport;
 import com.jimuqu.solon.claw.support.RuntimeProviderSetupSpec;
 import com.jimuqu.solon.claw.support.RuntimeSetupService;
@@ -20,7 +21,9 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -393,13 +396,12 @@ public class TerminalSetupCommands {
                 + "4. solonclaw config set <key> <value> - 写入工具相关 workspace/config.yml 覆盖项";
     }
 
-    /** 渲染 Agent 初始化分节，说明会话、目标和 Agent 切换入口。 */
+    /** 渲染 Agent 初始化分节，说明目标与会话管理入口。 */
     private String renderSetupAgent() {
         return "Agent 初始化\n"
-                + "2. /goal [status|show|pause|resume|clear|stop|done|wait <pid>|unwait|目标 --max N] - 管理跨轮长目标\n"
-                + "3. /subgoal [<text>|remove <n>|clear] - 管理当前目标的补充准则\n"
-                + "4. /new、/resume、/branch、/rollback - 管理会话生命周期\n"
-                + "5. solonclaw config set solonclaw.agent.defaultProfile <profile> - 写入默认 Agent 配置";
+                + "1. /goal [status|show|pause|resume|clear|stop|done|wait <pid>|unwait|目标 --max N] - 管理跨轮长目标\n"
+                + "2. /subgoal [<text>|remove <n>|clear] - 管理当前目标的补充准则\n"
+                + "3. /new、/resume、/branch、/rollback - 管理会话生命周期";
     }
 
     /** 渲染语音初始化分节；当前保留 TTS/STT 服务配置但不提供语音模式入口。 */
@@ -448,18 +450,10 @@ public class TerminalSetupCommands {
                 .append(" --dialect ")
                 .append(StrUtil.blankToDefault(dialect, "openai"))
                 .append('\n')
-                .append("solonclaw config set model.providerKey ")
-                .append(StrUtil.blankToDefault(providerKey, "default"))
-                .append('\n')
-                .append("solonclaw config set model.default ")
-                .append(StrUtil.blankToDefault(activeModel, "your-model"))
-                .append('\n')
-                .append("solonclaw config set providers.")
-                .append(StrUtil.blankToDefault(providerKey, "default"))
-                .append(".apiKey <api-key>\n")
-                .append("solonclaw config set providers.")
-                .append(StrUtil.blankToDefault(providerKey, "default"))
-                .append(".baseUrl <https://host/v1>\n")
+                .append("模型与 provider 相关键已收口到专用入口，不再通过 solonclaw config set 直接写入。\n")
+                .append(
+                        "写入 provider 凭据请用：solonclaw auth add <provider> --api-key <api-key> --base-url <url> --model <model> --dialect <dialect>\n")
+                .append("切换会话模型请用：/model <provider>:<model> 或 /model <model>\n")
                 .append('\n')
                 .append(renderProviderTemplates())
                 .append('\n');
@@ -811,7 +805,7 @@ public class TerminalSetupCommands {
     private String renderLogout() {
         return "本地登出\n"
                 + "当前版本没有独立的终端登录态；模型 API Key 和渠道凭据保存在 workspace/config.yml。\n"
-                + "如需移除凭据，请使用 solonclaw config set 或直接编辑配置文件。";
+                + "如需移除模型凭据，请使用 solonclaw auth logout <provider>。";
     }
 
     /** 渲染安装后初始化检查，替代脚本式依赖安装流程。 */
@@ -839,7 +833,7 @@ public class TerminalSetupCommands {
                 + "当前终端不维护独立登录态；请通过 API Key 配置模型提供方。\n"
                 + "用法：solonclaw model set --provider <key> --base-url <https://host/v1> --api-key <api-key> --model <model> --dialect <openai|openai-responses|ollama|gemini|anthropic>\n"
                 + "查看状态：solonclaw status\n"
-                + "清理凭据：solonclaw config set providers.<key>.apiKey <empty-or-new-key>";
+                + "清理凭据：solonclaw auth logout <provider>";
     }
 
     /** 渲染认证配置说明，保持凭据入口集中到 workspace/config.yml。 */
@@ -957,56 +951,20 @@ public class TerminalSetupCommands {
         if (SecretValueGuard.isPlaceholderSecret(request.apiKey)) {
             return "apiKey 不能使用示例或占位符密钥。";
         }
-        if (request.activate) {
-            RuntimeSetupService.ModelSetupRequest setupRequest =
-                    new RuntimeSetupService.ModelSetupRequest();
-            setupRequest.setProviderKey(request.providerKey);
-            setupRequest.setProviderName(request.providerName);
-            setupRequest.setBaseUrl(request.baseUrl);
-            setupRequest.setApiKey(request.apiKey);
-            setupRequest.setModel(request.model);
-            setupRequest.setDialect(dialect);
-            RuntimeSetupService.SetupResult result =
-                    runtimeSetupService().configureModel(setupRequest);
-            if (!result.isSuccess()) {
-                return "认证凭据写入失败：" + result.getMessage();
-            }
-            return authWriteSuccess(request, dialect);
+        RuntimeSetupService.ModelSetupRequest setupRequest =
+                new RuntimeSetupService.ModelSetupRequest();
+        setupRequest.setProviderKey(request.providerKey);
+        setupRequest.setProviderName(request.providerName);
+        setupRequest.setBaseUrl(request.baseUrl);
+        setupRequest.setApiKey(request.apiKey);
+        setupRequest.setModel(request.model);
+        setupRequest.setDialect(dialect);
+        RuntimeSetupService.SetupResult result =
+                runtimeSetupService().configureProvider(setupRequest, request.activate);
+        if (!result.isSuccess()) {
+            return "认证凭据写入失败：" + result.getMessage();
         }
-        RuntimeConfigResolver resolver = configResolver();
-        String prefix = "providers." + request.providerKey + ".";
-        resolver.setFileValue(prefix + "name", request.providerName);
-        resolver.setFileValue(prefix + "baseUrl", request.baseUrl);
-        resolver.setFileValue(prefix + "apiKey", request.apiKey);
-        resolver.setFileValue(prefix + "defaultModel", request.model);
-        resolver.setFileValue(prefix + "dialect", dialect);
-        applyAuthProviderToAppConfig(request, dialect);
         return authWriteSuccess(request, dialect);
-    }
-
-    /**
-     * 同步非激活认证写入到当前进程 provider 列表，方便后续 fallback 和 auth status 立即使用。
-     *
-     * @param request 已校验的认证写入请求。
-     * @param dialect 规范化协议方言。
-     */
-    private void applyAuthProviderToAppConfig(AuthSetRequest request, String dialect) {
-        if (appConfig == null || request == null || StrUtil.isBlank(request.providerKey)) {
-            return;
-        }
-        if (appConfig.getProviders() == null) {
-            appConfig.setProviders(new java.util.LinkedHashMap<String, AppConfig.ProviderConfig>());
-        }
-        AppConfig.ProviderConfig provider = appConfig.getProviders().get(request.providerKey);
-        if (provider == null) {
-            provider = new AppConfig.ProviderConfig();
-            appConfig.getProviders().put(request.providerKey, provider);
-        }
-        provider.setName(request.providerName);
-        provider.setBaseUrl(request.baseUrl);
-        provider.setApiKey(request.apiKey);
-        provider.setDefaultModel(request.model);
-        provider.setDialect(dialect);
     }
 
     /**
@@ -1040,8 +998,10 @@ public class TerminalSetupCommands {
         if (StrUtil.isBlank(key)) {
             return "用法：solonclaw auth logout <provider>";
         }
-        RuntimeConfigResolver resolver = configResolver();
-        resolver.removeFileValue("providers." + key + ".apiKey");
+        RuntimeSetupService.SetupResult result = runtimeSetupService().clearProviderCredential(key);
+        if (!result.isSuccess()) {
+            return "认证凭据清理失败：" + result.getMessage();
+        }
         return "认证凭据已清理：\nprovider=" + key + "\napi_key=missing\nnext=solonclaw auth status " + key;
     }
 
@@ -1112,7 +1072,7 @@ public class TerminalSetupCommands {
         if (request == null || StrUtil.isBlank(request.provider)) {
             return fallbackUsage();
         }
-        if (!providerKeysForAuth().contains(request.provider)) {
+        if (!configuredProviderKeys().contains(request.provider)) {
             return "未知 provider："
                     + request.provider
                     + "\n请先运行：solonclaw auth add "
@@ -1129,6 +1089,10 @@ public class TerminalSetupCommands {
                     + request.provider
                     + " --model <model>";
         }
+        if (!providerModelsWithDefault(request.provider, providerModel(request.provider))
+                .contains(request.model)) {
+            return "模型未加入 provider " + request.provider + " 的模型列表：" + request.model;
+        }
         String activeProvider = activeProviderKey();
         String activeModel = activeModel(activeProvider());
         if (request.provider.equals(activeProvider) && request.model.equals(activeModel)) {
@@ -1143,7 +1107,10 @@ public class TerminalSetupCommands {
             }
         }
         chain.add(request);
-        writeFallbackChain(chain);
+        String writeError = writeFallbackChain(chain);
+        if (StrUtil.isNotBlank(writeError)) {
+            return writeError;
+        }
         return "Added fallback:\n"
                 + "provider="
                 + request.provider
@@ -1152,6 +1119,32 @@ public class TerminalSetupCommands {
                 + "\nchain_size="
                 + chain.size()
                 + "\nnext=solonclaw fallback list";
+    }
+
+    /**
+     * 返回 Provider 当前登记模型，并保证指定默认模型位于首位。
+     *
+     * @param providerKey Provider 键。
+     * @param defaultModel 默认模型。
+     * @return 去空去重后的模型清单。
+     */
+    private List<String> providerModelsWithDefault(String providerKey, String defaultModel) {
+        LinkedHashSet<String> models = new LinkedHashSet<String>();
+        if (StrUtil.isNotBlank(defaultModel)) {
+            models.add(defaultModel.trim());
+        }
+        AppConfig.ProviderConfig provider =
+                appConfig == null || appConfig.getProviders() == null
+                        ? null
+                        : appConfig.getProviders().get(providerKey);
+        if (provider != null && provider.getModels() != null) {
+            for (String model : provider.getModels()) {
+                if (StrUtil.isNotBlank(model)) {
+                    models.add(model.trim());
+                }
+            }
+        }
+        return new ArrayList<String>(models);
     }
 
     /**
@@ -1194,13 +1187,19 @@ public class TerminalSetupCommands {
             }
             removed = chain.remove(matchedIndex);
         }
-        writeFallbackChain(chain);
+        String writeError = writeFallbackChain(chain);
+        if (StrUtil.isNotBlank(writeError)) {
+            return writeError;
+        }
         return "Removed fallback:\n" + removed.display() + "\nchain_size=" + chain.size();
     }
 
     /** 清空 fallback 链路。 */
     private String renderFallbackClear() {
-        writeFallbackChain(new java.util.ArrayList<FallbackEntry>());
+        String writeError = writeFallbackChain(new java.util.ArrayList<FallbackEntry>());
+        if (StrUtil.isNotBlank(writeError)) {
+            return writeError;
+        }
         return "Fallback providers cleared\nchain_size=0\nnext=solonclaw fallback list";
     }
 
@@ -1579,6 +1578,12 @@ public class TerminalSetupCommands {
         }
         String key = args.substring(0, split).trim();
         String value = args.substring(split + 1).trim();
+        if (ModelConfigKeySupport.isDedicatedKey(key)) {
+            return "模型与 provider 配置请使用专用入口：\n"
+                    + "1. solonclaw model set --provider <provider> --base-url <url> --api-key <api-key> --model <model> --dialect <dialect>\n"
+                    + "2. solonclaw auth add <provider> --api-key <api-key> --base-url <url> --model <model> --dialect <dialect>\n"
+                    + "3. /model <provider>:<model> 或 /model <model>";
+        }
         try {
             configResolver().setFileValue(key, value);
         } catch (IllegalStateException e) {
@@ -2139,7 +2144,7 @@ public class TerminalSetupCommands {
      *
      * @param chain fallback 链路。
      */
-    private void writeFallbackChain(List<FallbackEntry> chain) {
+    private String writeFallbackChain(List<FallbackEntry> chain) {
         List<Map<String, String>> values = new java.util.ArrayList<Map<String, String>>();
         if (chain != null) {
             for (FallbackEntry entry : chain) {
@@ -2154,33 +2159,9 @@ public class TerminalSetupCommands {
                 values.add(item);
             }
         }
-        configResolver().setFileList("fallbackProviders", values);
-        applyFallbackChainToAppConfig(chain);
-    }
-
-    /**
-     * 将 fallback 链同步到当前进程配置，保证模型失败切换不需要重启 TUI 才生效。
-     *
-     * @param chain 已写入 workspace/config.yml 的 fallback 链。
-     */
-    private void applyFallbackChainToAppConfig(List<FallbackEntry> chain) {
-        if (appConfig == null) {
-            return;
-        }
-        List<AppConfig.FallbackProviderConfig> values =
-                new java.util.ArrayList<AppConfig.FallbackProviderConfig>();
-        if (chain != null) {
-            for (FallbackEntry entry : chain) {
-                if (entry == null || StrUtil.isBlank(entry.provider)) {
-                    continue;
-                }
-                AppConfig.FallbackProviderConfig config = new AppConfig.FallbackProviderConfig();
-                config.setProvider(entry.provider);
-                config.setModel(entry.model);
-                values.add(config);
-            }
-        }
-        appConfig.setFallbackProviders(values);
+        RuntimeSetupService.SetupResult result =
+                runtimeSetupService().updateFallbackProviders(values);
+        return result.isSuccess() ? "" : "fallback 写入失败：" + result.getMessage();
     }
 
     /**
@@ -2271,8 +2252,8 @@ public class TerminalSetupCommands {
         return Integer.parseInt(value) > 0;
     }
 
-    /** 汇总 provider key，包含启动配置和 workspace/config.yml 动态配置。 */
-    private java.util.LinkedHashSet<String> providerKeysForAuth() {
+    /** 汇总已真实配置的 provider key，包含启动配置和 workspace/config.yml 动态配置。 */
+    private java.util.LinkedHashSet<String> configuredProviderKeys() {
         java.util.LinkedHashSet<String> providers = new java.util.LinkedHashSet<String>();
         if (appConfig != null && appConfig.getProviders() != null) {
             providers.addAll(appConfig.getProviders().keySet());
@@ -2286,6 +2267,12 @@ public class TerminalSetupCommands {
                 }
             }
         }
+        return providers;
+    }
+
+    /** 汇总认证引导可展示的 provider key，并追加尚未配置的初始化模板。 */
+    private java.util.LinkedHashSet<String> providerKeysForAuth() {
+        java.util.LinkedHashSet<String> providers = configuredProviderKeys();
         for (RuntimeProviderSetupSpec.ProviderTemplate template :
                 RuntimeProviderSetupSpec.providers()) {
             providers.add(template.getSlug());

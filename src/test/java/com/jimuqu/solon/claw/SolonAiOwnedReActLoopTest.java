@@ -1441,7 +1441,7 @@ public class SolonAiOwnedReActLoopTest {
                         config.getLlm(),
                         null);
 
-        assertThat(feedbackSink.progressUpdates).containsExactly("正在读取并核对资料（第 2 步）");
+        assertThat(feedbackSink.progressUpdates).containsExactly("我正在读取并核对资料（第 2 步）");
         assertThat(result.getAssistantMessage().getContent()).isEqualTo("非流式完成");
     }
 
@@ -2988,12 +2988,6 @@ public class SolonAiOwnedReActLoopTest {
 
         @Override
         public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride) {}
-
-        @Override
-        public void setActiveAgentName(String sessionId, String agentName) {}
-
-        @Override
-        public void clearActiveAgentName(String agentName) {}
 
         @Override
         public void setGoalState(String sessionId, String goalStateJson) {}

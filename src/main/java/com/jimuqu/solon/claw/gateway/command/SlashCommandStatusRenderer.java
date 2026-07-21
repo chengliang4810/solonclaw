@@ -26,9 +26,6 @@ final class SlashCommandStatusRenderer {
         StringBuilder buffer = new StringBuilder();
         buffer.append("session=").append(session.getSessionId()).append('\n');
         buffer.append("branch=").append(session.getBranchName()).append('\n');
-        buffer.append("agent=")
-                .append(StrUtil.blankToDefault(session.getActiveAgentName(), "default"))
-                .append('\n');
         buffer.append("effective_provider=")
                 .append(StrUtil.blankToDefault(resolved.getProvider(), "default"))
                 .append('\n');

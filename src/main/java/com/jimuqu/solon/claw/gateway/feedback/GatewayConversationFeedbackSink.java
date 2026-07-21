@@ -159,7 +159,7 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         if (StrUtil.isBlank(normalized)) {
             return;
         }
-        sendText("【进度】" + truncate(normalized, 240));
+        sendText(truncate(normalized, 240));
     }
 
     /**
@@ -228,7 +228,7 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         try {
             DeliveryRequest request = baseRequest();
             String templateId = displaySettingsService.dingtalkProgressCardTemplateId();
-            request.setText("【进度】" + summary);
+            request.setText(summary);
             request.getChannelExtras().put("mode", "ai_card");
             request.getChannelExtras().put("cardTemplateId", templateId);
             request.getChannelExtras().put("cardBizId", ensureDingtalkCardBizId());

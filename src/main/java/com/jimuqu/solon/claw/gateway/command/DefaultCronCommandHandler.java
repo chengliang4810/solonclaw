@@ -423,13 +423,13 @@ final class DefaultCronCommandHandler {
                 .append(
                         "/cron edit <job-id> --clear-script --clear-workdir --clear-context-from --clear-toolsets - 清空脚本、工作目录、上下文链和工具集限制\n")
                 .append(
-                        "/cron add \"every 2h\" \"task\" --model gpt-5.4 --provider default --base-url https://api.openai.com --no-wrap-response - 固定模型与投递包装\n")
+                        "/cron add \"every 2h\" \"task\" --model gpt-5.4 --provider default --no-wrap-response - 固定模型与投递包装\n")
                 .append(
                         "/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread - 指定投递会话与线程\n")
                 .append(
                         "/cron edit <job-id> --clear-deliver-chat-id --clear-deliver-thread-id - 清空投递会话与线程\n")
                 .append(
-                        "/cron edit <job-id> --clear-model --clear-provider --clear-base-url - 清空任务级模型/provider/base URL 固定值\n")
+                        "/cron edit <job-id> --clear-model --clear-provider - 清空任务级模型与 Provider 固定值\n")
                 .append(
                         "/cron edit <job-id> --no-agent|--agent --wrap-response|--no-wrap-response - 切换脚本直投与回复包装\n")
                 .append("/cron pause|disable|stop <job-id> [--reason 原因] - 暂停定时任务\n")
@@ -797,9 +797,6 @@ final class DefaultCronCommandHandler {
             if (StrUtil.isNotBlank(job.getProvider())) {
                 buffer.append('\n').append("Provider: ").append(job.getProvider());
             }
-            if (StrUtil.isNotBlank(job.getBaseUrl())) {
-                buffer.append('\n').append("Base URL: ").append(job.getBaseUrl());
-            }
             buffer.append('\n')
                     .append("Prompt: ")
                     .append(StrUtil.blankToDefault(String.valueOf(view.get("prompt_preview")), ""));
@@ -1080,12 +1077,6 @@ final class DefaultCronCommandHandler {
                 body.put("provider", field.substring("--provider ".length()).trim());
             } else if ("--clear-provider".equals(field)) {
                 body.put("provider", null);
-            } else if (field.startsWith("--base-url ")) {
-                body.put("base_url", field.substring("--base-url ".length()).trim());
-            } else if (field.startsWith("--base_url ")) {
-                body.put("base_url", field.substring("--base_url ".length()).trim());
-            } else if ("--clear-base-url".equals(field) || "--clear-base_url".equals(field)) {
-                body.put("base_url", null);
             } else if ("--no-agent".equals(field)) {
                 body.put("no_agent", Boolean.TRUE);
             } else if ("--agent".equals(field)) {
@@ -1138,7 +1129,6 @@ final class DefaultCronCommandHandler {
         putIfNotBlank(body, "enabled_toolsets", options.enabledToolsets);
         putIfNotBlank(body, "model", options.model);
         putIfNotBlank(body, "provider", options.provider);
-        putIfNotBlank(body, "base_url", options.baseUrl);
         putIfNotBlank(body, "status", options.status);
         putIfNotBlank(body, "state", options.state);
         putIfNotBlank(body, "paused_reason", options.pausedReason);
@@ -1147,9 +1137,6 @@ final class DefaultCronCommandHandler {
         }
         if (options.clearProvider) {
             body.put("provider", null);
-        }
-        if (options.clearBaseUrl) {
-            body.put("base_url", null);
         }
         if (options.clearScript) {
             body.put("script", null);
@@ -1268,11 +1255,6 @@ final class DefaultCronCommandHandler {
                 options.provider = tokens.get(++i);
             } else if ("--clear-provider".equals(token)) {
                 options.clearProvider = true;
-            } else if (("--base-url".equals(token) || "--base_url".equals(token))
-                    && i + 1 < tokens.size()) {
-                options.baseUrl = tokens.get(++i);
-            } else if ("--clear-base-url".equals(token) || "--clear-base_url".equals(token)) {
-                options.clearBaseUrl = true;
             } else if ("--status".equals(token) && i + 1 < tokens.size()) {
                 options.status = tokens.get(++i);
             } else if ("--state".equals(token) && i + 1 < tokens.size()) {

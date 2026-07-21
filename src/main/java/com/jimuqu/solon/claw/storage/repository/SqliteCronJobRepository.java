@@ -29,7 +29,7 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
      */
     public CronJobRecord save(CronJobRecord job) throws SQLException {
         executeUpdate(
-                "insert or replace into cron_jobs (job_id, name, cron_expr, prompt, source_key, deliver_platform, deliver_chat_id, deliver_thread_id, origin_json, skills_json, repeat_times, repeat_completed, script, approved_script_fingerprint, workdir, no_agent, context_from_json, enabled_toolsets_json, model, provider, base_url, wrap_response, last_status, last_error, last_delivery_error, pending_trigger_type, paused_at, paused_reason, last_output, status, next_run_at, last_run_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "insert or replace into cron_jobs (job_id, name, cron_expr, prompt, source_key, deliver_platform, deliver_chat_id, deliver_thread_id, origin_json, skills_json, repeat_times, repeat_completed, script, approved_script_fingerprint, workdir, no_agent, context_from_json, enabled_toolsets_json, model, provider, wrap_response, last_status, last_error, last_delivery_error, pending_trigger_type, paused_at, paused_reason, last_output, status, next_run_at, last_run_at, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 stmt -> {
                     stmt.setString(1, job.getJobId());
                     stmt.setString(2, job.getName());
@@ -51,20 +51,19 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
                     stmt.setString(18, job.getEnabledToolsetsJson());
                     stmt.setString(19, job.getModel());
                     stmt.setString(20, job.getProvider());
-                    stmt.setString(21, job.getBaseUrl());
-                    stmt.setInt(22, job.isWrapResponse() ? 1 : 0);
-                    stmt.setString(23, job.getLastStatus());
-                    stmt.setString(24, redact(job.getLastError(), 2000));
-                    stmt.setString(25, redact(job.getLastDeliveryError(), 2000));
-                    stmt.setString(26, job.getPendingTriggerType());
-                    stmt.setLong(27, job.getPausedAt());
-                    stmt.setString(28, job.getPausedReason());
-                    stmt.setString(29, redact(job.getLastOutput(), 8000));
-                    stmt.setString(30, job.getStatus());
-                    stmt.setLong(31, job.getNextRunAt());
-                    stmt.setLong(32, job.getLastRunAt());
-                    stmt.setLong(33, job.getCreatedAt());
-                    stmt.setLong(34, job.getUpdatedAt());
+                    stmt.setInt(21, job.isWrapResponse() ? 1 : 0);
+                    stmt.setString(22, job.getLastStatus());
+                    stmt.setString(23, redact(job.getLastError(), 2000));
+                    stmt.setString(24, redact(job.getLastDeliveryError(), 2000));
+                    stmt.setString(25, job.getPendingTriggerType());
+                    stmt.setLong(26, job.getPausedAt());
+                    stmt.setString(27, job.getPausedReason());
+                    stmt.setString(28, redact(job.getLastOutput(), 8000));
+                    stmt.setString(29, job.getStatus());
+                    stmt.setLong(30, job.getNextRunAt());
+                    stmt.setLong(31, job.getLastRunAt());
+                    stmt.setLong(32, job.getCreatedAt());
+                    stmt.setLong(33, job.getUpdatedAt());
                 });
         return job;
     }
@@ -305,7 +304,6 @@ public class SqliteCronJobRepository extends SqliteRepositorySupport implements 
         record.setEnabledToolsetsJson(resultSet.getString("enabled_toolsets_json"));
         record.setModel(resultSet.getString("model"));
         record.setProvider(resultSet.getString("provider"));
-        record.setBaseUrl(resultSet.getString("base_url"));
         record.setWrapResponse(resultSet.getInt("wrap_response") != 0);
         record.setLastStatus(resultSet.getString("last_status"));
         record.setLastError(resultSet.getString("last_error"));

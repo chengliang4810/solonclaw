@@ -40,7 +40,7 @@ public class DashboardChatCancelPersistenceTest {
             database = new SqliteDatabase(config);
             SqliteSessionRepository sessionRepository = new SqliteSessionRepository(database);
             BlockingConversationOrchestrator orchestrator = new BlockingConversationOrchestrator();
-            service = new DashboardChatService(sessionRepository, orchestrator, null, null);
+            service = new DashboardChatService(sessionRepository, orchestrator, null, null, null);
             String sessionId = "dashboard-cancel-session";
             String input = "取消持久化验证 marker=web-loop-ui-cancel-persistence-test";
 
@@ -89,7 +89,7 @@ public class DashboardChatCancelPersistenceTest {
             database = new SqliteDatabase(testConfig(workspaceHome));
             sessionRepository = new BlockingSaveSessionRepository(database);
             BlockingConversationOrchestrator orchestrator = new BlockingConversationOrchestrator();
-            service = new DashboardChatService(sessionRepository, orchestrator, null, null);
+            service = new DashboardChatService(sessionRepository, orchestrator, null, null, null);
             Map<String, Object> start =
                     service.startRun(
                             ONode.ofJson(
@@ -135,6 +135,7 @@ public class DashboardChatCancelPersistenceTest {
                             sessionRepository,
                             new BlockingConversationOrchestrator(),
                             new StubCommandService(),
+                            null,
                             null);
             String sessionId = "dashboard-command-session";
 
@@ -180,6 +181,7 @@ public class DashboardChatCancelPersistenceTest {
                             sessionRepository,
                             new BlockingConversationOrchestrator(),
                             new StubCommandService(),
+                            null,
                             null);
             String sessionId = "dashboard-completed-session";
             Map<String, Object> start =
@@ -231,12 +233,14 @@ public class DashboardChatCancelPersistenceTest {
                             defaultRepository,
                             new BlockingConversationOrchestrator(),
                             new StubCommandService(),
+                            null,
                             null);
             workerService =
                     new DashboardChatService(
                             workerRepository,
                             new BlockingConversationOrchestrator(),
                             new StubCommandService(),
+                            null,
                             null);
             String sharedSessionId = "same-platform-chat-user";
 

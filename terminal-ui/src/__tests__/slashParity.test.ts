@@ -82,7 +82,7 @@ describe('slash parity matrix', () => {
   })
 
   it('does not expose removed commands', () => {
-    for (const name of ['fortune', 'personality', 'skin', 'update']) {
+    for (const name of ['fortune', 'skin', 'update']) {
       expect(findSlashCommand(name)).toBeUndefined()
     }
   })

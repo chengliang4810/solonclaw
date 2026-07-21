@@ -164,13 +164,9 @@ public class TerminalModelPicker {
         if (appConfig == null || llmProviderService == null) {
             return ProviderDisplayGrouping.group(new ArrayList<ProviderDisplayGrouping.Item>());
         }
-        addResolved(result, safeResolve(defaultProviderKey(), defaultModel()));
-        if (appConfig.getFallbackProviders() != null) {
-            for (AppConfig.FallbackProviderConfig fallback : appConfig.getFallbackProviders()) {
-                if (fallback == null || StrUtil.isBlank(fallback.getProvider())) {
-                    continue;
-                }
-                addResolved(result, safeResolve(fallback.getProvider(), fallback.getModel()));
+        for (String providerKey : appConfig.getProviders().keySet()) {
+            for (String model : llmProviderService.registeredModels(providerKey)) {
+                addResolved(result, safeResolve(providerKey, model));
             }
         }
         List<ProviderDisplayGrouping.Item> items = new ArrayList<ProviderDisplayGrouping.Item>();
@@ -375,7 +371,7 @@ public class TerminalModelPicker {
                             providerKey,
                             appConfig == null ? null : appConfig.getProviders().get(providerKey));
             return new ProviderDisplayGrouping.Item(
-                    providerKey,
+                    id(),
                     StrUtil.blankToDefault(label, display.getLabel()),
                     StrUtil.blankToDefault(groupId, display.getGroupId()),
                     StrUtil.blankToDefault(groupLabel, display.getGroupLabel()),

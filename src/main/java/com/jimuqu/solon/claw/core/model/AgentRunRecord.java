@@ -24,12 +24,6 @@ public class AgentRunRecord {
     /** 记录Agent运行中的parent运行标识。 */
     private String parentRunId;
 
-    /** 记录Agent运行中的Agent名称。 */
-    private String agentName;
-
-    /** 记录Agent运行中的Agent快照 JSON。 */
-    private String agentSnapshotJson;
-
     /** 记录Agent运行中的状态。 */
     private String status;
 

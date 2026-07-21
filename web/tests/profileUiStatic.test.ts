@@ -112,4 +112,4 @@ assert.ok(view.includes('v-model:value="createModelProvider"'), 'quick Profile c
 assert.ok(view.includes('v-model:value="createModelName"'), 'quick Profile creation should select a Provider-scoped model')
 assert.ok(view.includes('v-model:value="editorModelProvider"'), 'Profile editing should select a Provider first')
 assert.ok(view.includes('v-model:value="editorModelName"'), 'Profile editing should select a Provider-scoped model')
-assert.ok(view.includes("t('models.unregisteredModel'"), 'Profile editing should preserve legacy models as disabled options')
+assert.ok(!view.includes("t('models.unregisteredModel'"), 'Profile editing should only expose registered models')

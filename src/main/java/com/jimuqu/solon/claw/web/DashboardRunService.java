@@ -289,15 +289,6 @@ public class DashboardRunService {
         map.put("source_key", safeId(record.getSourceKey()));
         map.put("run_kind", record.getRunKind());
         map.put("parent_run_id", safeId(record.getParentRunId()));
-        map.put("agent_name", safeId(record.getAgentName()));
-        map.put(
-                "agent_snapshot",
-                redactParsed(
-                        parseJsonField(
-                                record.getAgentSnapshotJson(),
-                                "agent_snapshot",
-                                record.getRunId(),
-                                null)));
         map.put("status", record.getStatus());
         map.put("phase", record.getPhase());
         map.put("busy_policy", record.getBusyPolicy());

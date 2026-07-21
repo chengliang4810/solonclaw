@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.gateway.feedback.ToolPreviewSupport;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
@@ -70,6 +71,9 @@ public class DashboardChatService {
     /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
 
+    /** 大模型 Provider 服务，用于在会话覆盖落库前校验 Provider 和模型。 */
+    private final LlmProviderService llmProviderService;
+
     /** 保存执行器执行组件，负责调度异步或定时任务。 */
     private final ExecutorService executor;
 
@@ -84,16 +88,19 @@ public class DashboardChatService {
      * @param conversationOrchestrator conversationOrchestrator 参数。
      * @param commandService 命令服务依赖。
      * @param attachmentCacheService 附件缓存服务依赖。
+     * @param llmProviderService 大模型 Provider 服务。
      */
     public DashboardChatService(
             SessionRepository sessionRepository,
             ConversationOrchestrator conversationOrchestrator,
             CommandService commandService,
-            AttachmentCacheService attachmentCacheService) {
+            AttachmentCacheService attachmentCacheService,
+            LlmProviderService llmProviderService) {
         this.sessionRepository = sessionRepository;
         this.conversationOrchestrator = conversationOrchestrator;
         this.commandService = commandService;
         this.attachmentCacheService = attachmentCacheService;
+        this.llmProviderService = llmProviderService;
         this.executor = BoundedExecutorFactory.fixed("dashboard-chat-run", 4, 128);
     }
 
@@ -166,6 +173,7 @@ public class DashboardChatService {
         if (StrUtil.isBlank(request.sessionId)) {
             request.sessionId = IdSupport.newId();
         }
+        request.modelOverride = resolveModelOverride(request.provider, request.model);
         request.resolvedAttachments = resolveAttachments(request.attachments);
 
         final String runId = IdSupport.newId();
@@ -404,8 +412,8 @@ public class DashboardChatService {
             session.setTitle(extractTitle(request));
             session.setCreatedAt(System.currentTimeMillis());
             session.setUpdatedAt(System.currentTimeMillis());
-            if (StrUtil.isNotBlank(request.model)) {
-                session.setModelOverride(request.model);
+            if (StrUtil.isNotBlank(request.modelOverride)) {
+                session.setModelOverride(request.modelOverride);
             }
             sessionRepository.save(session);
         } else if (StrUtil.isBlank(session.getSourceKey())) {
@@ -414,12 +422,35 @@ public class DashboardChatService {
             sessionRepository.save(session);
         }
 
-        if (StrUtil.isNotBlank(request.model)) {
-            sessionRepository.setModelOverride(session.getSessionId(), request.model);
-            session.setModelOverride(request.model);
+        if (StrUtil.isNotBlank(request.modelOverride)) {
+            sessionRepository.setModelOverride(session.getSessionId(), request.modelOverride);
+            session.setModelOverride(request.modelOverride);
         }
         sessionRepository.bindSource(sourceKey, session.getSessionId());
         return sessionRepository.findById(session.getSessionId());
+    }
+
+    /**
+     * 校验 Dashboard 提交的模型选择，并生成带 Provider 的稳定会话覆盖值。
+     *
+     * @param provider 可选 Provider；为空时使用当前全局 Provider。
+     * @param model 可选模型。
+     * @return provider:model 形式的会话覆盖值；未选择模型时返回空字符串。
+     */
+    private String resolveModelOverride(String provider, String model) {
+        if (StrUtil.isBlank(model)) {
+            return "";
+        }
+        if (llmProviderService == null) {
+            throw new IllegalStateException("Dashboard 模型校验服务未初始化。");
+        }
+        String providerKey = StrUtil.nullToEmpty(provider).trim();
+        if (StrUtil.isBlank(providerKey)) {
+            providerKey = llmProviderService.resolveEffectiveProvider(null).getProviderKey();
+        }
+        LlmProviderService.ResolvedProvider resolved =
+                llmProviderService.resolveProvider(providerKey, model);
+        return resolved.getProviderKey() + ":" + resolved.getModel();
     }
 
     /**
@@ -1363,6 +1394,12 @@ public class DashboardChatService {
         /** 记录聊天运行请求中的模型。 */
         private String model;
 
+        /** 记录聊天运行请求中的 Provider。 */
+        private String provider;
+
+        /** 经 Provider 模型清单校验后的稳定会话覆盖值。 */
+        private String modelOverride;
+
         /** 本轮 Web 运行允许调用的工具名白名单；为空表示不限制工具名。 */
         private List<String> allowedTools;
 
@@ -1392,6 +1429,7 @@ public class DashboardChatService {
             request.input = body.get("input").getString();
             request.sessionId = body.get("session_id").getString();
             request.model = body.get("model").getString();
+            request.provider = body.get("provider").getString();
             request.allowedTools =
                     parseStringList(firstPresent(body, "allowed_tools", "allowedTools"));
             request.requiredTools =

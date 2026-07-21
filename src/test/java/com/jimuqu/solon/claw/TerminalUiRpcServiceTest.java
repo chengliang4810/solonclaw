@@ -411,18 +411,23 @@ class TerminalUiRpcServiceTest {
         assertThat(service.fullConfig().get("config").toString()).contains("mouse_tracking=off");
     }
 
+    /** 默认模型选择只写入真实 TUI 会话，不得修改 Profile 的全局默认模型。 */
     @Test
-    void modelConfigSetAcceptsProviderColonModelSyntax() throws Exception {
+    void modelConfigSetPersistsSessionOverrideWithoutChangingGlobalModel() throws Exception {
         AppConfig config = testConfig();
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("OpenAI Compatible");
         provider.setBaseUrl("https://example.test/v1");
         provider.setApiKey("sk-test-secret");
         provider.setDefaultModel("mimo-v2.5");
+        provider.setModels(java.util.Arrays.asList("mimo-v2.5", "mimo-v2.5-pro"));
         provider.setDialect("openai");
         config.getProviders().put("openai", provider);
         config.getModel().setProviderKey("openai");
-        TerminalUiRpcService service = new TerminalUiRpcService(config);
+        config.getModel().setDefault("mimo-v2.5");
+        SqliteSessionRepository sessions = new SqliteSessionRepository(new SqliteDatabase(config));
+        sessions.save(session("session-model", "MEMORY:terminal-ui:session-model"));
+        TerminalUiRpcService service = new TerminalUiRpcService(config, sessions);
 
         Map<String, Object> response =
                 service.configSet("model", "openai:mimo-v2.5-pro", "session-model");
@@ -430,7 +435,45 @@ class TerminalUiRpcServiceTest {
         assertThat(response)
                 .containsEntry("value", "mimo-v2.5-pro")
                 .containsEntry("provider", "openai")
+                .containsEntry("global", Boolean.FALSE)
                 .containsEntry("session_id", "session-model");
+        assertThat((Map<String, Object>) response.get("info"))
+                .containsEntry("model", "openai:mimo-v2.5-pro");
+        assertThat(sessions.findById("session-model").getModelOverride())
+                .isEqualTo("openai:mimo-v2.5-pro");
+        assertThat(config.getModel().getDefault()).isEqualTo("mimo-v2.5");
+        assertThat(service.configValue("model"))
+                .containsEntry("value", "mimo-v2.5")
+                .containsEntry("provider", "openai");
+    }
+
+    /** 只有显式 --global 才持久化 Profile 默认模型，无会话仓储时也应可执行。 */
+    @Test
+    void modelConfigSetGlobalFlagPersistsProfileDefault() throws Exception {
+        AppConfig config = testConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("OpenAI Compatible");
+        provider.setBaseUrl("https://example.test/v1");
+        provider.setApiKey("sk-test-secret");
+        provider.setDefaultModel("mimo-v2.5");
+        provider.setModels(java.util.Arrays.asList("mimo-v2.5", "mimo-v2.5-pro"));
+        provider.setDialect("openai");
+        config.getProviders().put("openai", provider);
+        config.getModel().setProviderKey("openai");
+        config.getModel().setDefault("mimo-v2.5");
+        TerminalUiRpcService service = new TerminalUiRpcService(config);
+
+        Map<String, Object> response =
+                service.configSet("model", "openai:mimo-v2.5-pro --global", "");
+
+        assertThat(response)
+                .containsEntry("value", "mimo-v2.5-pro")
+                .containsEntry("provider", "openai")
+                .containsEntry("global", Boolean.TRUE);
+        assertThat(config.getModel().getDefault()).isEqualTo("mimo-v2.5-pro");
+        assertThat(FileUtil.readUtf8String(new File(config.getRuntime().getHome(), "config.yml")))
+                .contains("providerKey: openai")
+                .contains("default: mimo-v2.5-pro");
         assertThat(service.configValue("model"))
                 .containsEntry("value", "mimo-v2.5-pro")
                 .containsEntry("provider", "openai");
@@ -440,6 +483,61 @@ class TerminalUiRpcServiceTest {
         assertThat(renderedConfig)
                 .containsEntry("model", "mimo-v2.5-pro")
                 .containsEntry("provider", "openai");
+    }
+
+    /** 保存其他 Provider 的 API Key 只能更新该 Provider，不得切换 Profile 默认模型。 */
+    @Test
+    void modelSaveKeyDoesNotChangeGlobalModel() throws Exception {
+        AppConfig config = testConfig();
+        AppConfig.ProviderConfig current = new AppConfig.ProviderConfig();
+        current.setName("Current");
+        current.setBaseUrl("https://current.example.test/v1");
+        current.setApiKey("sk-current-secret-value");
+        current.setDefaultModel("main-model");
+        current.setModels(Collections.singletonList("main-model"));
+        current.setDialect("openai");
+        AppConfig.ProviderConfig secondary = new AppConfig.ProviderConfig();
+        secondary.setName("Secondary");
+        secondary.setBaseUrl("https://secondary.example.test/v1");
+        secondary.setDefaultModel("fast-model");
+        secondary.setModels(Collections.singletonList("fast-model"));
+        secondary.setDialect("openai");
+        config.getProviders().put("current", current);
+        config.getProviders().put("secondary", secondary);
+        config.getModel().setProviderKey("current");
+        config.getModel().setDefault("main-model");
+        File configFile = new File(config.getRuntime().getHome(), "config.yml");
+        FileUtil.writeUtf8String(
+                "providers:\n"
+                        + "  current:\n"
+                        + "    name: Current\n"
+                        + "    baseUrl: https://current.example.test/v1\n"
+                        + "    defaultModel: main-model\n"
+                        + "    models:\n"
+                        + "      - main-model\n"
+                        + "    dialect: openai\n"
+                        + "model:\n"
+                        + "  providerKey: current\n"
+                        + "  default: main-model\n",
+                configFile);
+        TerminalUiRpcService service = new TerminalUiRpcService(config);
+
+        Map<String, Object> response =
+                service.modelSaveKey(
+                        "secondary", "sk-secondary-secret-value-123456", "session-model");
+
+        assertThat(response)
+                .containsEntry("ok", Boolean.TRUE)
+                .containsEntry("session_id", "session-model");
+        assertThat(config.getModel().getProviderKey()).isEqualTo("current");
+        assertThat(config.getModel().getDefault()).isEqualTo("main-model");
+        assertThat(FileUtil.readUtf8String(configFile))
+                .contains("providerKey: current", "default: main-model", "secondary:");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> provider = (Map<String, Object>) response.get("provider");
+        assertThat(provider)
+                .containsEntry("slug", "secondary")
+                .containsEntry("is_current", Boolean.FALSE);
     }
 
     @Test
@@ -567,7 +665,7 @@ class TerminalUiRpcServiceTest {
     void imageAttachReportsFailureWhenNoAttachmentResolved() throws Exception {
         TerminalUiRpcService service = new TerminalUiRpcService(testConfig());
 
-        Map<String, Object> response = service.imageAttach("missing.png");
+        Map<String, Object> response = service.imageAttach("session-image", "missing.png");
 
         assertThat(response.get("attached")).isEqualTo(Boolean.FALSE);
         assertThat(response.get("message")).isEqualTo("image not attached");

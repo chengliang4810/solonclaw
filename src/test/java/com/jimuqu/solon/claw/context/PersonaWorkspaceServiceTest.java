@@ -35,7 +35,8 @@ class PersonaWorkspaceServiceTest {
                         ContextFileConstants.KEY_MEMORY_TODAY);
         assertThat(service.exists(ContextFileConstants.KEY_AGENTS)).isTrue();
         assertThat(service.read(ContextFileConstants.KEY_AGENTS)).contains("## 记忆系统");
-        assertThat(service.read(ContextFileConstants.KEY_SOUL)).isEmpty();
+        assertThat(service.read(ContextFileConstants.KEY_SOUL))
+                .contains("# SOUL.md - 我如何成为我", "## 我相信什么");
         assertThat(service.read(ContextFileConstants.KEY_IDENTITY))
                 .contains("# IDENTITY.md - 我是谁？");
         assertThat(service.read(ContextFileConstants.KEY_USER))
@@ -78,6 +79,22 @@ class PersonaWorkspaceServiceTest {
         PersonaWorkspaceService reloaded = new PersonaWorkspaceService(appConfig());
 
         assertThat(reloaded.read(ContextFileConstants.KEY_SOUL)).isEqualTo("custom soul");
+    }
+
+    /** 预先写入 SOUL 的全新工作区仍必须保留首次引导，并且不得覆盖用户人格。 */
+    @Test
+    void shouldSeedBootstrapWhenFreshWorkspaceAlreadyHasSoul() throws Exception {
+        AppConfig config = appConfig();
+        Path workspace = new File(config.getWorkspace().getDir()).toPath();
+        Files.createDirectories(workspace);
+        Files.write(
+                workspace.resolve(ContextFileConstants.FILE_SOUL),
+                "custom soul".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        PersonaWorkspaceService service = new PersonaWorkspaceService(config);
+
+        assertThat(service.read(ContextFileConstants.KEY_SOUL)).isEqualTo("custom soul");
+        assertThat(service.read(ContextFileConstants.KEY_BOOTSTRAP)).contains("## 第一次对话");
     }
 
     @Test

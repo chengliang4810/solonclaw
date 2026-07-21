@@ -1107,16 +1107,16 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class MemoryConfig {
-        /** 旧每日记忆归档配置。 */
+        /** 每日记忆归档配置。 */
         private MemoryArchiveConfig archive = new MemoryArchiveConfig();
     }
 
-    /** 旧每日记忆不可变归档和派生摘要配置。 */
+    /** 每日记忆不可变归档和派生摘要配置。 */
     @Getter
     @Setter
     @NoArgsConstructor
     public static class MemoryArchiveConfig {
-        /** 是否启用旧每日记忆后台归档。 */
+        /** 是否启用每日记忆后台归档。 */
         private boolean enabled = true;
 
         /** 每日记忆保留在活动目录的天数。 */

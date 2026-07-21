@@ -156,7 +156,8 @@ public class DashboardProfileServiceTest {
                     .containsEntry("description_auto", Boolean.FALSE);
 
             assertThat(service.readSoul("writer")).containsEntry("exists", Boolean.TRUE);
-            assertThat(String.valueOf(service.readSoul("writer").get("content"))).isEmpty();
+            assertThat(String.valueOf(service.readSoul("writer").get("content")))
+                    .contains("# SOUL.md - 我如何成为我");
             service.updateSoul("writer", "You write concise release notes.\n");
             assertThat(service.readSoul("writer"))
                     .containsEntry("content", "You write concise release notes.\n")
@@ -256,6 +257,88 @@ public class DashboardProfileServiceTest {
             assertThat(service.updateModel("writer", "default", "gpt-5.4"))
                     .containsEntry("provider", "default")
                     .containsEntry("model", "gpt-5.4");
+        } finally {
+            deleteTree(root);
+            deleteTree(wrappers);
+        }
+    }
+
+    /** Builder 的 Provider 与模型必须成对且已登记，失败时不得留下 Profile 目录。 */
+    @Test
+    void shouldValidateBuilderModelBeforeCreatingProfileDirectory() throws Exception {
+        Path root = Files.createTempDirectory("solonclaw-profile-model-validation-");
+        Path wrappers = Files.createTempDirectory("solonclaw-profile-model-validation-wrappers-");
+        try {
+            Files.writeString(
+                    root.resolve("config.yml"),
+                    "providers:\n"
+                            + "  default:\n"
+                            + "    baseUrl: https://default.example/v1\n"
+                            + "    defaultModel: registered-model\n"
+                            + "    models: [registered-model]\n"
+                            + "    dialect: openai\n"
+                            + "model:\n"
+                            + "  providerKey: default\n"
+                            + "  default: registered-model\n");
+            DashboardProfileService service =
+                    new DashboardProfileService(new ProfileManager(root, wrappers, "solonclaw"));
+
+            Map<String, Object> providerOnly = new LinkedHashMap<String, Object>();
+            providerOnly.put("name", "provider-only");
+            providerOnly.put("provider", "default");
+            assertThatThrownBy(() -> service.createProfile(providerOnly))
+                    .hasMessageContaining("必须同时填写");
+            assertThat(root.resolve("profiles/provider-only")).doesNotExist();
+
+            Map<String, Object> modelOnly = new LinkedHashMap<String, Object>();
+            modelOnly.put("name", "model-only");
+            modelOnly.put("model", "registered-model");
+            assertThatThrownBy(() -> service.createProfile(modelOnly))
+                    .hasMessageContaining("必须同时填写");
+            assertThat(root.resolve("profiles/model-only")).doesNotExist();
+
+            Map<String, Object> unregistered = new LinkedHashMap<String, Object>();
+            unregistered.put("name", "unregistered");
+            unregistered.put("provider", "default");
+            unregistered.put("model", "missing-model");
+            assertThatThrownBy(() -> service.createProfile(unregistered))
+                    .hasMessageContaining("模型未加入 Provider default");
+            assertThat(root.resolve("profiles/unregistered")).doesNotExist();
+        } finally {
+            deleteTree(root);
+            deleteTree(wrappers);
+        }
+    }
+
+    /** Profile 创建后模型写入失败时必须删除新目录，避免半成品 Profile 可见。 */
+    @Test
+    void shouldRollbackCreatedProfileWhenModelWriteFails() throws Exception {
+        Path root = Files.createTempDirectory("solonclaw-profile-model-rollback-");
+        Path wrappers = Files.createTempDirectory("solonclaw-profile-model-rollback-wrappers-");
+        try {
+            Files.writeString(
+                    root.resolve("config.yml"),
+                    "providers:\n"
+                            + "  default:\n"
+                            + "    baseUrl: https://default.example/v1\n"
+                            + "    defaultModel: registered-model\n"
+                            + "    models: [registered-model]\n"
+                            + "    dialect: openai\n"
+                            + "model:\n"
+                            + "  providerKey: default\n"
+                            + "  default: registered-model\n");
+            ProfileManager manager = new ProfileManager(root, wrappers, "solonclaw");
+            DashboardProfileService service = new FailingModelProfileService(manager);
+            Map<String, Object> body = new LinkedHashMap<String, Object>();
+            body.put("name", "rollback-target");
+            body.put("no_alias", Boolean.TRUE);
+            body.put("provider", "default");
+            body.put("model", "registered-model");
+
+            assertThatThrownBy(() -> service.createProfile(body))
+                    .isInstanceOf(IOException.class)
+                    .hasMessageContaining("simulated model write failure");
+            assertThat(root.resolve("profiles/rollback-target")).doesNotExist();
         } finally {
             deleteTree(root);
             deleteTree(wrappers);
@@ -752,6 +835,21 @@ public class DashboardProfileServiceTest {
                 throw laterFailure;
             }
             return null;
+        }
+    }
+
+    /** 模拟创建完成后的模型配置写入失败。 */
+    private static final class FailingModelProfileService extends DashboardProfileService {
+        /** 创建模型写入失败替身。 */
+        private FailingModelProfileService(ProfileManager manager) {
+            super(manager);
+        }
+
+        /** 始终抛出模型写入异常，用于验证新 Profile 回滚。 */
+        @Override
+        public Map<String, Object> updateModel(String name, String provider, String model)
+                throws Exception {
+            throw new IOException("simulated model write failure");
         }
     }
 

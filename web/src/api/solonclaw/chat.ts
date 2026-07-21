@@ -21,6 +21,7 @@ export interface StartRunRequest {
   instructions?: string
   conversation_history?: ChatMessage[]
   session_id?: string
+  provider?: string
   model?: string
   attachments?: UploadedChatFile[]
 }

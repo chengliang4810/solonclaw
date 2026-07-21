@@ -60,7 +60,7 @@ export interface ConfigDisplayConfig {
   busy_input_mode?: string
   details_mode?: string
   inline_diffs?: boolean
-  mouse_tracking?: boolean | null | number | string
+  mouse_tracking?: 'all' | 'buttons' | 'off' | 'wheel'
   sections?: Record<string, string>
   show_cost?: boolean
   show_reasoning?: boolean
@@ -74,15 +74,13 @@ export interface ConfigDisplayConfig {
   tui_agents_nudge?: boolean
   tui_auto_resume_recent?: boolean
   tui_compact?: boolean
-  /** Legacy alias for display.mouse_tracking. */
-  tui_mouse?: boolean | null | number | string
   // Forward-compat: backend may send styles this client doesn't know yet —
   // `normalizeIndicatorStyle` falls back to 'kaomoji' for those — but the
   // wire type is documented as `string` so consumers don't get a false
   // narrowing-and-autocomplete contract on a value that requires runtime
   // validation anyway.
   tui_status_indicator?: string
-  tui_statusbar?: 'bottom' | 'off' | 'on' | 'top' | boolean
+  tui_statusbar?: 'bottom' | 'off' | 'top'
 }
 
 export interface ConfigVoiceConfig {
@@ -464,6 +462,7 @@ export interface ModelOptionsResponse {
   model?: string
   provider?: string
   providers?: ModelOptionProvider[]
+  session_id?: string
 }
 
 // ── MCP ──────────────────────────────────────────────────────────────

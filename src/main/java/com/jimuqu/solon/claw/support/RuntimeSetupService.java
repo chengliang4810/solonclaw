@@ -4,6 +4,9 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
+import com.jimuqu.solon.claw.profile.ProfileMutationLock;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileConfigFile;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -31,6 +34,17 @@ public class RuntimeSetupService {
      * @return 已脱敏的写入结果。
      */
     public SetupResult configureModel(ModelSetupRequest request) {
+        return configureProvider(request, true);
+    }
+
+    /**
+     * 原子写入 Provider 配置，并按需将其设为当前 Profile 的默认模型。
+     *
+     * @param request 模型 Provider 配置请求。
+     * @param activate 是否同时更新当前 Profile 默认模型。
+     * @return 已脱敏的写入结果。
+     */
+    public SetupResult configureProvider(ModelSetupRequest request, boolean activate) {
         if (request == null
                 || StrUtil.isBlank(request.getProviderKey())
                 || StrUtil.isBlank(request.getBaseUrl())
@@ -56,30 +70,152 @@ public class RuntimeSetupService {
         }
         String providerName =
                 StrUtil.blankToDefault(normalizeText(request.getProviderName()), providerKey);
-        RuntimeConfigResolver resolver = configResolver();
-        String prefix = "providers." + providerKey + ".";
-        resolver.setFileValue("model.providerKey", providerKey);
-        resolver.setFileValue("model.default", model);
-        resolver.setFileValue(prefix + "name", providerName);
-        resolver.setFileValue(prefix + "baseUrl", normalizeText(request.getBaseUrl()));
-        resolver.setFileValue(prefix + "apiKey", apiKey);
-        resolver.setFileValue(prefix + "defaultModel", model);
-        resolver.setFileValue(prefix + "dialect", dialect);
+        String baseUrl = normalizeText(request.getBaseUrl());
+        try {
+            writeProviderConfiguration(
+                    providerKey, providerName, baseUrl, apiKey, model, dialect, activate);
+        } catch (Exception e) {
+            return SetupResult.error("model_setup_failed", ErrorTextSupport.safeError(e));
+        }
         applyModelSetupToAppConfig(
-                providerKey,
-                providerName,
-                normalizeText(request.getBaseUrl()),
-                apiKey,
-                model,
-                dialect);
+                providerKey, providerName, baseUrl, apiKey, model, dialect, activate);
 
         Map<String, String> values = new LinkedHashMap<String, String>();
         values.put("provider", providerKey);
         values.put("model", model);
-        values.put("baseUrl", SecretRedactor.maskUrl(normalizeText(request.getBaseUrl())));
+        values.put("baseUrl", SecretRedactor.maskUrl(baseUrl));
         values.put("apiKey", "***");
         values.put("dialect", dialect);
         return SetupResult.ok("model", values);
+    }
+
+    /**
+     * 原子切换当前 Profile 的默认模型。
+     *
+     * @param providerKey 已登记 Provider 键。
+     * @param model 已登记模型名。
+     * @return 模型切换结果。
+     */
+    public SetupResult selectDefaultModel(String providerKey, String model) {
+        try {
+            LlmProviderService.ResolvedProvider resolved =
+                    new LlmProviderService(appConfig).resolveProvider(providerKey, model);
+            new ProfileMutationLock(appConfig)
+                    .withLock(
+                            () -> {
+                                writeModelReference(
+                                        currentConfigFile(),
+                                        resolved.getProviderKey(),
+                                        resolved.getModel());
+                                return null;
+                            });
+            applySelectedModelToAppConfig(resolved.getProviderKey(), resolved.getModel());
+            Map<String, String> values = new LinkedHashMap<String, String>();
+            values.put("provider", resolved.getProviderKey());
+            values.put("model", resolved.getModel());
+            return SetupResult.ok("model", values);
+        } catch (Exception e) {
+            return SetupResult.error("model_selection_failed", ErrorTextSupport.safeError(e));
+        }
+    }
+
+    /**
+     * 原子清除全局 Provider 注册表中的 API Key。
+     *
+     * @param providerKey Provider 键。
+     * @return 凭据清理结果。
+     */
+    public SetupResult clearProviderCredential(String providerKey) {
+        String key = normalizeText(providerKey);
+        if (StrUtil.isBlank(key)) {
+            return SetupResult.error("missing_provider");
+        }
+        try {
+            new ProfileMutationLock(appConfig)
+                    .withLock(
+                            () -> {
+                                Path configFile = globalConfigFile();
+                                synchronized (DashboardProfileConfigFile.lockFor(configFile)) {
+                                    DashboardProfileConfigFile config =
+                                            new DashboardProfileConfigFile(configFile);
+                                    Map<String, Object> root = config.readRoot();
+                                    Map<String, Object> providers = mutableMap(root, "providers");
+                                    Object rawProvider = providers.get(key);
+                                    if (!(rawProvider instanceof Map)) {
+                                        throw new IllegalArgumentException("Provider 不存在：" + key);
+                                    }
+                                    Map<String, Object> provider =
+                                            BasicValueSupport.sanitizeMap((Map<?, ?>) rawProvider);
+                                    provider.remove("apiKey");
+                                    providers.put(key, provider);
+                                    config.writeRoot(root);
+                                }
+                                return null;
+                            });
+            AppConfig.ProviderConfig provider = appConfig.getProviders().get(key);
+            if (provider != null) {
+                provider.setApiKey("");
+            }
+            if (StrUtil.equals(key, appConfig.getModel().getProviderKey())) {
+                appConfig.getLlm().setApiKey("");
+            }
+            return SetupResult.ok("provider", Collections.singletonMap("provider", key));
+        } catch (Exception e) {
+            return SetupResult.error(
+                    "provider_credential_clear_failed", ErrorTextSupport.safeError(e));
+        }
+    }
+
+    /**
+     * 原子替换当前 Profile 的备用模型链。
+     *
+     * @param items Provider 与模型成对列表。
+     * @return 备用链写入结果。
+     */
+    public SetupResult updateFallbackProviders(List<? extends Map<String, String>> items) {
+        try {
+            List<Object> nodes = new ArrayList<Object>();
+            List<AppConfig.FallbackProviderConfig> runtimeValues =
+                    new ArrayList<AppConfig.FallbackProviderConfig>();
+            LlmProviderService providers = new LlmProviderService(appConfig);
+            if (items != null) {
+                for (Map<String, String> item : items) {
+                    if (item == null || StrUtil.isBlank(item.get("provider"))) {
+                        continue;
+                    }
+                    LlmProviderService.ResolvedProvider resolved =
+                            providers.resolveProvider(item.get("provider"), item.get("model"));
+                    Map<String, Object> node = new LinkedHashMap<String, Object>();
+                    node.put("provider", resolved.getProviderKey());
+                    node.put("model", resolved.getModel());
+                    nodes.add(node);
+                    AppConfig.FallbackProviderConfig runtimeValue =
+                            new AppConfig.FallbackProviderConfig();
+                    runtimeValue.setProvider(resolved.getProviderKey());
+                    runtimeValue.setModel(resolved.getModel());
+                    runtimeValues.add(runtimeValue);
+                }
+            }
+            new ProfileMutationLock(appConfig)
+                    .withLock(
+                            () -> {
+                                Path configFile = currentConfigFile();
+                                synchronized (DashboardProfileConfigFile.lockFor(configFile)) {
+                                    DashboardProfileConfigFile config =
+                                            new DashboardProfileConfigFile(configFile);
+                                    Map<String, Object> root = config.readRoot();
+                                    root.put("fallbackProviders", nodes);
+                                    config.writeRoot(root);
+                                }
+                                return null;
+                            });
+            appConfig.setFallbackProviders(runtimeValues);
+            return SetupResult.ok(
+                    "fallback",
+                    Collections.singletonMap("count", String.valueOf(runtimeValues.size())));
+        } catch (Exception e) {
+            return SetupResult.error("fallback_update_failed", ErrorTextSupport.safeError(e));
+        }
     }
 
     /**
@@ -137,6 +273,7 @@ public class RuntimeSetupService {
      * @param apiKey 模型 API Key。
      * @param model 默认模型。
      * @param dialect 协议方言。
+     * @param activate 是否更新当前 Profile 默认模型。
      */
     private void applyModelSetupToAppConfig(
             String providerKey,
@@ -144,7 +281,8 @@ public class RuntimeSetupService {
             String baseUrl,
             String apiKey,
             String model,
-            String dialect) {
+            String dialect,
+            boolean activate) {
         if (appConfig.getProviders() == null) {
             appConfig.setProviders(new java.util.LinkedHashMap<String, AppConfig.ProviderConfig>());
         }
@@ -157,7 +295,11 @@ public class RuntimeSetupService {
         provider.setBaseUrl(baseUrl);
         provider.setApiKey(apiKey);
         provider.setDefaultModel(model);
+        provider.setModels(modelsWithDefault(provider, model));
         provider.setDialect(dialect);
+        if (!activate) {
+            return;
+        }
         appConfig.getModel().setProviderKey(providerKey);
         appConfig.getModel().setDefault(model);
         appConfig.getLlm().setProvider(providerKey);
@@ -165,6 +307,217 @@ public class RuntimeSetupService {
         appConfig.getLlm().setApiUrl(LlmProviderSupport.buildApiUrl(baseUrl, dialect));
         appConfig.getLlm().setApiKey(apiKey);
         appConfig.getLlm().setModel(model);
+    }
+
+    /**
+     * 在共享 Profile 变更锁内写入全局 Provider，并按需更新当前 Profile 模型引用。
+     *
+     * @param providerKey Provider 键。
+     * @param providerName Provider 展示名。
+     * @param baseUrl Provider 基础地址。
+     * @param apiKey Provider API Key。
+     * @param model Provider 默认模型。
+     * @param dialect Provider 协议方言。
+     * @param activate 是否更新当前 Profile 默认模型。
+     * @throws Exception 文件锁或配置写入失败。
+     */
+    private void writeProviderConfiguration(
+            String providerKey,
+            String providerName,
+            String baseUrl,
+            String apiKey,
+            String model,
+            String dialect,
+            boolean activate)
+            throws Exception {
+        new ProfileMutationLock(appConfig)
+                .withLock(
+                        () -> {
+                            Path providerFile = globalConfigFile();
+                            Path modelFile = currentConfigFile();
+                            if (providerFile.equals(modelFile)) {
+                                synchronized (DashboardProfileConfigFile.lockFor(providerFile)) {
+                                    DashboardProfileConfigFile config =
+                                            new DashboardProfileConfigFile(providerFile);
+                                    Map<String, Object> root = config.readRoot();
+                                    putProvider(
+                                            root,
+                                            providerKey,
+                                            providerName,
+                                            baseUrl,
+                                            apiKey,
+                                            model,
+                                            dialect);
+                                    if (activate) {
+                                        putModelReference(root, providerKey, model, false);
+                                    }
+                                    config.writeRoot(root);
+                                }
+                                return null;
+                            }
+                            writeProvider(
+                                    providerFile,
+                                    providerKey,
+                                    providerName,
+                                    baseUrl,
+                                    apiKey,
+                                    model,
+                                    dialect);
+                            if (activate) {
+                                writeModelReference(modelFile, providerKey, model);
+                            }
+                            return null;
+                        });
+    }
+
+    /** 原子写入一个全局 Provider 节点。 */
+    private void writeProvider(
+            Path configFile,
+            String providerKey,
+            String providerName,
+            String baseUrl,
+            String apiKey,
+            String model,
+            String dialect) {
+        synchronized (DashboardProfileConfigFile.lockFor(configFile)) {
+            DashboardProfileConfigFile config = new DashboardProfileConfigFile(configFile);
+            Map<String, Object> root = config.readRoot();
+            putProvider(root, providerKey, providerName, baseUrl, apiKey, model, dialect);
+            config.writeRoot(root);
+        }
+    }
+
+    /** 原子写入当前 Profile 的模型引用。 */
+    private void writeModelReference(Path configFile, String providerKey, String model) {
+        synchronized (DashboardProfileConfigFile.lockFor(configFile)) {
+            DashboardProfileConfigFile config = new DashboardProfileConfigFile(configFile);
+            Map<String, Object> root = config.readRoot();
+            putModelReference(root, providerKey, model, !configFile.equals(globalConfigFile()));
+            config.writeRoot(root);
+        }
+    }
+
+    /** 把 Provider 完整配置合并到已加载的 YAML 根映射。 */
+    private void putProvider(
+            Map<String, Object> root,
+            String providerKey,
+            String providerName,
+            String baseUrl,
+            String apiKey,
+            String model,
+            String dialect) {
+        Map<String, Object> providers = mutableMap(root, "providers");
+        Map<String, Object> provider = mutableMap(providers, providerKey);
+        provider.put("name", providerName);
+        provider.put("baseUrl", baseUrl);
+        provider.put("apiKey", apiKey);
+        provider.put("defaultModel", model);
+        provider.put("models", mergeProviderModels(provider, providerKey, model));
+        provider.put("dialect", dialect);
+    }
+
+    /** 把 Provider 与模型引用写入已加载的 YAML 根映射。 */
+    private void putModelReference(
+            Map<String, Object> root, String providerKey, String model, boolean namedProfile) {
+        Map<String, Object> modelNode = mutableMap(root, "model");
+        modelNode.put("providerKey", providerKey);
+        modelNode.put("default", model);
+        if (namedProfile) {
+            root.remove("providers");
+        }
+    }
+
+    /** 返回可变子映射，并保留已有节点内容。 */
+    private Map<String, Object> mutableMap(Map<String, Object> parent, String key) {
+        Object value = parent.get(key);
+        Map<String, Object> result =
+                value instanceof Map
+                        ? BasicValueSupport.sanitizeMap((Map<?, ?>) value)
+                        : new LinkedHashMap<String, Object>();
+        parent.put(key, result);
+        return result;
+    }
+
+    /** 合并 YAML 和当前进程中的 Provider 模型列表。 */
+    private List<String> mergeProviderModels(
+            Map<String, Object> providerNode, String providerKey, String defaultModel) {
+        java.util.LinkedHashSet<String> models =
+                new java.util.LinkedHashSet<String>(
+                        modelsWithDefault(appConfig.getProviders().get(providerKey), defaultModel));
+        Object rawModels = providerNode.get("models");
+        if (rawModels instanceof Iterable) {
+            for (Object item : (Iterable<?>) rawModels) {
+                String model = normalizeText(item == null ? "" : String.valueOf(item));
+                if (StrUtil.isNotBlank(model)) {
+                    models.add(model);
+                }
+            }
+        }
+        Object rawDefault = providerNode.get("defaultModel");
+        String oldDefault = normalizeText(rawDefault == null ? "" : String.valueOf(rawDefault));
+        if (StrUtil.isNotBlank(oldDefault)) {
+            models.add(oldDefault);
+        }
+        return new ArrayList<String>(models);
+    }
+
+    /** 将已校验模型选择同步到当前进程配置。 */
+    private void applySelectedModelToAppConfig(String providerKey, String model) {
+        AppConfig.ProviderConfig provider = appConfig.getProviders().get(providerKey);
+        appConfig.getModel().setProviderKey(providerKey);
+        appConfig.getModel().setDefault(model);
+        if (provider == null) {
+            return;
+        }
+        appConfig.getLlm().setProvider(providerKey);
+        appConfig.getLlm().setDialect(provider.getDialect());
+        appConfig
+                .getLlm()
+                .setApiUrl(
+                        LlmProviderSupport.buildApiUrl(
+                                provider.getBaseUrl(), provider.getDialect()));
+        appConfig.getLlm().setApiKey(provider.getApiKey());
+        appConfig.getLlm().setModel(model);
+    }
+
+    /** 返回当前 Profile 的 config.yml。 */
+    private Path currentConfigFile() {
+        return configResolver().configFile().toPath().toAbsolutePath().normalize();
+    }
+
+    /** 返回全局 Provider 注册表所在的 config.yml。 */
+    private Path globalConfigFile() {
+        Path home = currentConfigFile().getParent();
+        Path parent = home == null ? null : home.getParent();
+        if (parent != null && "profiles".equals(String.valueOf(parent.getFileName()))) {
+            Path root = parent.getParent();
+            if (root != null) {
+                return root.resolve("config.yml").toAbsolutePath().normalize();
+            }
+        }
+        return currentConfigFile();
+    }
+
+    /**
+     * 合并 Provider 已登记模型和新的默认模型，并保证默认模型位于首位。
+     *
+     * @param provider 当前 Provider 配置。
+     * @param defaultModel 新默认模型。
+     * @return 去空去重后的模型清单。
+     */
+    private List<String> modelsWithDefault(AppConfig.ProviderConfig provider, String defaultModel) {
+        java.util.LinkedHashSet<String> models = new java.util.LinkedHashSet<String>();
+        if (StrUtil.isNotBlank(defaultModel)) {
+            models.add(defaultModel.trim());
+        }
+        if (provider != null && provider.getModels() != null) {
+            for (String model : provider.getModels()) {
+                if (StrUtil.isNotBlank(model)) {
+                    models.add(model.trim());
+                }
+            }
+        }
+        return new ArrayList<String>(models);
     }
 
     /**

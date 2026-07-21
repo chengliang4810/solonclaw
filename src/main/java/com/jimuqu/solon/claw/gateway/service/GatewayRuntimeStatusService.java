@@ -57,7 +57,7 @@ public class GatewayRuntimeStatusService {
     /** 当前 Dashboard/API 监听端口。 */
     private final int port;
 
-    /** 当前进程复用承载的 Profile；单 Profile 模式为空且不会写入状态文件。 */
+    /** 当前进程复用承载的 Profile；独立网关模式为空且不会写入状态文件。 */
     private volatile List<String> servedProfiles;
 
     /** 记录消息网关运行时状态中的started时间。 */
@@ -142,7 +142,7 @@ public class GatewayRuntimeStatusService {
     }
 
     /**
-     * 设置单进程复用承载的 Profile 列表；为空时保持旧版单 Profile 状态结构。
+     * 设置单进程复用承载的 Profile 列表；独立网关模式传空。
      *
      * @param profiles default 在首位、命名 Profile 稳定排序的名称列表。
      */

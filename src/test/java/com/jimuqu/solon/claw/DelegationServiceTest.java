@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.bootstrap.ToolConfiguration;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
@@ -523,6 +524,7 @@ public class DelegationServiceTest {
     void shouldScopeDelegatedToolsetsToParentEnabledTools() throws Exception {
         RecordingToolGateway gateway = new RecordingToolGateway();
         TestEnvironment env = TestEnvironment.withLlm(gateway);
+        registerProviderModel(env, "test-model");
         String parentSourceKey = "MEMORY:room-a:user-a";
         env.sessionRepository.bindNewSession(parentSourceKey);
         env.toolRegistry.disableTools(parentSourceKey, Arrays.asList("webfetch"));
@@ -552,18 +554,18 @@ public class DelegationServiceTest {
                 .containsExactly("codesearch", "websearch", "web_extract");
     }
 
-    /** 子 Agent 只接收显式系统提示、任务上下文、模型和工具白名单。 */
+    /** 子 Agent 继承 SOUL 人格，但不接收主人资料、长期记忆或技能上下文。 */
     @Test
-    void shouldUseMinimalExplicitSubagentContext() throws Exception {
+    void shouldUseSoulOnlySubagentContext() throws Exception {
         RecordingToolGateway gateway = new RecordingToolGateway();
         TestEnvironment env = TestEnvironment.withLlm(gateway);
+        registerProviderModel(env, "test-model");
         String parentSourceKey = "MEMORY:room-a:user-a";
         env.sessionRepository.bindNewSession(parentSourceKey);
         DelegationTask task = new DelegationTask();
         task.setPrompt("inspect module");
         task.setContext("only src/engine");
         task.setModel("test-model");
-        task.setSystemPrompt("minimal-system-marker");
         task.setAllowedTools(Arrays.asList("codesearch"));
         AgentRunContext parent =
                 new AgentRunContext(
@@ -580,8 +582,8 @@ public class DelegationServiceTest {
 
         assertThat(result.isError()).isFalse();
         assertThat(gateway.lastSystemPrompt)
-                .startsWith("minimal-system-marker")
-                .doesNotContain("Workspace Rules", "Soul", "User", "Enabled Skills");
+                .contains("Soul", "SOUL.md", "Subagent Execution Rules")
+                .doesNotContain("Workspace Rules", "User", "Enabled Skills");
         assertThat(gateway.lastUserMessage)
                 .contains("inspect module", "only src/engine")
                 .doesNotContain("MEMORY.md", "SOUL.md", "USER.md");
@@ -602,7 +604,6 @@ public class DelegationServiceTest {
                 "single context",
                 null,
                 "model-main",
-                null,
                 java.util.Collections.<String>emptyList(),
                 Boolean.FALSE);
         tools.delegateTask(
@@ -610,7 +611,6 @@ public class DelegationServiceTest {
                 "shared context",
                 Arrays.asList(first, second),
                 "model-main",
-                null,
                 java.util.Collections.<String>emptyList(),
                 null);
 
@@ -621,6 +621,14 @@ public class DelegationServiceTest {
         assertThat(service.batchTasks.get(0).getModel()).isEqualTo("model-a");
         assertThat(service.batchTasks.get(1).getContext()).isEqualTo("shared context");
         assertThat(service.batchTasks.get(1).getModel()).isEqualTo("model-main");
+    }
+
+    /** 将测试使用的显式模型登记到默认 Provider。 */
+    private void registerProviderModel(TestEnvironment env, String model) {
+        AppConfig.ProviderConfig provider = env.appConfig.getProviders().get("default");
+        java.util.List<String> models = new java.util.ArrayList<String>(provider.getModels());
+        models.add(model);
+        provider.setModels(models);
     }
 
     /** 顶层 delegate_task 必须立即返回后台句柄，并在子任务完成后回流父会话。 */
@@ -718,7 +726,6 @@ public class DelegationServiceTest {
                             null,
                             null,
                             "test-model",
-                            null,
                             java.util.Collections.<String>emptyList(),
                             Boolean.FALSE);
         } finally {
@@ -1132,7 +1139,6 @@ public class DelegationServiceTest {
                             null,
                             null,
                             "test-model",
-                            null,
                             java.util.Collections.<String>emptyList(),
                             true);
         } finally {
@@ -1232,7 +1238,6 @@ public class DelegationServiceTest {
                         null,
                         null,
                         "test-model",
-                        null,
                         java.util.Collections.<String>emptyList(),
                         null);
         assertThat(notReady)
@@ -1247,7 +1252,6 @@ public class DelegationServiceTest {
                         null,
                         null,
                         "test-model",
-                        null,
                         java.util.Collections.<String>emptyList(),
                         null);
 
@@ -1270,7 +1274,6 @@ public class DelegationServiceTest {
                         null,
                         null,
                         "test-model",
-                        null,
                         java.util.Collections.<String>emptyList(),
                         null);
         DelegateTools.DelegateTaskInput batchInput =
@@ -1281,7 +1284,6 @@ public class DelegationServiceTest {
                         null,
                         Arrays.asList(batchInput),
                         "test-model",
-                        null,
                         java.util.Collections.<String>emptyList(),
                         null);
 

@@ -2,24 +2,22 @@ package com.jimuqu.solon.claw.agent;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import org.noear.snack4.ONode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Agent 运行时工具与技能选择策略，负责把角色配置冻结成单轮可执行的白名单。 */
+/** 单轮运行工具选择策略，负责把任务级选择器冻结成可执行白名单。 */
 public final class AgentRuntimePolicy {
-    /** Agent 运行时策略的低敏诊断日志。 */
+    /** 工具选择策略的低敏诊断日志。 */
     private static final Logger log = LoggerFactory.getLogger(AgentRuntimePolicy.class);
 
-    /** 内置工具名全集，支持 Agent 配置中的 all / * 选择器展开。 */
+    /** 内置工具名全集，支持任务配置中的 all / * 选择器展开。 */
     private static final List<String> KNOWN_TOOL_NAMES =
             Arrays.asList(
                     ToolNameConstants.FILE_READ,
@@ -118,9 +116,9 @@ public final class AgentRuntimePolicy {
     }
 
     /**
-     * 根据 Agent 配置解析本轮实际允许注册给模型的工具集合。
+     * 根据任务工具配置解析本轮实际允许注册给模型的工具集合。
      *
-     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param agentScope 当前运行冻结后的工具权限范围。
      * @param allToolNames 当前运行时已注册的全部工具名，返回结果会保留该顺序。
      * @return 返回本轮可暴露给模型的工具名集合。
      */
@@ -144,7 +142,7 @@ public final class AgentRuntimePolicy {
     /**
      * 展开工具选择器，支持单个工具名、all 与 * 三种配置形态。
      *
-     * @param selectors Agent 配置或命令行传入的工具选择器。
+     * @param selectors 任务配置或命令行传入的工具选择器。
      * @return 返回去重且保持声明顺序的工具名集合。
      */
     public static LinkedHashSet<String> expandToolSelectors(List<String> selectors) {
@@ -161,7 +159,7 @@ public final class AgentRuntimePolicy {
     /**
      * 判断指定工具是否允许在当前 Agent 运行范围内执行。
      *
-     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param agentScope 当前运行冻结后的工具权限范围。
      * @param toolName 待校验的工具名称。
      * @return 如果未配置白名单或工具命中白名单则返回 true。
      */
@@ -174,47 +172,9 @@ public final class AgentRuntimePolicy {
     }
 
     /**
-     * 判断技能描述是否允许被当前 Agent 召回。
-     *
-     * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @param descriptor 技能元数据描述。
-     * @return 默认 Agent 或未配置技能白名单时返回 true，否则要求命中标准名或短名。
-     */
-    public static boolean isSkillAllowed(AgentRuntimeScope agentScope, SkillDescriptor descriptor) {
-        if (descriptor == null || agentScope == null || agentScope.isDefaultAgentName()) {
-            return true;
-        }
-        Set<String> allowed = resolveAllowedSkills(agentScope);
-        if (CollUtil.isEmpty(allowed)) {
-            return true;
-        }
-        return allowed.contains(descriptor.canonicalName())
-                || allowed.contains(descriptor.getName());
-    }
-
-    /**
-     * 解析当前 Agent 配置的技能白名单。
-     *
-     * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @return 返回去重后的技能名集合；空集合表示不限制技能。
-     */
-    public static Set<String> resolveAllowedSkills(AgentRuntimeScope agentScope) {
-        LinkedHashSet<String> allowed = new LinkedHashSet<String>();
-        if (agentScope == null || agentScope.isDefaultAgentName()) {
-            return allowed;
-        }
-        for (String item : parseStringList(agentScope.getSkillsJson())) {
-            if (StrUtil.isNotBlank(item)) {
-                allowed.add(item.trim());
-            }
-        }
-        return allowed;
-    }
-
-    /**
      * 解析配置项中的字符串列表，支持 JSON 数组、JSON 字符串和逗号分隔文本。
      *
-     * @param raw Agent 配置中的原始列表文本。
+     * @param raw 任务配置中的原始列表文本。
      * @return 返回去掉空白项后的字符串列表。
      */
     public static List<String> parseStringList(String raw) {
@@ -238,7 +198,7 @@ public final class AgentRuntimePolicy {
             }
         } catch (Exception e) {
             log.debug(
-                    "Agent 列表配置不是 JSON，按逗号分隔文本兜底 length={}, error={}",
+                    "工具选择器列表不是 JSON，按逗号分隔文本兜底 length={}, error={}",
                     value.length(),
                     e.getClass().getSimpleName());
         }
@@ -416,9 +376,9 @@ public final class AgentRuntimePolicy {
     }
 
     /**
-     * 读取当前 Agent 的工具选择器配置。
+     * 读取当前运行范围的工具选择器配置。
      *
-     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param agentScope 当前运行冻结后的工具权限范围。
      * @return 返回配置中的选择器；scope 为空时返回 null 以保持默认放行语义。
      */
     private static List<String> configuredToolSelectors(AgentRuntimeScope agentScope) {
@@ -428,7 +388,7 @@ public final class AgentRuntimePolicy {
     /**
      * 判断工具配置是否等价于不限制工具。
      *
-     * @param agentScope 当前运行冻结后的 Agent 范围。
+     * @param agentScope 当前运行冻结后的工具权限范围。
      * @param configured 已解析的工具选择器。
      * @return scope 为空或选择器为空时返回 true，与历史默认放行行为保持一致。
      */

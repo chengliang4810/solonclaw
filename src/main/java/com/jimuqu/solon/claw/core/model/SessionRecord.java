@@ -36,12 +36,6 @@ public class SessionRecord {
     /** 本轮运行临时模型覆盖，不写入持久化存储。 */
     private transient String transientModelOverride;
 
-    /** 本轮运行临时 base URL 覆盖，不写入持久化存储。 */
-    private transient String transientBaseUrlOverride;
-
-    /** 当前会话后续消息使用的 Agent；空或 default 表示 runtime 根目录默认 Agent。 */
-    private String activeAgentName;
-
     /** 平台侧会话/消息锚点 ID。 */
     private String platformMessageId;
 

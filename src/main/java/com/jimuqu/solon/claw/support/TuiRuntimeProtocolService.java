@@ -22,6 +22,9 @@ public class TuiRuntimeProtocolService {
     /** 共享初始化写入服务，确保 TUI 保存行为与后端配置规则一致。 */
     private final RuntimeSetupService setupService;
 
+    /** 大模型 Provider 服务，用于在 TUI 写入模型选择前校验登记关系。 */
+    private final LlmProviderService llmProviderService;
+
     /** 微信二维码 setup 服务；为空时 TUI 只暴露手动配置。 */
     private final WeixinQrSetupService weixinQrSetupService;
 
@@ -50,6 +53,7 @@ public class TuiRuntimeProtocolService {
             DomesticQrSetupService domesticQrSetupService) {
         this.appConfig = appConfig == null ? new AppConfig() : appConfig;
         this.setupService = new RuntimeSetupService(this.appConfig);
+        this.llmProviderService = new LlmProviderService(this.appConfig);
         this.weixinQrSetupService = weixinQrSetupService;
         this.domesticQrSetupService = domesticQrSetupService;
     }
@@ -86,13 +90,16 @@ public class TuiRuntimeProtocolService {
     /**
      * 返回模型选择器需要的 provider 和模型列表。
      *
-     * @param sessionId 可选会话标识，当前实现不做 session 级差异化。
+     * @param sessionId 可选会话标识，具体会话覆盖由终端运行层补充。
      * @return 模型选择器响应。
      */
     public Map<String, Object> modelOptions(String sessionId) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("model", activeModelFromRuntime());
         result.put("provider", activeProviderKeyFromRuntime());
+        if (StrUtil.isNotBlank(sessionId)) {
+            result.put("session_id", sessionId);
+        }
         List<Map<String, Object>> providers = new ArrayList<Map<String, Object>>();
         for (String key : providerKeys()) {
             providers.add(providerOption(key));
@@ -122,15 +129,44 @@ public class TuiRuntimeProtocolService {
         request.setApiKey(StrUtil.nullToEmpty(apiKey).trim());
         request.setModel(providerModel(providerKey, provider, template));
         request.setDialect(providerDialect(provider, template));
-        RuntimeSetupService.SetupResult saved = setupService.configureModel(request);
+        RuntimeSetupService.SetupResult saved = setupService.configureProvider(request, false);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("ok", Boolean.valueOf(saved.isSuccess()));
+        if (StrUtil.isNotBlank(sessionId)) {
+            result.put("session_id", sessionId);
+        }
         if (!saved.isSuccess()) {
             result.put("error", saved.getMessage());
             result.put("detail", saved.getValues().get("detail"));
             return result;
         }
         result.put("provider", providerOption(providerKey));
+        return result;
+    }
+
+    /**
+     * 清除指定 Provider 的持久化凭据。
+     *
+     * @param slug Provider 键。
+     * @param sessionId 可选会话标识。
+     * @return 凭据清理结果和最新 Provider 状态。
+     */
+    public Map<String, Object> modelDisconnect(String slug, String sessionId) {
+        String providerKey =
+                StrUtil.blankToDefault(StrUtil.nullToEmpty(slug).trim(), activeProviderKey());
+        RuntimeSetupService.SetupResult cleared = setupService.clearProviderCredential(providerKey);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", Boolean.valueOf(cleared.isSuccess()));
+        result.put("disconnected", Boolean.valueOf(cleared.isSuccess()));
+        result.put("persisted", Boolean.valueOf(cleared.isSuccess()));
+        if (!cleared.isSuccess()) {
+            result.put("error", cleared.getMessage());
+            result.put("detail", cleared.getValues().get("detail"));
+        }
+        result.put("provider", providerOption(providerKey));
+        if (StrUtil.isNotBlank(sessionId)) {
+            result.put("session_id", sessionId);
+        }
         return result;
     }
 
@@ -290,7 +326,7 @@ public class TuiRuntimeProtocolService {
      *
      * @param key 配置键；model 会解析 provider，其他键写入 workspace/config.yml。
      * @param value 配置值。
-     * @param sessionId 可选会话标识；当前仅保留在返回结果中，便于后续扩展 session scope。
+     * @param sessionId 可选会话标识；为空时模型选择必须更新 Profile 默认模型。
      * @return 配置写入结果。
      */
     public Map<String, Object> configSet(String key, String value, String sessionId) {
@@ -299,6 +335,7 @@ public class TuiRuntimeProtocolService {
         if ("model".equals(normalized)) {
             return setModelValue(rawValue, sessionId);
         }
+        ModelConfigKeySupport.requireGeneralConfigKey(normalized);
         RuntimeConfigResolver resolver = configResolver();
         resolver.setFileValue(normalized, rawValue);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -321,9 +358,20 @@ public class TuiRuntimeProtocolService {
      */
     private Map<String, Object> setModelValue(String value, String sessionId) {
         ModelSelection selection = parseModelSelection(value);
-        RuntimeConfigResolver resolver = configResolver();
-        resolver.setFileValue("model.providerKey", selection.providerKey);
-        resolver.setFileValue("model.default", selection.model);
+        selection.global = selection.global || StrUtil.isBlank(sessionId);
+        LlmProviderService.ResolvedProvider resolved =
+                llmProviderService.resolveProvider(selection.providerKey, selection.model);
+        selection.providerKey = resolved.getProviderKey();
+        selection.model = resolved.getModel();
+        if (selection.global) {
+            RuntimeSetupService.SetupResult saved =
+                    setupService.selectDefaultModel(selection.providerKey, selection.model);
+            if (!saved.isSuccess()) {
+                throw new IllegalArgumentException(
+                        StrUtil.blankToDefault(
+                                saved.getValues().get("detail"), saved.getMessage()));
+            }
+        }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("ok", Boolean.TRUE);
         result.put("key", "model");
@@ -379,16 +427,19 @@ public class TuiRuntimeProtocolService {
                 RuntimeProviderSetupSpec.provider(providerKey);
         String model = providerModel(providerKey, provider, template);
         List<String> models = new ArrayList<String>();
-        String runtimeModel = activeModelFromRuntime();
-        if (providerKey.equals(activeProviderKeyFromRuntime())) {
-            addModelOption(models, runtimeModel);
-        }
-        addModelOption(models, model);
-        String configuredDefaultModel = configuredProviderModel(provider);
-        addModelOption(models, configuredDefaultModel);
-        if (template != null) {
-            for (String candidate : template.getModels()) {
-                addModelOption(models, candidate);
+        if (provider != null) {
+            addModelOption(models, configuredProviderModel(provider));
+            if (provider.getModels() != null) {
+                for (String candidate : provider.getModels()) {
+                    addModelOption(models, candidate);
+                }
+            }
+        } else {
+            addModelOption(models, model);
+            if (template != null) {
+                for (String candidate : template.getModels()) {
+                    addModelOption(models, candidate);
+                }
             }
         }
         Map<String, Object> item = new LinkedHashMap<String, Object>();
@@ -698,8 +749,11 @@ public class TuiRuntimeProtocolService {
             selection.model = tokens.get(0);
             int providerDelimiter = selection.model.indexOf(':');
             if (providerDelimiter > 0 && providerDelimiter < selection.model.length() - 1) {
-                selection.providerKey = selection.model.substring(0, providerDelimiter).trim();
-                selection.model = selection.model.substring(providerDelimiter + 1).trim();
+                String candidateProvider = selection.model.substring(0, providerDelimiter).trim();
+                if (providerKeys().contains(candidateProvider)) {
+                    selection.providerKey = candidateProvider;
+                    selection.model = selection.model.substring(providerDelimiter + 1).trim();
+                }
             }
         }
         for (int i = 1; i < tokens.size(); i++) {

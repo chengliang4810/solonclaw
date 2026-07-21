@@ -1,6 +1,5 @@
 package com.jimuqu.solon.claw.bootstrap;
 
-import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.MemoryArchiveService;
@@ -152,7 +151,6 @@ public class ProfileRuntimeSupportConfiguration {
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
             SessionRepository sessionRepository,
-            AgentProfileService agentProfileService,
             CronJobService cronJobService,
             DeliveryService deliveryService,
             MemoryService memoryService,
@@ -187,7 +185,6 @@ public class ProfileRuntimeSupportConfiguration {
                         appConfig,
                         preferenceStore,
                         sessionRepository,
-                        agentProfileService,
                         cronJobService,
                         deliveryService,
                         memoryService,

@@ -186,6 +186,126 @@ public class AgentRunSupervisorTest {
                         "run.success");
     }
 
+    /** 模型请求失败遗留的线程中断标记不得伪装成用户停止，并且必须继续尝试备用模型。 */
+    @Test
+    void shouldFallbackWhenProviderFailureLeavesUnexpectedInterruptFlag() throws Exception {
+        Fixture fixture = fixture();
+        UnexpectedInterruptFallbackGateway gateway = new UnexpectedInterruptFallbackGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:unexpected-interrupt:user");
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "hello",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
+
+        assertThat(outcome.getFinalReply()).isEqualTo("backup after interrupt");
+        assertThat(outcome.getRunRecord().getStatus()).isEqualTo("success");
+        assertThat(gateway.attempts)
+                .containsExactly("primary:gpt-5-mini", "backup:claude-sonnet-4");
+        assertThat(Thread.currentThread().isInterrupted()).isFalse();
+        assertThat(
+                        eventTypes(
+                                fixture.agentRunRepository.listEvents(
+                                        outcome.getRunRecord().getRunId())))
+                .contains("attempt.error", "fallback", "attempt.success", "run.success")
+                .doesNotContain("run.cancelled");
+    }
+
+    /** 运行开始前已有的裸中断标记必须生成明确失败，不得伪装成用户停止。 */
+    @Test
+    void shouldFailClearlyWhenRunStartsWithUnexpectedInterruptFlag() throws Exception {
+        Fixture fixture = fixture();
+        RecordingGateway gateway = new RecordingGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:pre-interrupted:user");
+
+        Thread.currentThread().interrupt();
+        try {
+            assertThatThrownBy(
+                            () ->
+                                    supervisor.run(
+                                            session,
+                                            "system",
+                                            "hello",
+                                            Collections.emptyList(),
+                                            ConversationFeedbackSink.noop(),
+                                            ConversationEventSink.noop(),
+                                            false,
+                                            null,
+                                            Collections.emptyList(),
+                                            null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("执行线程被中断")
+                    .hasMessageContaining("没有收到用户停止请求")
+                    .hasMessageNotContaining("当前任务已停止");
+        } finally {
+            Thread.interrupted();
+        }
+
+        assertThat(gateway.attempts).isEmpty();
+        List<AgentRunRecord> runs =
+                fixture.agentRunRepository.listBySession(session.getSessionId(), 10);
+        assertThat(runs).hasSize(1);
+        assertThat(runs.get(0).getStatus()).isEqualTo("failed");
+        assertThat(eventTypes(fixture.agentRunRepository.listEvents(runs.get(0).getRunId())))
+                .contains("run.failed")
+                .doesNotContain("run.cancelled");
+    }
+
+    /** 真实 InterruptedException 必须终止本次运行，不得继续切换备用模型。 */
+    @Test
+    void shouldNotFallbackWhenProviderThrowsInterruptedException() throws Exception {
+        Fixture fixture = fixture();
+        GenuineInterruptGateway gateway = new GenuineInterruptGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:genuine-interrupt:user");
+
+        try {
+            assertThatThrownBy(
+                            () ->
+                                    supervisor.run(
+                                            session,
+                                            "system",
+                                            "hello",
+                                            Collections.emptyList(),
+                                            ConversationFeedbackSink.noop(),
+                                            ConversationEventSink.noop(),
+                                            false,
+                                            null,
+                                            Collections.emptyList(),
+                                            null))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("执行线程被中断")
+                    .hasMessageContaining("没有收到用户停止请求");
+        } finally {
+            Thread.interrupted();
+        }
+
+        assertThat(gateway.attempts).containsExactly("primary:gpt-5-mini");
+        List<AgentRunRecord> runs =
+                fixture.agentRunRepository.listBySession(session.getSessionId(), 10);
+        assertThat(runs).hasSize(1);
+        assertThat(runs.get(0).getStatus()).isEqualTo("failed");
+        assertThat(eventTypes(fixture.agentRunRepository.listEvents(runs.get(0).getRunId())))
+                .contains("run.failed")
+                .doesNotContain("fallback", "run.cancelled");
+    }
+
     /** 内容过滤必须回滚候选历史和已发送分片，并立即切换备用模型。 */
     @Test
     void shouldRollbackContentFilteredCandidateBeforeFallback() throws Exception {
@@ -1781,6 +1901,7 @@ public class AgentRunSupervisorTest {
         backup.setBaseUrl("https://api.anthropic.com");
         backup.setApiKey("backup-key");
         backup.setDefaultModel("claude-sonnet-4");
+        backup.setModels(java.util.Arrays.asList("claude-sonnet-4", "gemini-pro"));
         backup.setDialect("anthropic");
         config.getProviders().put("backup", backup);
 
@@ -1966,6 +2087,56 @@ public class AgentRunSupervisorTest {
                 throw new IllegalStateException("HTTP 401 unauthorized");
             }
             return resolvedResult(session, resolved, "backup ok");
+        }
+    }
+
+    /** 模拟主模型失败时遗留线程中断标记、备用模型随后成功的网关。 */
+    private static class UnexpectedInterruptFallbackGateway extends ExecuteOnceOnlyGateway {
+        /** 记录实际模型候选执行顺序。 */
+        private final List<String> attempts = new ArrayList<String>();
+
+        /** 主模型遗留中断标记并失败，备用模型返回正常结果。 */
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext) {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            if ("primary".equals(resolved.getProvider())) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("POST provider request failed");
+            }
+            return resolvedResult(session, resolved, "backup after interrupt");
+        }
+    }
+
+    /** 模拟执行器或停机流程产生真实 InterruptedException 的模型网关。 */
+    private static class GenuineInterruptGateway extends ExecuteOnceOnlyGateway {
+        /** 记录实际尝试过的模型候选。 */
+        private final List<String> attempts = new ArrayList<String>();
+
+        /** 主模型收到真实中断后立即失败，禁止进入备用模型。 */
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext)
+                throws Exception {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            Thread.currentThread().interrupt();
+            throw new InterruptedException("executor shutdown");
         }
     }
 

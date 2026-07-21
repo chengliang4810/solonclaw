@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** 保存旧每日记忆归档最近一次运行的低敏诊断状态。 */
+/** 保存每日记忆归档最近一次运行的低敏诊断状态。 */
 @Getter
 @Setter
 @NoArgsConstructor

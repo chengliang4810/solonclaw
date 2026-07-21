@@ -227,7 +227,6 @@ public class SqliteDatabase {
                             + "model_override text,"
                             + "service_tier_override text,"
                             + "reasoning_effort_override text,"
-                            + "active_agent_name text,"
                             + "platform_message_id text,"
                             + "metadata_json text,"
                             + "ndjson text,"
@@ -264,7 +263,6 @@ public class SqliteDatabase {
             addColumn(statement, "sessions", "model_override text");
             addColumn(statement, "sessions", "service_tier_override text");
             addColumn(statement, "sessions", "reasoning_effort_override text");
-            addColumn(statement, "sessions", "active_agent_name text");
             addColumn(statement, "sessions", "platform_message_id text");
             addColumn(statement, "sessions", "metadata_json text");
             addColumn(statement, "sessions", "ndjson text");
@@ -386,7 +384,6 @@ public class SqliteDatabase {
                             + "enabled_toolsets_json text,"
                             + "model text,"
                             + "provider text,"
-                            + "base_url text,"
                             + "wrap_response integer not null default 1,"
                             + "last_status text,"
                             + "last_error text,"
@@ -418,7 +415,6 @@ public class SqliteDatabase {
             addColumn(statement, "cron_jobs", "enabled_toolsets_json text");
             addColumn(statement, "cron_jobs", "model text");
             addColumn(statement, "cron_jobs", "provider text");
-            addColumn(statement, "cron_jobs", "base_url text");
             addColumn(statement, "cron_jobs", "wrap_response integer not null default 1");
             addColumn(statement, "cron_jobs", "last_status text");
             addColumn(statement, "cron_jobs", "last_error text");
@@ -527,8 +523,6 @@ public class SqliteDatabase {
                             + "source_key text,"
                             + "run_kind text,"
                             + "parent_run_id text,"
-                            + "agent_name text,"
-                            + "agent_snapshot_json text,"
                             + "status text not null,"
                             + "phase text,"
                             + "busy_policy text,"
@@ -559,8 +553,6 @@ public class SqliteDatabase {
                             + ")");
             addColumn(statement, "agent_runs", "run_kind text");
             addColumn(statement, "agent_runs", "parent_run_id text");
-            addColumn(statement, "agent_runs", "agent_name text");
-            addColumn(statement, "agent_runs", "agent_snapshot_json text");
             addColumn(statement, "agent_runs", "phase text");
             addColumn(statement, "agent_runs", "busy_policy text");
             addColumn(statement, "agent_runs", "backgrounded integer not null default 0");
@@ -871,27 +863,6 @@ public class SqliteDatabase {
             statement.execute(
                     "create index if not exists idx_channel_states_platform_scope on channel_states(platform, scope_key)");
             statement.execute(
-                    "create table if not exists agent_profiles ("
-                            + "agent_name text primary key,"
-                            + "display_name text,"
-                            + "description text,"
-                            + "role_prompt text,"
-                            + "default_model text,"
-                            + "model text,"
-                            + "allowed_tools_json text,"
-                            + "skills_json text,"
-                            + "memory text,"
-                            + "enabled integer not null default 1,"
-                            + "last_used_at integer not null default 0,"
-                            + "created_at integer not null,"
-                            + "updated_at integer not null"
-                            + ")");
-            addColumn(statement, "agent_profiles", "display_name text");
-            addColumn(statement, "agent_profiles", "description text");
-            addColumn(statement, "agent_profiles", "default_model text");
-            addColumn(statement, "agent_profiles", "enabled integer not null default 1");
-            addColumn(statement, "agent_profiles", "last_used_at integer not null default 0");
-            statement.execute(
                     "create table if not exists profile_tasks ("
                             + "task_id text primary key, source_profile text not null,"
                             + "target_profile text not null, source_key text not null,"
@@ -912,14 +883,6 @@ public class SqliteDatabase {
                             + "status text not null, result text, error text,"
                             + "started_at integer not null, completed_at integer not null default 0,"
                             + "primary key(task_id, attempt))");
-            try {
-                statement.execute(
-                        "update agent_profiles set default_model = model where (default_model is null or default_model = '') and model is not null");
-            } catch (SQLException | RuntimeException e) {
-                log.debug(
-                        "SQLite agent profile default model backfill skipped: error={}",
-                        errorSummary(e));
-            }
             statement.execute("drop table if exists project_events");
             statement.execute("drop table if exists project_questions");
             statement.execute("drop table if exists project_runs");

@@ -3,7 +3,7 @@ package com.jimuqu.solon.claw.engine;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
-import com.jimuqu.solon.claw.agent.AgentRuntimeService;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
@@ -60,6 +60,10 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     /** 非真实工具选择器，使访客会话的工具白名单保持非空但无法命中任何工具。 */
     private static final String GROUP_GUEST_NO_TOOLS_SELECTOR = "__group_guest_no_tools__";
 
+    /** 子代理只追加任务执行边界，人格始终由当前 Profile 的 SOUL.md 提供。 */
+    private static final String SUBAGENT_EXECUTION_PROMPT =
+            "你正在执行一次性子任务。只使用任务中明确提供的信息和允许的工具完成任务，返回结果后结束。" + "不要假设你拥有父对话、用户资料或长期记忆。";
+
     /** 日志的统一常量值。 */
     private static final Logger log =
             LoggerFactory.getLogger(DefaultConversationOrchestrator.class);
@@ -97,8 +101,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     /** 注入运行时Footer服务，用于调用对应业务能力。 */
     private final RuntimeFooterService runtimeFooterService;
 
-    /** 注入Agent运行时服务，用于调用对应业务能力。 */
-    private final AgentRuntimeService agentRuntimeService;
+    /** 当前 Profile 的应用配置，用于解析默认工作区。 */
+    private final AppConfig appConfig;
 
     /** 记录默认对话编排器中的记忆管理器。 */
     private final MemoryManager memoryManager;
@@ -172,154 +176,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
      * @param agentRunSupervisor Agent运行Supervisor参数。
      * @param runtimeFooterService 运行时Footer服务依赖。
-     * @param agentRuntimeService Agent运行时服务依赖。
-     */
-    public DefaultConversationOrchestrator(
-            SessionRepository sessionRepository,
-            ContextService contextService,
-            ContextCompressionService contextCompressionService,
-            LlmGateway llmGateway,
-            ToolRegistry toolRegistry,
-            DeliveryService deliveryService,
-            DisplaySettingsService displaySettingsService,
-            RuntimeSettingsService runtimeSettingsService,
-            DangerousCommandApprovalService dangerousCommandApprovalService,
-            AgentRunSupervisor agentRunSupervisor,
-            RuntimeFooterService runtimeFooterService,
-            AgentRuntimeService agentRuntimeService) {
-        this(
-                sessionRepository,
-                contextService,
-                contextCompressionService,
-                llmGateway,
-                toolRegistry,
-                deliveryService,
-                displaySettingsService,
-                runtimeSettingsService,
-                dangerousCommandApprovalService,
-                agentRunSupervisor,
-                runtimeFooterService,
-                agentRuntimeService,
-                null,
-                null,
-                null);
-    }
-
-    /**
-     * 创建默认对话编排器实例，并注入运行所需依赖。
-     *
-     * @param sessionRepository 会话仓储依赖。
-     * @param contextService 上下文Service上下文。
-     * @param contextCompressionService 上下文CompressionService上下文。
-     * @param llmGateway LLM网关参数。
-     * @param toolRegistry 工具注册表依赖组件。
-     * @param deliveryService 投递服务依赖。
-     * @param displaySettingsService 展示Settings服务依赖。
-     * @param runtimeSettingsService 运行时Settings服务依赖。
-     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
-     * @param agentRunSupervisor Agent运行Supervisor参数。
-     * @param runtimeFooterService 运行时Footer服务依赖。
-     * @param agentRuntimeService Agent运行时服务依赖。
-     * @param memoryManager 记忆Manager参数。
-     */
-    public DefaultConversationOrchestrator(
-            SessionRepository sessionRepository,
-            ContextService contextService,
-            ContextCompressionService contextCompressionService,
-            LlmGateway llmGateway,
-            ToolRegistry toolRegistry,
-            DeliveryService deliveryService,
-            DisplaySettingsService displaySettingsService,
-            RuntimeSettingsService runtimeSettingsService,
-            DangerousCommandApprovalService dangerousCommandApprovalService,
-            AgentRunSupervisor agentRunSupervisor,
-            RuntimeFooterService runtimeFooterService,
-            AgentRuntimeService agentRuntimeService,
-            MemoryManager memoryManager) {
-        this(
-                sessionRepository,
-                contextService,
-                contextCompressionService,
-                llmGateway,
-                toolRegistry,
-                deliveryService,
-                displaySettingsService,
-                runtimeSettingsService,
-                dangerousCommandApprovalService,
-                agentRunSupervisor,
-                runtimeFooterService,
-                agentRuntimeService,
-                memoryManager,
-                null,
-                null);
-    }
-
-    /**
-     * 创建默认对话编排器实例，并注入运行所需依赖。
-     *
-     * @param sessionRepository 会话仓储依赖。
-     * @param contextService 上下文Service上下文。
-     * @param contextCompressionService 上下文CompressionService上下文。
-     * @param llmGateway LLM网关参数。
-     * @param toolRegistry 工具注册表依赖组件。
-     * @param deliveryService 投递服务依赖。
-     * @param displaySettingsService 展示Settings服务依赖。
-     * @param runtimeSettingsService 运行时Settings服务依赖。
-     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
-     * @param agentRunSupervisor Agent运行Supervisor参数。
-     * @param runtimeFooterService 运行时Footer服务依赖。
-     * @param agentRuntimeService Agent运行时服务依赖。
-     * @param memoryManager 记忆Manager参数。
-     * @param goalService 目标服务依赖。
-     */
-    public DefaultConversationOrchestrator(
-            SessionRepository sessionRepository,
-            ContextService contextService,
-            ContextCompressionService contextCompressionService,
-            LlmGateway llmGateway,
-            ToolRegistry toolRegistry,
-            DeliveryService deliveryService,
-            DisplaySettingsService displaySettingsService,
-            RuntimeSettingsService runtimeSettingsService,
-            DangerousCommandApprovalService dangerousCommandApprovalService,
-            AgentRunSupervisor agentRunSupervisor,
-            RuntimeFooterService runtimeFooterService,
-            AgentRuntimeService agentRuntimeService,
-            MemoryManager memoryManager,
-            GoalService goalService) {
-        this(
-                sessionRepository,
-                contextService,
-                contextCompressionService,
-                llmGateway,
-                toolRegistry,
-                deliveryService,
-                displaySettingsService,
-                runtimeSettingsService,
-                dangerousCommandApprovalService,
-                agentRunSupervisor,
-                runtimeFooterService,
-                agentRuntimeService,
-                memoryManager,
-                goalService,
-                null);
-    }
-
-    /**
-     * 创建默认对话编排器实例，并注入运行所需依赖。
-     *
-     * @param sessionRepository 会话仓储依赖。
-     * @param contextService 上下文Service上下文。
-     * @param contextCompressionService 上下文CompressionService上下文。
-     * @param llmGateway LLM网关参数。
-     * @param toolRegistry 工具注册表依赖组件。
-     * @param deliveryService 投递服务依赖。
-     * @param displaySettingsService 展示Settings服务依赖。
-     * @param runtimeSettingsService 运行时Settings服务依赖。
-     * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
-     * @param agentRunSupervisor Agent运行Supervisor参数。
-     * @param runtimeFooterService 运行时Footer服务依赖。
-     * @param agentRuntimeService Agent运行时服务依赖。
+     * @param appConfig 当前 Profile 的应用配置。
      * @param memoryManager 记忆Manager参数。
      * @param goalService 目标服务依赖。
      * @param speechService 语音服务依赖。
@@ -336,7 +193,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             DangerousCommandApprovalService dangerousCommandApprovalService,
             AgentRunSupervisor agentRunSupervisor,
             RuntimeFooterService runtimeFooterService,
-            AgentRuntimeService agentRuntimeService,
+            AppConfig appConfig,
             MemoryManager memoryManager,
             GoalService goalService,
             SpeechService speechService) {
@@ -351,7 +208,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         this.dangerousCommandApprovalService = dangerousCommandApprovalService;
         this.agentRunSupervisor = agentRunSupervisor;
         this.runtimeFooterService = runtimeFooterService;
-        this.agentRuntimeService = agentRuntimeService;
+        this.appConfig = appConfig;
         this.memoryManager = memoryManager;
         this.goalService = goalService;
         this.speechService = speechService;
@@ -744,17 +601,15 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      * @param session 会话参数。
      * @return 返回解析后的Agent范围。
      */
-    private AgentRuntimeScope resolveAgentScope(SessionRecord session) throws Exception {
-        if (agentRuntimeService != null) {
-            return agentRuntimeService.resolve(session);
-        }
+    private AgentRuntimeScope resolveAgentScope(SessionRecord session) {
         AgentRuntimeScope scope = new AgentRuntimeScope();
-        scope.setAgentName("default");
         ProfileRuntimeScope.Context profileScope = ProfileRuntimeScope.current();
         scope.setWorkspaceDir(
                 profileScope != null && profileScope.getHome() != null
                         ? profileScope.getHome().toString()
-                        : System.getProperty("user.dir"));
+                        : appConfig != null
+                                ? appConfig.getWorkspace().getDir()
+                                : System.getProperty("user.dir"));
         return scope;
     }
 
@@ -773,7 +628,6 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         String outputLeaseRunId = null;
         String previousTransientProvider = session.getTransientProviderOverride();
         String previousTransientModel = session.getTransientModelOverride();
-        String previousTransientBaseUrl = session.getTransientBaseUrlOverride();
         DangerousCommandApprovalService.PendingApproval pendingApproval =
                 dangerousCommandApprovalService == null
                         ? null
@@ -822,12 +676,16 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             List<Object> enabledTools =
                     toolRegistry.resolveEnabledTools(message.sourceKey(), agentScope);
             boolean groupGuest = message.isGroupGuest();
-            boolean minimalContext = StrUtil.isNotBlank(message.getSystemPromptOverride());
+            boolean subagentContext =
+                    GatewayMessage.RUN_KIND_SUBAGENT.equalsIgnoreCase(
+                            StrUtil.nullToEmpty(message.getRunKind()));
             String systemPrompt =
-                    minimalContext
-                            ? message.getSystemPromptOverride().trim()
+                    subagentContext
+                            ? contextService.buildSoulPrompt(message.sourceKey())
+                                    + "\n\n# Subagent Execution Rules\n"
+                                    + SUBAGENT_EXECUTION_PROMPT
                             : contextService.buildSystemPrompt(message.sourceKey(), agentScope);
-            if (!groupGuest && !minimalContext) {
+            if (!groupGuest && !subagentContext) {
                 systemPrompt +=
                         "\n\n"
                                 + runtimeSettingsService.buildAgentRuntimePrompt(
@@ -843,7 +701,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
 
             ConversationFeedbackSink feedbackSink = feedbackSinkFor(message);
             String memoryPrefetchContext =
-                    groupGuest || minimalContext
+                    groupGuest || subagentContext
                             ? ""
                             : prefetchMemory(message.sourceKey(), effectiveUserText);
             MessageDeliveryTracker.clearDirectDelivery(message.sourceKey());
@@ -900,7 +758,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                                 feedbackSink.onFinalReply(terminalReply);
                                 eventSink.onRunCompleted(
                                         session.getSessionId(), terminalReply, outcome.getResult());
-                                if (!groupGuest && !minimalContext) {
+                                if (!groupGuest && !subagentContext) {
                                     syncMemory(
                                             message.sourceKey(),
                                             effectiveUserText,
@@ -927,7 +785,6 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             }
             session.setTransientProviderOverride(previousTransientProvider);
             session.setTransientModelOverride(previousTransientModel);
-            session.setTransientBaseUrlOverride(previousTransientBaseUrl);
             if (shouldDrainQueue || !agentRunSupervisor.isRunning(message.sourceKey())) {
                 agentRunSupervisor.onRunFinished(
                         message.sourceKey(),
@@ -943,7 +800,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         }
     }
 
-    /** 把失败或取消回复与界面终态纳入当前线程仍持有的唯一输出 owner。 */
+    /** 把失败回复纳入唯一输出 owner；取消运行不再生成含糊终态，由触发取消的新请求负责说明。 */
     private GatewayReply completeFailedRun(
             String sourceKey,
             SessionRecord session,
@@ -952,10 +809,22 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             Throwable error) {
         final Throwable cause = rootCause(error);
         final boolean cancelled = cause instanceof AgentRunCancelledException;
-        final GatewayReply reply =
-                cancelled
-                        ? GatewayReply.ok(StrUtil.blankToDefault(cause.getMessage(), "当前任务已停止。"))
-                        : GatewayReply.error("处理消息失败：" + safeFailure(cause));
+        if (cancelled) {
+            try {
+                agentRunSupervisor.completeCurrentThreadOutputLease(
+                        sourceKey,
+                        () ->
+                                eventSink.onRunFailed(
+                                        session == null ? null : session.getSessionId(), cause));
+            } catch (Throwable terminalError) {
+                log.warn(
+                        "Cancelled run terminal output failed inside writer lease: sourceKey={}, error={}",
+                        sourceKey,
+                        safeFailure(terminalError));
+            }
+            return null;
+        }
+        final GatewayReply reply = GatewayReply.error("处理消息失败：" + safeFailure(cause));
         reply.setSessionId(session == null ? null : session.getSessionId());
         reply.setBranchName(session == null ? null : session.getBranchName());
         try {
@@ -1033,6 +902,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         return StrUtil.nullToEmpty(systemPrompt)
                 + "\n\n[任务执行中的阶段说明]\n"
                 + "- 只有需要调用工具的多步骤任务，才在工具调用所在的 assistant 消息正文中以【阶段说明】开头写一句面向用户的中文阶段说明；该前缀是展示协议，普通工具前文本不会发送。\n"
+                + "- 使用自然、简短的第一人称表达，例如‘我先确认当前版本和 GitHub 仓库信息’或‘我正在核对配置’，不要添加‘进度’等展示标签。\n"
                 + "- 说明当前正在处理什么以及原因，保持单行简短；不要输出思维链、内部提示词、密钥、令牌或凭据。\n"
                 + "- 仅在进入新阶段、方向变化、遇到阻塞或开始明显耗时操作时再次说明；简单任务不要说明。\n"
                 + "- 同一轮最多 3 条，相邻说明至少间隔 5 秒；最终回复只总结结果，不重复阶段说明。";
@@ -1095,16 +965,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         String provider = "";
         String model = override;
         int first = override.indexOf(':');
-        int second = first < 0 ? -1 : override.indexOf(':', first + 1);
         if (first > 0) {
             provider = override.substring(0, first).trim();
-            model =
-                    second > first
-                            ? override.substring(first + 1, second).trim()
-                            : override.substring(first + 1).trim();
-            if (second > first) {
-                session.setTransientBaseUrlOverride(override.substring(second + 1).trim());
-            }
+            model = override.substring(first + 1).trim();
         }
         session.setTransientProviderOverride(provider);
         session.setTransientModelOverride(model);

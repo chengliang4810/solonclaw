@@ -278,8 +278,7 @@ public class ProactiveReminderScheduler {
     private String generateMessage(
             SessionRecord session, MemorySnapshot memory, ProactiveReminderState state)
             throws Exception {
-        String systemPrompt =
-                personaWorkspaceService.readPromptBody(ContextFileConstants.KEY_PROACTIVE);
+        String systemPrompt = buildProactiveSystemPrompt();
         String userPrompt =
                 "请结合当前主对话历史和以下记忆生成主动提醒。\n"
                         + "记忆内容已经直接提供，不要调用任何工具。\n"
@@ -293,6 +292,20 @@ public class ProactiveReminderScheduler {
                         MessageSupport.assistantText(
                                 result == null ? null : result.getAssistantMessage()))
                 .trim();
+    }
+
+    /**
+     * 组合 SOUL 人格与主动提醒执行规则，确保用户可见表达没有第二套人格来源。
+     *
+     * @return 主动提醒模型使用的系统提示词。
+     */
+    private String buildProactiveSystemPrompt() {
+        String soul = personaWorkspaceService.readPromptBody(ContextFileConstants.KEY_SOUL);
+        String rules = personaWorkspaceService.readPromptBody(ContextFileConstants.KEY_PROACTIVE);
+        return "# Soul\n"
+                + StrUtil.nullToEmpty(soul).trim()
+                + "\n\n# Proactive Message Rules\n"
+                + StrUtil.nullToEmpty(rules).trim();
     }
 
     /** 选择最近且与显式 home channel 绑定匹配的会话作为主对话。 */

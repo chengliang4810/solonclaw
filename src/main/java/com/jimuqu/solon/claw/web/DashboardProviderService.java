@@ -5,11 +5,14 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
+import com.jimuqu.solon.claw.profile.ProfileMutationLock;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
+import com.jimuqu.solon.claw.storage.repository.ReadOnlyCronJobReferenceRepository;
 import com.jimuqu.solon.claw.support.HttpRedirectSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
@@ -289,22 +292,25 @@ public class DashboardProviderService {
             throw new IllegalArgumentException("routes 必须是对象。");
         }
         Map<String, Object> routes = sanitizeMap((Map<?, ?>) rawRoutes);
-        synchronized (configFileLock()) {
-            Map<String, Object> normalized = new LinkedHashMap<String, Object>();
-            for (String category : TASK_MODEL_ROUTE_CATEGORIES) {
-                Map<String, Object> route = sanitizeMap(asMap(routes.get(category)));
-                String provider = readString(route, "provider");
-                String model = readString(route, "model");
-                validateTaskModelRoute(category, provider, model);
-                normalized.put(category, taskModelRoute(provider, model));
-            }
-            Map<String, Object> root = loadRootForMutation();
-            writeTaskModelRoutes(root, normalized);
-            write(root);
-            Map<String, Object> result = new LinkedHashMap<String, Object>();
-            result.put("routes", normalized);
-            return result;
-        }
+        return withMutationLock(
+                () -> {
+                    synchronized (configFileLock()) {
+                        Map<String, Object> normalized = new LinkedHashMap<String, Object>();
+                        for (String category : TASK_MODEL_ROUTE_CATEGORIES) {
+                            Map<String, Object> route = sanitizeMap(asMap(routes.get(category)));
+                            String provider = readString(route, "provider");
+                            String model = readString(route, "model");
+                            validateTaskModelRoute(category, provider, model);
+                            normalized.put(category, taskModelRoute(provider, model));
+                        }
+                        Map<String, Object> root = loadRootForMutation();
+                        writeTaskModelRoutes(root, normalized);
+                        write(root);
+                        Map<String, Object> result = new LinkedHashMap<String, Object>();
+                        result.put("routes", normalized);
+                        return result;
+                    }
+                });
     }
 
     /**
@@ -564,24 +570,27 @@ public class DashboardProviderService {
         if (isNamedProfileConfig()) {
             return globalProviderService().createProvider(data);
         }
-        synchronized (configFileLock()) {
-            String providerKey = readString(data, "providerKey");
-            ensureProviderKey(providerKey);
-            Map<String, Object> root = loadRootForMutation();
-            Map<String, Object> providers = getOrCreateMap(root, "providers");
-            if (providers.containsKey(providerKey)) {
-                throw new IllegalArgumentException("Provider 已存在：" + providerKey);
-            }
-            providers.put(providerKey, toProviderNode(data, null));
+        return withMutationLock(
+                () -> {
+                    synchronized (configFileLock()) {
+                        String providerKey = readString(data, "providerKey");
+                        ensureProviderKey(providerKey);
+                        Map<String, Object> root = loadRootForMutation();
+                        Map<String, Object> providers = getOrCreateMap(root, "providers");
+                        if (providers.containsKey(providerKey)) {
+                            throw new IllegalArgumentException("Provider 已存在：" + providerKey);
+                        }
+                        providers.put(providerKey, toProviderNode(data, null));
 
-            Map<String, Object> model = getOrCreateMap(root, "model");
-            if (StrUtil.isBlank(readString(model, "providerKey"))) {
-                model.put("providerKey", providerKey);
-            }
+                        Map<String, Object> model = getOrCreateMap(root, "model");
+                        if (StrUtil.isBlank(readString(model, "providerKey"))) {
+                            model.put("providerKey", providerKey);
+                        }
 
-            write(root);
-            return Collections.<String, Object>singletonMap("ok", true);
-        }
+                        write(root);
+                        return Collections.<String, Object>singletonMap("ok", true);
+                    }
+                });
     }
 
     /** 在指定 Profile 创建 Provider。 */
@@ -602,18 +611,24 @@ public class DashboardProviderService {
         if (isNamedProfileConfig()) {
             return globalProviderService().updateProvider(providerKey, data);
         }
-        synchronized (configFileLock()) {
-            ensureProviderKey(providerKey);
-            Map<String, Object> root = loadRootForMutation();
-            Map<String, Object> providers = getOrCreateMap(root, "providers");
-            Object existing = providers.get(providerKey);
-            if (!(existing instanceof Map)) {
-                throw new IllegalArgumentException("Provider 不存在：" + providerKey);
-            }
-            providers.put(providerKey, toProviderNode(data, (Map<String, Object>) existing));
-            write(root);
-            return Collections.<String, Object>singletonMap("ok", true);
-        }
+        return withMutationLock(
+                () -> {
+                    synchronized (configFileLock()) {
+                        ensureProviderKey(providerKey);
+                        Map<String, Object> root = loadRootForMutation();
+                        Map<String, Object> providers = getOrCreateMap(root, "providers");
+                        Object existing = providers.get(providerKey);
+                        if (!(existing instanceof Map)) {
+                            throw new IllegalArgumentException("Provider 不存在：" + providerKey);
+                        }
+                        Map<String, Object> candidate =
+                                toProviderNode(data, (Map<String, Object>) existing);
+                        ensureProviderModelsPreserveReferences(providerKey, candidate, root);
+                        providers.put(providerKey, candidate);
+                        write(root);
+                        return Collections.<String, Object>singletonMap("ok", true);
+                    }
+                });
     }
 
     /** 在指定 Profile 更新 Provider。 */
@@ -633,27 +648,22 @@ public class DashboardProviderService {
         if (isNamedProfileConfig()) {
             return globalProviderService().deleteProvider(providerKey);
         }
-        synchronized (configFileLock()) {
-            ensureProviderKey(providerKey);
-            if (StrUtil.equals(providerKey, appConfig.getModel().getProviderKey())) {
-                throw new IllegalArgumentException("当前默认 provider 不能删除。");
-            }
-            for (AppConfig.FallbackProviderConfig fallback : appConfig.getFallbackProviders()) {
-                if (fallback != null && StrUtil.equals(providerKey, fallback.getProvider())) {
-                    throw new IllegalArgumentException("该 provider 正在 fallbackProviders 中使用，不能删除。");
-                }
-            }
-            if (taskModelRoutesReferenceProvider(providerKey)) {
-                throw new IllegalArgumentException("该 provider 正在后台任务默认模型中使用，不能删除。");
-            }
-            ensureProviderNotReferencedByProfiles(providerKey);
+        return withMutationLock(
+                () -> {
+                    synchronized (configFileLock()) {
+                        ensureProviderKey(providerKey);
+                        Map<String, Object> root = loadRootForMutation();
+                        ensureProviderNotReferenced(root, providerKey, "根配置");
+                        ensureProviderNotReferenced(appConfig, providerKey, "根运行配置");
+                        ensureProviderNotReferencedByCron(appConfig, providerKey, "根 Profile");
+                        ensureProviderNotReferencedByProfiles(providerKey);
 
-            Map<String, Object> root = loadRootForMutation();
-            Map<String, Object> providers = getOrCreateMap(root, "providers");
-            providers.remove(providerKey);
-            write(root);
-            return Collections.<String, Object>singletonMap("ok", true);
-        }
+                        Map<String, Object> providers = getOrCreateMap(root, "providers");
+                        providers.remove(providerKey);
+                        write(root);
+                        return Collections.<String, Object>singletonMap("ok", true);
+                    }
+                });
     }
 
     /**
@@ -673,16 +683,388 @@ public class DashboardProviderService {
                 Map<String, Object> root =
                         new DashboardProfileConfigFile(profileHome.resolve("config.yml"))
                                 .readRoot();
-                Map<String, Object> model = sanitizeMap(asMap(root.get("model")));
-                if (StrUtil.equals(providerKey, readString(model, "providerKey"))
-                        || fallbackReferencesProvider(root.get("fallbackProviders"), providerKey)
-                        || taskModelRoutesReferenceProvider(root, providerKey)) {
-                    throw new IllegalArgumentException(
-                            "Provider 正被 Profile 使用：" + profileHome.getFileName());
-                }
+                String scope = "Profile " + profileHome.getFileName();
+                ensureProviderNotReferenced(root, providerKey, scope);
+                Props props = new Props();
+                props.put("solonclaw.workspace", profileHome.toString());
+                AppConfig profileConfig = AppConfig.loadDetached(props);
+                ensureProviderNotReferenced(profileConfig, providerKey, scope + " 运行配置");
+                ensureProviderNotReferencedByCron(profileConfig, providerKey, scope);
             }
         } catch (java.io.IOException e) {
             throw new IllegalStateException("读取 Profile Provider 引用失败。", e);
+        }
+    }
+
+    /** 校验原始 YAML 中的主模型、备用链和六类任务路由均未引用待删除 Provider。 */
+    private void ensureProviderNotReferenced(
+            Map<String, Object> root, String providerKey, String scope) {
+        Map<String, Object> model = sanitizeMap(asMap(root.get("model")));
+        if (StrUtil.equals(providerKey, readString(model, "providerKey"))
+                || fallbackReferencesProvider(root.get("fallbackProviders"), providerKey)
+                || taskModelRoutesReferenceProvider(root, providerKey)) {
+            throw new IllegalArgumentException("Provider 正被" + scope + "使用：" + providerKey);
+        }
+    }
+
+    /** 校验运行配置快照中的主模型、备用链和六类任务路由均未引用待删除 Provider。 */
+    private void ensureProviderNotReferenced(AppConfig config, String providerKey, String scope) {
+        if (config == null) {
+            return;
+        }
+        if (StrUtil.equals(providerKey, config.getModel().getProviderKey())) {
+            throw new IllegalArgumentException("Provider 正被" + scope + "主模型使用：" + providerKey);
+        }
+        for (AppConfig.FallbackProviderConfig fallback : config.getFallbackProviders()) {
+            if (fallback != null && StrUtil.equals(providerKey, fallback.getProvider())) {
+                throw new IllegalArgumentException(
+                        "Provider 正被" + scope + " fallback 使用：" + providerKey);
+            }
+        }
+        if (runtimeTaskModelRoutesReferenceProvider(config, providerKey)) {
+            throw new IllegalArgumentException("Provider 正被" + scope + "后台任务模型使用：" + providerKey);
+        }
+    }
+
+    /** 判断运行配置快照的六类后台任务是否引用指定 Provider。 */
+    private boolean runtimeTaskModelRoutesReferenceProvider(AppConfig config, String providerKey) {
+        return StrUtil.equals(providerKey, config.getProactive().getModelProvider())
+                || StrUtil.equals(providerKey, config.getLearning().getModelProvider())
+                || StrUtil.equals(providerKey, config.getCurator().getAiProvider())
+                || StrUtil.equals(providerKey, config.getApprovals().getModelProvider())
+                || StrUtil.equals(providerKey, config.getCompression().getSummaryProvider())
+                || StrUtil.equals(providerKey, config.getScheduler().getDefaultProvider());
+    }
+
+    /**
+     * 更新 Provider 模型清单前校验根配置和全部命名 Profile 的模型引用仍然有效。
+     *
+     * @param providerKey 待更新的 Provider 键。
+     * @param candidate 更新后的 Provider 配置。
+     * @param root 根工作区配置。
+     */
+    private void ensureProviderModelsPreserveReferences(
+            String providerKey, Map<String, Object> candidate, Map<String, Object> root) {
+        List<String> availableModels =
+                normalizeModels(readString(candidate, "defaultModel"), candidate.get("models"));
+        validateProviderModelReferences(root, providerKey, availableModels, "根配置");
+        validateProviderModelReferences(appConfig, providerKey, availableModels, "根运行配置");
+        validateCronModelReferences(appConfig, providerKey, availableModels, "根 Profile");
+
+        Path profilesHome = globalRootHome().resolve("profiles");
+        if (!Files.isDirectory(profilesHome)) {
+            return;
+        }
+        try (java.util.stream.Stream<Path> profiles = Files.list(profilesHome)) {
+            java.util.Iterator<Path> iterator = profiles.filter(Files::isDirectory).iterator();
+            while (iterator.hasNext()) {
+                Path profileHome = iterator.next();
+                Map<String, Object> profileRoot =
+                        new DashboardProfileConfigFile(profileHome.resolve("config.yml"))
+                                .readRoot();
+                validateProviderModelReferences(
+                        profileRoot,
+                        providerKey,
+                        availableModels,
+                        "Profile " + profileHome.getFileName());
+                Props props = new Props();
+                props.put("solonclaw.workspace", profileHome.toString());
+                AppConfig profileConfig = AppConfig.loadDetached(props);
+                validateProviderModelReferences(
+                        profileConfig,
+                        providerKey,
+                        availableModels,
+                        "Profile " + profileHome.getFileName() + " 运行配置");
+                validateCronModelReferences(
+                        profileConfig,
+                        providerKey,
+                        availableModels,
+                        "Profile " + profileHome.getFileName());
+            }
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException("读取 Profile 模型引用失败。", e);
+        }
+    }
+
+    /**
+     * 校验指定 Profile 的现有 Cron 固定模型仍在候选 Provider 清单中。
+     *
+     * @param config Profile 配置快照。
+     * @param providerKey 待更新 Provider 键。
+     * @param availableModels 更新后仍可用的模型。
+     * @param scope Profile 来源说明。
+     */
+    private void validateCronModelReferences(
+            AppConfig config, String providerKey, List<String> availableModels, String scope) {
+        try {
+            for (CronJobRecord job : readCronReferences(config, providerKey)) {
+                String model = StrUtil.nullToEmpty(job.getModel()).trim();
+                if (StrUtil.isBlank(model)) {
+                    throw new IllegalArgumentException(
+                            scope + " 定时任务 " + job.getJobId() + " 必须同时指定 provider 和 model。");
+                }
+                validateExplicitModelReference(
+                        providerKey, model, availableModels, scope + " 定时任务 " + job.getJobId());
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException(scope + " 定时任务模型引用读取失败。", e);
+        }
+    }
+
+    /**
+     * 删除 Provider 前校验指定 Profile 的 Cron 数据库不存在该 Provider 的固定绑定。
+     *
+     * @param config Profile 配置快照。
+     * @param providerKey 待删除 Provider 键。
+     * @param scope Profile 来源说明。
+     */
+    private void ensureProviderNotReferencedByCron(
+            AppConfig config, String providerKey, String scope) {
+        try {
+            for (CronJobRecord job : readCronReferences(config, providerKey)) {
+                throw new IllegalArgumentException(
+                        "Provider 正被 " + scope + " 定时任务使用：" + job.getJobId());
+            }
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException(scope + " 定时任务 Provider 引用读取失败。", e);
+        }
+    }
+
+    /**
+     * 以只读方式查询指定 Profile 的 Cron Provider 引用，不触发 SQLite schema 初始化或迁移。
+     *
+     * @param config Profile 配置快照。
+     * @param providerKey Provider 键。
+     * @return 固定绑定到该 Provider 的 Cron 引用。
+     * @throws Exception 只读数据库查询失败。
+     */
+    private List<CronJobRecord> readCronReferences(AppConfig config, String providerKey)
+            throws Exception {
+        if (config == null || StrUtil.isBlank(config.getRuntime().getStateDb())) {
+            return Collections.emptyList();
+        }
+        File stateDb = new File(config.getRuntime().getStateDb());
+        if (!stateDb.isFile()) {
+            return Collections.emptyList();
+        }
+        return new ReadOnlyCronJobReferenceRepository(stateDb.toPath()).listByProvider(providerKey);
+    }
+
+    /**
+     * 校验一份根配置或 Profile 配置中的显式模型均存在于候选 Provider 清单。
+     *
+     * @param root 待检查配置根节点。
+     * @param providerKey Provider 键。
+     * @param availableModels 更新后仍可用的模型。
+     * @param scope 引用来源说明。
+     */
+    private void validateProviderModelReferences(
+            Map<String, Object> root,
+            String providerKey,
+            List<String> availableModels,
+            String scope) {
+        Map<String, Object> model = sanitizeMap(asMap(root.get("model")));
+        if (StrUtil.equals(providerKey, readString(model, "providerKey"))) {
+            validateExplicitModelReference(
+                    providerKey, readString(model, "default"), availableModels, scope + "主模型");
+        }
+
+        Object rawFallbacks = root.get("fallbackProviders");
+        if (rawFallbacks instanceof List) {
+            for (Object item : (List<?>) rawFallbacks) {
+                if (!(item instanceof Map)) {
+                    continue;
+                }
+                Map<String, Object> fallback = sanitizeMap((Map<?, ?>) item);
+                if (StrUtil.equals(providerKey, readString(fallback, "provider"))) {
+                    validateExplicitModelReference(
+                            providerKey,
+                            readString(fallback, "model"),
+                            availableModels,
+                            scope + " fallback");
+                }
+            }
+        }
+
+        Map<String, Object> solonclaw = sanitizeMap(asMap(root.get("solonclaw")));
+        Map<String, Object> skills = sanitizeMap(asMap(solonclaw.get("skills")));
+        validateTaskModelReference(
+                sanitizeMap(asMap(solonclaw.get("proactive"))),
+                "modelProvider",
+                "model",
+                providerKey,
+                availableModels,
+                scope + " monitor");
+        validateTaskModelReference(
+                sanitizeMap(asMap(solonclaw.get("learning"))),
+                "modelProvider",
+                "model",
+                providerKey,
+                availableModels,
+                scope + " background_review");
+        validateTaskModelReference(
+                sanitizeMap(asMap(skills.get("curator"))),
+                "aiProvider",
+                "aiModel",
+                providerKey,
+                availableModels,
+                scope + " curator");
+        validateTaskModelReference(
+                sanitizeMap(asMap(root.get("approvals"))),
+                "modelProvider",
+                "model",
+                providerKey,
+                availableModels,
+                scope + " approval");
+        validateTaskModelReference(
+                sanitizeMap(asMap(solonclaw.get("compression"))),
+                "summaryProvider",
+                "summaryModel",
+                providerKey,
+                availableModels,
+                scope + " compression");
+        validateTaskModelReference(
+                sanitizeMap(asMap(solonclaw.get("scheduler"))),
+                "defaultProvider",
+                "defaultModel",
+                providerKey,
+                availableModels,
+                scope + " cron");
+    }
+
+    /**
+     * 校验运行配置快照中的主模型、备用链和六类任务模型均存在于候选 Provider 清单。
+     *
+     * @param config 待检查的运行配置快照。
+     * @param providerKey Provider 键。
+     * @param availableModels 更新后仍可用的模型。
+     * @param scope 引用来源说明。
+     */
+    private void validateProviderModelReferences(
+            AppConfig config, String providerKey, List<String> availableModels, String scope) {
+        if (config == null) {
+            return;
+        }
+        if (StrUtil.equals(providerKey, config.getModel().getProviderKey())) {
+            validateExplicitModelReference(
+                    providerKey, config.getModel().getDefault(), availableModels, scope + "主模型");
+        }
+        for (AppConfig.FallbackProviderConfig fallback : config.getFallbackProviders()) {
+            if (fallback != null && StrUtil.equals(providerKey, fallback.getProvider())) {
+                validateExplicitModelReference(
+                        providerKey, fallback.getModel(), availableModels, scope + " fallback");
+            }
+        }
+        validateTaskModelReference(
+                config.getProactive().getModelProvider(),
+                config.getProactive().getModel(),
+                providerKey,
+                availableModels,
+                scope + " monitor");
+        validateTaskModelReference(
+                config.getLearning().getModelProvider(),
+                config.getLearning().getModel(),
+                providerKey,
+                availableModels,
+                scope + " background_review");
+        validateTaskModelReference(
+                config.getCurator().getAiProvider(),
+                config.getCurator().getAiModel(),
+                providerKey,
+                availableModels,
+                scope + " curator");
+        validateTaskModelReference(
+                config.getApprovals().getModelProvider(),
+                config.getApprovals().getModel(),
+                providerKey,
+                availableModels,
+                scope + " approval");
+        validateTaskModelReference(
+                config.getCompression().getSummaryProvider(),
+                config.getCompression().getSummaryModel(),
+                providerKey,
+                availableModels,
+                scope + " compression");
+        validateTaskModelReference(
+                config.getScheduler().getDefaultProvider(),
+                config.getScheduler().getDefaultModel(),
+                providerKey,
+                availableModels,
+                scope + " cron");
+    }
+
+    /**
+     * 校验后台任务的成对模型引用仍在候选 Provider 清单中。
+     *
+     * @param node 任务配置节点。
+     * @param providerField Provider 字段名。
+     * @param modelField 模型字段名。
+     * @param providerKey 待更新 Provider 键。
+     * @param availableModels 更新后仍可用的模型。
+     * @param scope 引用来源说明。
+     */
+    private void validateTaskModelReference(
+            Map<String, Object> node,
+            String providerField,
+            String modelField,
+            String providerKey,
+            List<String> availableModels,
+            String scope) {
+        if (!StrUtil.equals(providerKey, readString(node, providerField))) {
+            return;
+        }
+        String model = readString(node, modelField);
+        if (StrUtil.isBlank(model)) {
+            throw new IllegalArgumentException(scope + " 必须同时指定 provider 和 model。");
+        }
+        validateExplicitModelReference(providerKey, model, availableModels, scope);
+    }
+
+    /**
+     * 校验运行配置中的成对任务模型引用仍在候选 Provider 清单中。
+     *
+     * @param routeProvider 任务显式 Provider。
+     * @param routeModel 任务显式模型。
+     * @param providerKey 待更新 Provider 键。
+     * @param availableModels 更新后仍可用的模型。
+     * @param scope 引用来源说明。
+     */
+    private void validateTaskModelReference(
+            String routeProvider,
+            String routeModel,
+            String providerKey,
+            List<String> availableModels,
+            String scope) {
+        if (!StrUtil.equals(providerKey, StrUtil.nullToEmpty(routeProvider).trim())) {
+            return;
+        }
+        if (StrUtil.isBlank(routeModel)) {
+            throw new IllegalArgumentException(scope + " 必须同时指定 provider 和 model。");
+        }
+        validateExplicitModelReference(providerKey, routeModel, availableModels, scope);
+    }
+
+    /**
+     * 校验非空显式模型仍在候选 Provider 清单中；空主模型或 fallback 模型继续继承 Provider 默认模型。
+     *
+     * @param providerKey Provider 键。
+     * @param model 显式模型名。
+     * @param availableModels 更新后仍可用的模型。
+     * @param scope 引用来源说明。
+     */
+    private void validateExplicitModelReference(
+            String providerKey, String model, List<String> availableModels, String scope) {
+        if (StrUtil.isBlank(model)) {
+            return;
+        }
+        String normalizedModel = model.trim();
+        if (!availableModels.contains(normalizedModel)) {
+            throw new IllegalArgumentException(
+                    scope + " 正在使用模型 " + normalizedModel + "，不能从 Provider " + providerKey + " 删除。");
         }
     }
 
@@ -746,23 +1128,26 @@ public class DashboardProviderService {
      * @return 返回默认模型结果。
      */
     public Map<String, Object> updateDefaultModel(String providerKey, String model) {
-        synchronized (configFileLock()) {
-            String nextProviderKey =
-                    StrUtil.isNotBlank(providerKey)
-                            ? providerKey.trim()
-                            : appConfig.getModel().getProviderKey();
-            if (!llmProviderService.hasProvider(nextProviderKey)) {
-                throw new IllegalArgumentException("未找到 provider：" + nextProviderKey);
-            }
-            validateProviderModel(nextProviderKey, model, true);
+        return withMutationLock(
+                () -> {
+                    synchronized (configFileLock()) {
+                        String nextProviderKey =
+                                StrUtil.isNotBlank(providerKey)
+                                        ? providerKey.trim()
+                                        : appConfig.getModel().getProviderKey();
+                        if (!llmProviderService.hasProvider(nextProviderKey)) {
+                            throw new IllegalArgumentException("未找到 provider：" + nextProviderKey);
+                        }
+                        validateProviderModel(nextProviderKey, model, true);
 
-            Map<String, Object> root = loadRootForMutation();
-            Map<String, Object> modelNode = getOrCreateMap(root, "model");
-            modelNode.put("providerKey", nextProviderKey);
-            modelNode.put("default", StrUtil.nullToEmpty(model).trim());
-            write(root);
-            return Collections.<String, Object>singletonMap("ok", true);
-        }
+                        Map<String, Object> root = loadRootForMutation();
+                        Map<String, Object> modelNode = getOrCreateMap(root, "model");
+                        modelNode.put("providerKey", nextProviderKey);
+                        modelNode.put("default", StrUtil.nullToEmpty(model).trim());
+                        write(root);
+                        return Collections.<String, Object>singletonMap("ok", true);
+                    }
+                });
     }
 
     /** 更新指定 Profile 的默认模型。 */
@@ -778,34 +1163,37 @@ public class DashboardProviderService {
      * @return 返回兜底Providers结果。
      */
     public Map<String, Object> updateFallbackProviders(List<Map<String, Object>> items) {
-        synchronized (configFileLock()) {
-            List<Object> next = new ArrayList<Object>();
-            if (items != null) {
-                for (Map<String, Object> item : items) {
-                    if (item == null) {
-                        continue;
-                    }
-                    String provider = readString(item, "provider");
-                    if (!llmProviderService.hasProvider(provider)) {
-                        throw new IllegalArgumentException(
-                                "fallbackProviders 引用了不存在的 provider：" + provider);
-                    }
-                    Map<String, Object> node = new LinkedHashMap<String, Object>();
-                    node.put("provider", provider);
-                    String model = readString(item, "model");
-                    if (StrUtil.isNotBlank(model)) {
-                        validateProviderModel(provider, model, false);
-                        node.put("model", model);
-                    }
-                    next.add(node);
-                }
-            }
+        return withMutationLock(
+                () -> {
+                    synchronized (configFileLock()) {
+                        List<Object> next = new ArrayList<Object>();
+                        if (items != null) {
+                            for (Map<String, Object> item : items) {
+                                if (item == null) {
+                                    continue;
+                                }
+                                String provider = readString(item, "provider");
+                                if (!llmProviderService.hasProvider(provider)) {
+                                    throw new IllegalArgumentException(
+                                            "fallbackProviders 引用了不存在的 provider：" + provider);
+                                }
+                                Map<String, Object> node = new LinkedHashMap<String, Object>();
+                                node.put("provider", provider);
+                                String model = readString(item, "model");
+                                if (StrUtil.isNotBlank(model)) {
+                                    validateProviderModel(provider, model, false);
+                                    node.put("model", model);
+                                }
+                                next.add(node);
+                            }
+                        }
 
-            Map<String, Object> root = loadRootForMutation();
-            root.put("fallbackProviders", next);
-            write(root);
-            return Collections.<String, Object>singletonMap("ok", true);
-        }
+                        Map<String, Object> root = loadRootForMutation();
+                        root.put("fallbackProviders", next);
+                        write(root);
+                        return Collections.<String, Object>singletonMap("ok", true);
+                    }
+                });
     }
 
     /** 更新指定 Profile 的故障切换链。 */
@@ -2063,6 +2451,24 @@ public class DashboardProviderService {
     private Object configFileLock() {
         return DashboardProfileConfigFile.lockFor(
                 new File(appConfig.getRuntime().getConfigFile()).toPath());
+    }
+
+    /**
+     * 在 Profile 根目录跨进程锁内执行动作。
+     *
+     * @param action 受保护动作。
+     * @param <T> 返回值类型。
+     * @return 动作结果。
+     * @throws Exception 加锁或动作执行失败时抛出异常。
+     */
+    private <T> T withMutationLock(ProfileMutationLock.Action<T> action) {
+        try {
+            return new ProfileMutationLock(appConfig).withLock(action);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to lock provider and cron mutations.", e);
+        }
     }
 
     /**

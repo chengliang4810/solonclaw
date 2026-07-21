@@ -21,9 +21,6 @@ public class DelegationTask {
     /** 子代理显式使用的模型。 */
     private String model;
 
-    /** 子代理极简系统提示；为空时使用固定的一次性执行器提示。 */
-    private String systemPrompt;
-
     /** 允许子代理使用的工具名列表。 */
     private java.util.List<String> allowedTools;
 

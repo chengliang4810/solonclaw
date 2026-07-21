@@ -8,7 +8,6 @@ import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.safeIden
 import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.stripGoalOptions;
 
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.command.CommandDescriptor;
 import com.jimuqu.solon.claw.command.CommandRegistry;
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -146,9 +145,6 @@ public class DefaultCommandService implements CommandService {
     /** 后台委派服务，用于在父会话结束时取消其进程内任务。 */
     private DelegationService delegationService;
 
-    /** 注入Agent角色配置服务，用于调用对应业务能力。 */
-    private final AgentProfileService agentProfileService;
-
     /** 保存Agent运行仓储依赖，用于访问持久化数据。 */
     private final AgentRunRepository agentRunRepository;
 
@@ -207,7 +203,6 @@ public class DefaultCommandService implements CommandService {
      * @param appUpdateService 应用Update服务依赖。
      * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
      * @param agentRunControlService Agent运行控制服务依赖。
-     * @param agentProfileService 文件或目录路径参数。
      * @param agentRunRepository Agent运行仓储依赖。
      * @param dashboardMcpService dashboardMCP服务依赖。
      * @param goalService 目标服务依赖。
@@ -241,7 +236,6 @@ public class DefaultCommandService implements CommandService {
             AppUpdateService appUpdateService,
             DangerousCommandApprovalService dangerousCommandApprovalService,
             AgentRunControlService agentRunControlService,
-            AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
@@ -277,7 +271,6 @@ public class DefaultCommandService implements CommandService {
         this.appUpdateService = appUpdateService;
         this.dangerousCommandApprovalService = dangerousCommandApprovalService;
         this.agentRunControlService = agentRunControlService;
-        this.agentProfileService = agentProfileService;
         this.agentRunRepository = agentRunRepository;
         this.dashboardMcpService = dashboardMcpService;
         this.goalService = goalService == null ? new GoalService(sessionRepository) : goalService;
@@ -501,10 +494,7 @@ public class DefaultCommandService implements CommandService {
                                     + ", model="
                                     + StrUtil.nullToDefault(session.getModelOverride(), "default")
                                     + ", fast_mode="
-                                    + fastModeName(session)
-                                    + ", agent="
-                                    + StrUtil.blankToDefault(
-                                            session.getActiveAgentName(), "default"));
+                                    + fastModeName(session));
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
@@ -2594,7 +2584,6 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
-    /** 执行人格命令相关逻辑。 */
     /**
      * 执行主动协作命令；人工 retry 子命令会显式触发一次投递。
      *

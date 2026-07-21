@@ -19,7 +19,7 @@ public class ReadOnlyProfileSessionRepository implements SessionRepository {
     /** 搜索所需的稳定会话列，避免跨 Profile 读取依赖非必要运行字段。 */
     private static final String SELECT_COLUMNS =
             "session_id, source_key, branch_name, parent_session_id, model_override, "
-                    + "service_tier_override, reasoning_effort_override, active_agent_name, "
+                    + "service_tier_override, reasoning_effort_override, "
                     + "platform_message_id, metadata_json, ndjson, title, compressed_summary, "
                     + "system_prompt_snapshot, agent_snapshot_json, goal_state_json, "
                     + "last_learning_at, last_compression_at, last_compression_input_tokens, "
@@ -325,18 +325,6 @@ public class ReadOnlyProfileSessionRepository implements SessionRepository {
     /** 跨 Profile 仓储禁止修改推理强度覆盖。 */
     @Override
     public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride) {
-        throw readOnly();
-    }
-
-    /** 跨 Profile 仓储禁止切换会话 Agent。 */
-    @Override
-    public void setActiveAgentName(String sessionId, String agentName) {
-        throw readOnly();
-    }
-
-    /** 跨 Profile 仓储禁止清理会话 Agent。 */
-    @Override
-    public void clearActiveAgentName(String agentName) {
         throw readOnly();
     }
 

@@ -3,6 +3,8 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.profile.ProfileMutationLock;
+import com.jimuqu.solon.claw.support.ModelConfigKeySupport;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileConfigFile;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
@@ -14,6 +16,9 @@ import java.util.Map;
 
 /** Dashboard 工作区配置管理服务。 */
 public class DashboardRuntimeConfigService {
+    /** 当前 JVM Profile 配置，用于解析共享变更锁。 */
+    private final AppConfig appConfig;
+
     /** 记录控制台工作区配置中的配置Resolver。 */
     private final RuntimeConfigResolver configResolver;
 
@@ -52,54 +57,12 @@ public class DashboardRuntimeConfigService {
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
                     gatewayRuntimeRefreshService,
             DashboardProfileContext profileContext) {
+        this.appConfig = appConfig;
         this.configResolver = RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome());
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
         this.profileContext = profileContext;
         this.definitions =
                 Arrays.asList(
-                        item(
-                                "model.providerKey",
-                                "默认模型 provider key",
-                                "provider",
-                                false,
-                                false,
-                                "llm"),
-                        item("model.default", "全局默认模型覆盖", "provider", false, false, "llm"),
-                        item(
-                                "providers.default.name",
-                                "默认 provider 名称",
-                                "provider",
-                                false,
-                                false,
-                                "llm"),
-                        item(
-                                "providers.default.baseUrl",
-                                "默认 provider 基础地址",
-                                "provider",
-                                false,
-                                false,
-                                "llm"),
-                        item(
-                                "providers.default.defaultModel",
-                                "默认 provider 模型",
-                                "provider",
-                                false,
-                                false,
-                                "llm"),
-                        item(
-                                "providers.default.dialect",
-                                "默认 provider 协议方言",
-                                "provider",
-                                false,
-                                false,
-                                "llm"),
-                        item(
-                                "providers.default.apiKey",
-                                "默认 provider API 密钥",
-                                "provider",
-                                true,
-                                false,
-                                "llm"),
                         item(
                                 "solonclaw.react.maxSteps",
                                 "主代理最大推理步数",
@@ -219,13 +182,6 @@ public class DashboardRuntimeConfigService {
                                 false,
                                 true,
                                 "agent"),
-                        item(
-                                "solonclaw.compression.summaryModel",
-                                "压缩/工作记忆摘要模型",
-                                "provider",
-                                false,
-                                true,
-                                "llm"),
                         item(
                                 "solonclaw.channels.feishu.enabled",
                                 "启用飞书渠道",
@@ -712,9 +668,15 @@ public class DashboardRuntimeConfigService {
     private void persist(String key, String value, boolean reconnectChannels, String profile) {
         DashboardProfileContext.Scope scope = detachedScope(profile);
         RuntimeConfigResolver resolver = scope == null ? configResolver : detachedResolver(scope);
-        synchronized (DashboardProfileConfigFile.lockFor(resolver.configFile().toPath())) {
-            resolver.setFileValue(key, value);
-        }
+        withMutationLock(
+                scope == null ? appConfig : scope.getConfig(),
+                () -> {
+                    synchronized (
+                            DashboardProfileConfigFile.lockFor(resolver.configFile().toPath())) {
+                        resolver.setFileValue(key, value);
+                    }
+                    return null;
+                });
         if (scope != null) {
             return;
         }
@@ -762,9 +724,15 @@ public class DashboardRuntimeConfigService {
         ensureSupported(key);
         DashboardProfileContext.Scope scope = detachedScope(profile);
         RuntimeConfigResolver resolver = scope == null ? configResolver : detachedResolver(scope);
-        synchronized (DashboardProfileConfigFile.lockFor(resolver.configFile().toPath())) {
-            resolver.removeFileValue(key);
-        }
+        withMutationLock(
+                scope == null ? appConfig : scope.getConfig(),
+                () -> {
+                    synchronized (
+                            DashboardProfileConfigFile.lockFor(resolver.configFile().toPath())) {
+                        resolver.removeFileValue(key);
+                    }
+                    return null;
+                });
         if (scope != null) {
             return Collections.<String, Object>singletonMap("ok", true);
         }
@@ -774,6 +742,24 @@ public class DashboardRuntimeConfigService {
             gatewayRuntimeRefreshService.refreshConfigOnly();
         }
         return Collections.<String, Object>singletonMap("ok", true);
+    }
+
+    /**
+     * 在当前 Profile 所属根目录的跨进程锁内执行单键配置变更。
+     *
+     * @param config 目标 Profile 配置。
+     * @param action 配置变更动作。
+     * @param <T> 返回值类型。
+     * @return 配置变更结果。
+     */
+    private <T> T withMutationLock(AppConfig config, ProfileMutationLock.Action<T> action) {
+        try {
+            return new ProfileMutationLock(config).withLock(action);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to lock runtime configuration update.", e);
+        }
     }
 
     /** 只在请求明确选择非当前 Profile 时返回独立 Scope。 */
@@ -810,6 +796,9 @@ public class DashboardRuntimeConfigService {
             if (definition.key.equals(key)) {
                 return definition;
             }
+        }
+        if (ModelConfigKeySupport.isDedicatedKey(key)) {
+            throw new IllegalArgumentException(ModelConfigKeySupport.DEDICATED_ENTRY_MESSAGE);
         }
         throw new IllegalStateException("Unsupported workspace config item: " + key);
     }

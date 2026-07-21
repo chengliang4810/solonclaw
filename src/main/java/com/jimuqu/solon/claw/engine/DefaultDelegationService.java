@@ -67,10 +67,6 @@ public class DefaultDelegationService implements DelegationService {
     /** 当前系统已知工具清单。 */
     private static final List<String> ALL_TOOLS = AgentRuntimePolicy.knownToolNames();
 
-    /** 子 Agent 未指定时使用的固定极简系统提示。 */
-    private static final String DEFAULT_SUBAGENT_SYSTEM_PROMPT =
-            "你是一次性子 Agent。只使用任务中明确提供的信息和允许的工具完成任务，返回结果后结束。" + "不要假设你拥有父对话、长期记忆或 Profile 身份。";
-
     /** 父运行链最大回溯层数，避免异常环或损坏数据造成无限遍历。 */
     private static final int MAX_DEPTH_LOOKUP = 64;
 
@@ -673,8 +669,7 @@ public class DefaultDelegationService implements DelegationService {
             if (StrUtil.isNotBlank(task.getModel())) {
                 message.setModelOverride(task.getModel().trim());
             }
-            message.setSystemPromptOverride(
-                    StrUtil.blankToDefault(task.getSystemPrompt(), DEFAULT_SUBAGENT_SYSTEM_PROMPT));
+            message.setRunKind(GatewayMessage.RUN_KIND_SUBAGENT);
             message.setAllowedToolsOverride(childAllowedTools);
             subagent =
                     startSubagent(

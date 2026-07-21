@@ -76,6 +76,44 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldRejectModelAndProviderKeysFromGenericConfigWrite() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
+        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
+
+        assertThatThrownBy(
+                        () -> runtimeSettingsService.setConfigValue("model.providerKey", "default"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("模型设置");
+        assertThatThrownBy(
+                        () ->
+                                runtimeSettingsService.setConfigValue(
+                                        "providers.default.apiKey", "runtime-secret"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Provider 管理");
+        assertThatThrownBy(
+                        () ->
+                                runtimeSettingsService.setSecretValue(
+                                        "providers.default.apiKey", "runtime-secret"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Provider 管理");
+
+        for (String key :
+                java.util.Arrays.asList(
+                        "scheduler.defaultModel",
+                        "compression.summaryModel",
+                        "learning.model",
+                        "skills.curator.aiModel",
+                        "proactive.model",
+                        "approvals.model")) {
+            assertThatThrownBy(() -> runtimeSettingsService.setConfigValue(key, "model-name"))
+                    .as(key)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("专用入口");
+        }
+    }
+
+    @Test
     void shouldPersistPromptCacheDashboardConfigWithoutReconnectingChannels() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);

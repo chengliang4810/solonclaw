@@ -22,6 +22,7 @@ assert.ok(chatStore.includes('target.title = previousTitle'))
 assert.ok(chatStore.includes('profile: startingProfile'))
 assert.ok(chatStore.includes('session_id: startingSessionId'))
 assert.ok(chatStore.includes('model: startingModel'))
+assert.ok(chatStore.includes('provider: startingProvider'))
 assert.ok(chatStore.includes('startingProfile,\n          )'))
 
 const uploadIndex = chatStore.indexOf('await uploadChatFiles(')

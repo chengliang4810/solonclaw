@@ -26,9 +26,9 @@ class GatewayMultiplexRuntimeStatusTest {
                 .isEqualTo(Arrays.asList("default", "coder"));
     }
 
-    /** 单 Profile 模式保持旧状态形状，不写空 served_profiles。 */
+    /** 独立网关模式不写空 served_profiles。 */
     @Test
-    void omitsServedProfilesByDefault() {
+    void omitsServedProfilesForIndependentGateway() {
         GatewayRuntimeStatusService service = service(tempDir);
 
         service.writeState("running", "ready");

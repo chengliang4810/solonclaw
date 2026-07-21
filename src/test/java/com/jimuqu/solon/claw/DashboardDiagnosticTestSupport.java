@@ -296,12 +296,6 @@ final class DashboardDiagnosticTestSupport {
         public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride) {}
 
         @Override
-        public void setActiveAgentName(String sessionId, String agentName) {}
-
-        @Override
-        public void clearActiveAgentName(String agentName) {}
-
-        @Override
         public void setGoalState(String sessionId, String goalStateJson) {}
 
         @Override

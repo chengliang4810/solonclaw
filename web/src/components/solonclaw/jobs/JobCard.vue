@@ -87,7 +87,7 @@ const deliverDetail = computed(() => {
 })
 
 const modelDetail = computed(() => {
-  const parts = [activeJob.value.provider, activeJob.value.model, activeJob.value.base_url].filter(Boolean)
+  const parts = [activeJob.value.provider, activeJob.value.model].filter(Boolean)
   return parts.length ? parts.join(' · ') : '—'
 })
 

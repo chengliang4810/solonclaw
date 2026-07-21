@@ -101,33 +101,17 @@ watch(cloneFrom, source => {
   if (!source) cloneAll.value = false
 })
 
-/** 返回 Provider 下拉选项，并以禁用项保留历史未登记 Provider。 */
-function providerOptions(currentProvider = '') {
-  const options = [...registeredProviderOptions.value]
-  if (currentProvider && !options.some(option => option.value === currentProvider)) {
-    options.push({
-      label: t('models.unregisteredProvider', { provider: currentProvider }),
-      value: currentProvider,
-      disabled: true,
-    })
-  }
-  return options
+/** 返回当前登记的 Provider 下拉选项。 */
+function providerOptions() {
+  return registeredProviderOptions.value
 }
 
-/** 返回指定 Provider 的模型下拉选项，并保留历史未登记模型。 */
-function modelOptions(provider: string, currentModel = '') {
+/** 返回指定 Provider 当前登记的模型下拉选项。 */
+function modelOptions(provider: string) {
   const models = (modelChoices.value || [])
     .filter(choice => choice.provider === provider)
     .map(choice => choice.model)
-  const options = Array.from(new Set(models)).map(model => ({ label: model, value: model, disabled: false }))
-  if (currentModel && !models.includes(currentModel)) {
-    options.push({
-      label: t('models.unregisteredModel', { model: currentModel }),
-      value: currentModel,
-      disabled: true,
-    })
-  }
-  return options
+  return Array.from(new Set(models)).map(model => ({ label: model, value: model, disabled: false }))
 }
 
 /** 切换快速创建使用的 Provider，并选择其首个模型。 */
@@ -746,7 +730,7 @@ function distributionLabel(profile: SolonClawProfile): string {
             <Select
               v-model:value="createModelName"
               show-search
-              :options="modelOptions(createModelProvider, createModelName)"
+              :options="modelOptions(createModelProvider)"
               :placeholder="t('profiles.modelInherit')"
               :disabled="!createModelProvider"
             />
@@ -823,14 +807,14 @@ function distributionLabel(profile: SolonClawProfile): string {
               v-model:value="editorModelProvider"
               show-search
               :loading="modelChoicesLoading"
-              :options="providerOptions(editorModelProvider)"
+              :options="providerOptions()"
               :placeholder="modelChoicesLoading ? t('profiles.modelLoading') : t('models.chooseProvider')"
               @change="handleEditorModelProviderChange"
             />
             <Select
               v-model:value="editorModelName"
               show-search
-              :options="modelOptions(editorModelProvider, editorModelName)"
+              :options="modelOptions(editorModelProvider)"
               :placeholder="t('models.selectModel')"
               :disabled="!editorModelProvider"
             />

@@ -287,12 +287,6 @@ public interface SessionRepository {
     void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride)
             throws Exception;
 
-    /** 更新当前会话激活 Agent。 */
-    void setActiveAgentName(String sessionId, String agentName) throws Exception;
-
-    /** 清除所有使用指定 Agent 的会话激活状态。 */
-    void clearActiveAgentName(String agentName) throws Exception;
-
     /**
      * 写入Goal状态。
      *

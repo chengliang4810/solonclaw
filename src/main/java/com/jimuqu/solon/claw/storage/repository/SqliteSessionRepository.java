@@ -40,7 +40,7 @@ public class SqliteSessionRepository implements SessionRepository {
     /** SELECTCOLUMNS的统一常量值。 */
     private static final String SELECT_COLUMNS =
             "session_id, source_key, branch_name, parent_session_id, model_override, service_tier_override, reasoning_effort_override, "
-                    + "active_agent_name, platform_message_id, metadata_json, ndjson, title, compressed_summary, system_prompt_snapshot, "
+                    + "platform_message_id, metadata_json, ndjson, title, compressed_summary, system_prompt_snapshot, "
                     + "agent_snapshot_json, goal_state_json, last_learning_at, last_compression_at, "
                     + "last_compression_input_tokens, compression_failure_count, "
                     + "last_compression_failed_at, last_input_tokens, last_output_tokens, "
@@ -53,7 +53,7 @@ public class SqliteSessionRepository implements SessionRepository {
     /** SELECTCOLUMNSWITHALIAS的统一常量值。 */
     private static final String SELECT_COLUMNS_WITH_ALIAS =
             "s.session_id, s.source_key, s.branch_name, s.parent_session_id, s.model_override, s.service_tier_override, s.reasoning_effort_override, "
-                    + "s.active_agent_name, s.platform_message_id, s.metadata_json, s.ndjson, s.title, s.compressed_summary, "
+                    + "s.platform_message_id, s.metadata_json, s.ndjson, s.title, s.compressed_summary, "
                     + "s.system_prompt_snapshot, s.agent_snapshot_json, s.goal_state_json, "
                     + "s.last_learning_at, s.last_compression_at, s.last_compression_input_tokens, "
                     + "s.compression_failure_count, s.last_compression_failed_at, s.last_input_tokens, "
@@ -190,7 +190,6 @@ public class SqliteSessionRepository implements SessionRepository {
         clone.setModelOverride(source.getModelOverride());
         clone.setServiceTierOverride(source.getServiceTierOverride());
         clone.setReasoningEffortOverride(source.getReasoningEffortOverride());
-        clone.setActiveAgentName(source.getActiveAgentName());
         clone.setPlatformMessageId(source.getPlatformMessageId());
         clone.setMetadataJson(source.getMetadataJson());
         clone.setNdjson(source.getNdjson());
@@ -369,7 +368,7 @@ public class SqliteSessionRepository implements SessionRepository {
             String ndjson = mergeConcurrentMessages(persisted, sessionRecord);
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into sessions (session_id, source_key, branch_name, parent_session_id, model_override, service_tier_override, reasoning_effort_override, active_agent_name, platform_message_id, metadata_json, ndjson, title, compressed_summary, system_prompt_snapshot, agent_snapshot_json, goal_state_json, last_learning_at, last_compression_at, last_compression_input_tokens, compression_failure_count, last_compression_failed_at, last_input_tokens, last_output_tokens, last_reasoning_tokens, last_cache_read_tokens, last_cache_write_tokens, last_total_tokens, cumulative_input_tokens, cumulative_output_tokens, cumulative_reasoning_tokens, cumulative_cache_read_tokens, cumulative_cache_write_tokens, cumulative_total_tokens, last_usage_at, last_resolved_provider, last_resolved_model, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into sessions (session_id, source_key, branch_name, parent_session_id, model_override, service_tier_override, reasoning_effort_override, platform_message_id, metadata_json, ndjson, title, compressed_summary, system_prompt_snapshot, agent_snapshot_json, goal_state_json, last_learning_at, last_compression_at, last_compression_input_tokens, compression_failure_count, last_compression_failed_at, last_input_tokens, last_output_tokens, last_reasoning_tokens, last_cache_read_tokens, last_cache_write_tokens, last_total_tokens, cumulative_input_tokens, cumulative_output_tokens, cumulative_reasoning_tokens, cumulative_cache_read_tokens, cumulative_cache_write_tokens, cumulative_total_tokens, last_usage_at, last_resolved_provider, last_resolved_model, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, sessionRecord.getSessionId());
             statement.setString(2, sessionRecord.getSourceKey());
             statement.setString(3, sessionRecord.getBranchName());
@@ -377,37 +376,36 @@ public class SqliteSessionRepository implements SessionRepository {
             statement.setString(5, settings.getModelOverride());
             statement.setString(6, settings.getServiceTierOverride());
             statement.setString(7, settings.getReasoningEffortOverride());
-            statement.setString(8, settings.getActiveAgentName());
-            statement.setString(9, sessionRecord.getPlatformMessageId());
-            statement.setString(10, sessionRecord.getMetadataJson());
-            statement.setString(11, ndjson);
-            statement.setString(12, sessionRecord.getTitle());
-            statement.setString(13, sessionRecord.getCompressedSummary());
-            statement.setString(14, sessionRecord.getSystemPromptSnapshot());
-            statement.setString(15, sessionRecord.getAgentSnapshotJson());
-            statement.setString(16, settings.getGoalStateJson());
-            statement.setLong(17, settings.getLastLearningAt());
-            statement.setLong(18, sessionRecord.getLastCompressionAt());
-            statement.setInt(19, sessionRecord.getLastCompressionInputTokens());
-            statement.setInt(20, sessionRecord.getCompressionFailureCount());
-            statement.setLong(21, sessionRecord.getLastCompressionFailedAt());
-            statement.setLong(22, sessionRecord.getLastInputTokens());
-            statement.setLong(23, sessionRecord.getLastOutputTokens());
-            statement.setLong(24, sessionRecord.getLastReasoningTokens());
-            statement.setLong(25, sessionRecord.getLastCacheReadTokens());
-            statement.setLong(26, sessionRecord.getLastCacheWriteTokens());
-            statement.setLong(27, sessionRecord.getLastTotalTokens());
-            statement.setLong(28, sessionRecord.getCumulativeInputTokens());
-            statement.setLong(29, sessionRecord.getCumulativeOutputTokens());
-            statement.setLong(30, sessionRecord.getCumulativeReasoningTokens());
-            statement.setLong(31, sessionRecord.getCumulativeCacheReadTokens());
-            statement.setLong(32, sessionRecord.getCumulativeCacheWriteTokens());
-            statement.setLong(33, sessionRecord.getCumulativeTotalTokens());
-            statement.setLong(34, sessionRecord.getLastUsageAt());
-            statement.setString(35, sessionRecord.getLastResolvedProvider());
-            statement.setString(36, sessionRecord.getLastResolvedModel());
-            statement.setLong(37, createdAt);
-            statement.setLong(38, updatedAt);
+            statement.setString(8, sessionRecord.getPlatformMessageId());
+            statement.setString(9, sessionRecord.getMetadataJson());
+            statement.setString(10, ndjson);
+            statement.setString(11, sessionRecord.getTitle());
+            statement.setString(12, sessionRecord.getCompressedSummary());
+            statement.setString(13, sessionRecord.getSystemPromptSnapshot());
+            statement.setString(14, sessionRecord.getAgentSnapshotJson());
+            statement.setString(15, settings.getGoalStateJson());
+            statement.setLong(16, settings.getLastLearningAt());
+            statement.setLong(17, sessionRecord.getLastCompressionAt());
+            statement.setInt(18, sessionRecord.getLastCompressionInputTokens());
+            statement.setInt(19, sessionRecord.getCompressionFailureCount());
+            statement.setLong(20, sessionRecord.getLastCompressionFailedAt());
+            statement.setLong(21, sessionRecord.getLastInputTokens());
+            statement.setLong(22, sessionRecord.getLastOutputTokens());
+            statement.setLong(23, sessionRecord.getLastReasoningTokens());
+            statement.setLong(24, sessionRecord.getLastCacheReadTokens());
+            statement.setLong(25, sessionRecord.getLastCacheWriteTokens());
+            statement.setLong(26, sessionRecord.getLastTotalTokens());
+            statement.setLong(27, sessionRecord.getCumulativeInputTokens());
+            statement.setLong(28, sessionRecord.getCumulativeOutputTokens());
+            statement.setLong(29, sessionRecord.getCumulativeReasoningTokens());
+            statement.setLong(30, sessionRecord.getCumulativeCacheReadTokens());
+            statement.setLong(31, sessionRecord.getCumulativeCacheWriteTokens());
+            statement.setLong(32, sessionRecord.getCumulativeTotalTokens());
+            statement.setLong(33, sessionRecord.getLastUsageAt());
+            statement.setString(34, sessionRecord.getLastResolvedProvider());
+            statement.setString(35, sessionRecord.getLastResolvedModel());
+            statement.setLong(36, createdAt);
+            statement.setLong(37, updatedAt);
             statement.executeUpdate();
             statement.close();
 
@@ -482,7 +480,6 @@ public class SqliteSessionRepository implements SessionRepository {
         target.setModelOverride(source.getModelOverride());
         target.setServiceTierOverride(source.getServiceTierOverride());
         target.setReasoningEffortOverride(source.getReasoningEffortOverride());
-        target.setActiveAgentName(source.getActiveAgentName());
         target.setGoalStateJson(source.getGoalStateJson());
         target.setLastLearningAt(source.getLastLearningAt());
     }
@@ -491,7 +488,7 @@ public class SqliteSessionRepository implements SessionRepository {
     private SessionRecord mergeConcurrentSettings(
             SessionRecord persisted, SessionRecord requested) {
         Object[] baseline = requested.getPersistedConcurrentSettings();
-        if (persisted == null || baseline == null || baseline.length != 6) {
+        if (persisted == null || baseline == null || baseline.length != 5) {
             return requested;
         }
         SessionRecord merged = new SessionRecord();
@@ -507,16 +504,12 @@ public class SqliteSessionRepository implements SessionRepository {
                 Objects.equals(persisted.getReasoningEffortOverride(), baseline[2])
                         ? requested.getReasoningEffortOverride()
                         : persisted.getReasoningEffortOverride());
-        merged.setActiveAgentName(
-                Objects.equals(persisted.getActiveAgentName(), baseline[3])
-                        ? requested.getActiveAgentName()
-                        : persisted.getActiveAgentName());
         merged.setGoalStateJson(
-                Objects.equals(persisted.getGoalStateJson(), baseline[4])
+                Objects.equals(persisted.getGoalStateJson(), baseline[3])
                         ? requested.getGoalStateJson()
                         : persisted.getGoalStateJson());
         merged.setLastLearningAt(
-                Objects.equals(Long.valueOf(persisted.getLastLearningAt()), baseline[5])
+                Objects.equals(Long.valueOf(persisted.getLastLearningAt()), baseline[4])
                         ? requested.getLastLearningAt()
                         : persisted.getLastLearningAt());
         return merged;
@@ -528,7 +521,6 @@ public class SqliteSessionRepository implements SessionRepository {
             record.getModelOverride(),
             record.getServiceTierOverride(),
             record.getReasoningEffortOverride(),
-            record.getActiveAgentName(),
             record.getGoalStateJson(),
             Long.valueOf(record.getLastLearningAt())
         };
@@ -1361,50 +1353,6 @@ public class SqliteSessionRepository implements SessionRepository {
             statement.setString(1, reasoningEffortOverride);
             statement.setLong(2, System.currentTimeMillis());
             statement.setString(3, sessionId);
-            statement.executeUpdate();
-            statement.close();
-        } finally {
-            connection.close();
-        }
-    }
-
-    /**
-     * 写入Active Agent名称。
-     *
-     * @param sessionId 当前会话标识。
-     * @param agentName Agent名称参数。
-     */
-    @Override
-    public void setActiveAgentName(String sessionId, String agentName) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "update sessions set active_agent_name = ?, updated_at = ? where session_id = ?");
-            statement.setString(1, agentName);
-            statement.setLong(2, System.currentTimeMillis());
-            statement.setString(3, sessionId);
-            statement.executeUpdate();
-            statement.close();
-        } finally {
-            connection.close();
-        }
-    }
-
-    /**
-     * 清理Active Agent名称。
-     *
-     * @param agentName Agent名称参数。
-     */
-    @Override
-    public void clearActiveAgentName(String agentName) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "update sessions set active_agent_name = null, updated_at = ? where active_agent_name = ?");
-            statement.setLong(1, System.currentTimeMillis());
-            statement.setString(2, agentName);
             statement.executeUpdate();
             statement.close();
         } finally {

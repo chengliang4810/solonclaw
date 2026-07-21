@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.TuiRuntimeProtocolService;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,110 @@ class TuiRuntimeProtocolServiceTest {
                 .containsEntry("authenticated", Boolean.TRUE);
         assertThat(ollama.get("key_env")).isEqualTo("");
         assertThat(ollama).doesNotContainKey("warning");
+    }
+
+    /** Node TUI 模型选择器必须展示 Provider 登记的全部模型。 */
+    @Test
+    void modelOptionsExposeEveryRegisteredProviderModel() throws Exception {
+        AppConfig config = testConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Custom");
+        provider.setDefaultModel("main-model");
+        provider.setModels(Arrays.asList("main-model", "extra-model"));
+        provider.setDialect("openai");
+        config.getProviders().put("custom", provider);
+        config.getModel().setProviderKey("custom");
+        config.getModel().setDefault("main-model");
+
+        Map<String, Object> options = new TuiRuntimeProtocolService(config).modelOptions("session");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> providers = (List<Map<String, Object>>) options.get("providers");
+        assertThat(provider(providers, "custom").get("models"))
+                .asList()
+                .contains("main-model", "extra-model");
+    }
+
+    /** 已配置的内置 Provider 只能展示自身登记模型，不能混入首次配置模板候选。 */
+    @Test
+    void configuredProviderDoesNotExposeUnregisteredTemplateModels() throws Exception {
+        AppConfig config = testConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Configured OpenAI");
+        provider.setDefaultModel("private-model");
+        provider.setModels(Arrays.asList("private-model", "backup-model"));
+        provider.setDialect("openai");
+        config.getProviders().put("openai", provider);
+        config.getModel().setProviderKey("openai");
+        config.getModel().setDefault("private-model");
+
+        Map<String, Object> options = new TuiRuntimeProtocolService(config).modelOptions("session");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> providers = (List<Map<String, Object>>) options.get("providers");
+        assertThat(provider(providers, "openai").get("models"))
+                .asList()
+                .containsExactly("private-model", "backup-model")
+                .doesNotContain("gpt-4.1", "gpt-4o", "gpt-4o-mini");
+    }
+
+    /** 协议层默认只解析会话模型，只有显式 --global 才修改并持久化 Profile 默认模型。 */
+    @Test
+    void modelSelectionPersistsOnlyWithExplicitGlobalFlag() throws Exception {
+        AppConfig config = testConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("Custom");
+        provider.setBaseUrl("https://models.example/v1");
+        provider.setApiKey("test-key");
+        provider.setDefaultModel("main-model");
+        provider.setModels(Arrays.asList("main-model", "extra-model"));
+        provider.setDialect("openai");
+        config.getProviders().put("custom", provider);
+        config.getModel().setProviderKey("custom");
+        config.getModel().setDefault("main-model");
+        TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
+        File configFile = new File(config.getRuntime().getHome(), "config.yml");
+
+        Map<String, Object> sessionSelection =
+                service.configSet("model", "custom:extra-model", "session-one");
+
+        assertThat(sessionSelection)
+                .containsEntry("global", Boolean.FALSE)
+                .containsEntry("value", "extra-model")
+                .containsEntry("provider", "custom");
+        assertThat(config.getModel().getDefault()).isEqualTo("main-model");
+        assertThat(configFile).doesNotExist();
+
+        Map<String, Object> globalSelection =
+                service.configSet("model", "custom:extra-model --global", "session-one");
+
+        assertThat(globalSelection).containsEntry("global", Boolean.TRUE);
+        assertThat(config.getModel().getDefault()).isEqualTo("extra-model");
+        assertThat(Files.readString(configFile.toPath()))
+                .contains("providerKey: custom")
+                .contains("default: extra-model");
+    }
+
+    /** 六类后台任务模型路由必须使用专用入口，不能被通用 TUI 配置写入拆散。 */
+    @Test
+    void genericConfigSetRejectsEveryTaskModelRouteKey() throws Exception {
+        TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(testConfig());
+        List<String> keys =
+                Arrays.asList(
+                        "scheduler.defaultModel",
+                        "compression.summaryModel",
+                        "learning.model",
+                        "skills.curator.aiModel",
+                        "proactive.model",
+                        "approvals.model");
+
+        for (String key : keys) {
+            org.assertj.core.api.Assertions.assertThatThrownBy(
+                            () -> service.configSet(key, "unregistered-model", "session"))
+                    .as(key)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("专用入口");
+        }
     }
 
     private Map<String, Object> channel(List<Map<String, Object>> channels, String key) {

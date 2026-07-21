@@ -1,9 +1,12 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.web.DashboardChatService;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -19,9 +22,34 @@ import org.junit.jupiter.api.Test;
 public class DashboardChatServiceEventSinkTest {
     private static final String SECRET = "sk-1234567890abcdef";
 
+    /** Dashboard 必须在创建异步运行和写入会话前拒绝未登记模型。 */
+    @Test
+    void shouldRejectUnregisteredModelBeforeStartingDashboardRun() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("main-model");
+        provider.setModels(Collections.singletonList("main-model"));
+        config.getProviders().put("default", provider);
+        config.getModel().setProviderKey("default");
+        config.getModel().setDefault("main-model");
+        DashboardChatService service =
+                new DashboardChatService(null, null, null, null, new LlmProviderService(config));
+        try {
+            assertThatThrownBy(
+                            () ->
+                                    service.startRun(
+                                            org.noear.snack4.ONode.ofJson(
+                                                    "{\"input\":\"hello\",\"session_id\":\"invalid-model-session\",\"provider\":\"default\",\"model\":\"missing-model\"}")))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("未在 Provider default 中登记");
+        } finally {
+            service.shutdown();
+        }
+    }
+
     @Test
     void shouldRedactSecretsFromDashboardRunEvents() throws Exception {
-        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        DashboardChatService service = new DashboardChatService(null, null, null, null, null);
         Object state = newState("run-1", "session-1");
         ConversationEventSink sink = newEventSink(service, state);
         Map<String, Object> args = new LinkedHashMap<String, Object>();
@@ -56,7 +84,7 @@ public class DashboardChatServiceEventSinkTest {
     /** 阶段说明必须使用独立 SSE 事件，不能伪装成最终正文增量。 */
     @Test
     void shouldEmitProgressUpdateSeparatelyFromAssistantDelta() throws Exception {
-        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        DashboardChatService service = new DashboardChatService(null, null, null, null, null);
         Object state = newState("run-progress", "session-progress");
         ConversationEventSink sink = newEventSink(service, state);
 
@@ -71,7 +99,7 @@ public class DashboardChatServiceEventSinkTest {
 
     @Test
     void shouldKeepAssistantDeltaUnredactedAsAssistantContent() throws Exception {
-        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        DashboardChatService service = new DashboardChatService(null, null, null, null, null);
         Object state = newState("run-1", "session-1");
         ConversationEventSink sink = newEventSink(service, state);
 
@@ -82,7 +110,7 @@ public class DashboardChatServiceEventSinkTest {
 
     @Test
     void shouldExposeExplicitToolFailureState() throws Exception {
-        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        DashboardChatService service = new DashboardChatService(null, null, null, null, null);
         Object state = newState("run-1", "session-1");
         ConversationEventSink sink = newEventSink(service, state);
 
@@ -96,7 +124,7 @@ public class DashboardChatServiceEventSinkTest {
 
     @Test
     void shouldEmitRunStartedOnlyOnceForDashboardRun() throws Exception {
-        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        DashboardChatService service = new DashboardChatService(null, null, null, null, null);
         Object state = newState("run-1", "session-initial");
         ConversationEventSink sink = newEventSink(service, state);
 
@@ -113,7 +141,7 @@ public class DashboardChatServiceEventSinkTest {
 
     @Test
     void shouldCarryAgentRunIdOnTerminalDashboardEvents() throws Exception {
-        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        DashboardChatService service = new DashboardChatService(null, null, null, null, null);
         Object state = newState("web-run-1", "session-1");
         ConversationEventSink sink = newEventSink(service, state);
 
@@ -129,7 +157,7 @@ public class DashboardChatServiceEventSinkTest {
 
     @Test
     void shouldEmitFinalReplyWhenRunCompletesWithoutAssistantDelta() throws Exception {
-        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        DashboardChatService service = new DashboardChatService(null, null, null, null, null);
         Object state = newState("web-run-1", "session-1");
         ConversationEventSink sink = newEventSink(service, state);
 
@@ -144,7 +172,7 @@ public class DashboardChatServiceEventSinkTest {
 
     @Test
     void shouldNotDuplicateFinalReplyAfterAssistantDelta() throws Exception {
-        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        DashboardChatService service = new DashboardChatService(null, null, null, null, null);
         Object state = newState("web-run-1", "session-1");
         ConversationEventSink sink = newEventSink(service, state);
 
@@ -158,7 +186,7 @@ public class DashboardChatServiceEventSinkTest {
     /** 候选切换时必须先撤销已推送正文，再发送备用模型的完整答复。 */
     @Test
     void shouldEmitAssistantResetBeforeFallbackReply() throws Exception {
-        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        DashboardChatService service = new DashboardChatService(null, null, null, null, null);
         Object state = newState("web-run-reset", "session-reset");
         ConversationEventSink sink = newEventSink(service, state);
 
@@ -177,7 +205,7 @@ public class DashboardChatServiceEventSinkTest {
 
     @Test
     void shouldClassifySseClientDisconnects() throws Exception {
-        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        DashboardChatService service = new DashboardChatService(null, null, null, null, null);
 
         assertThat(isClientDisconnected("writeBuffer has closed")).isTrue();
         assertThat(isClientDisconnected("OutputStream has closed")).isTrue();

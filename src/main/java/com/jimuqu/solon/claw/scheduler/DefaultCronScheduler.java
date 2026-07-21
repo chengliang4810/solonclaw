@@ -2023,23 +2023,26 @@ public class DefaultCronScheduler {
         }
         String model = StrUtil.nullToEmpty(job.getModel()).trim();
         String provider = StrUtil.nullToEmpty(job.getProvider()).trim();
-        String baseUrl = StrUtil.nullToEmpty(job.getBaseUrl()).trim();
-        if (StrUtil.isBlank(model) || StrUtil.isBlank(provider)) {
+        boolean inheritsDefault = StrUtil.isBlank(model) && StrUtil.isBlank(provider);
+        if (!inheritsDefault && (StrUtil.isBlank(model) || StrUtil.isBlank(provider))) {
+            throw new IllegalStateException("Cron model binding requires both provider and model");
+        }
+        if (inheritsDefault) {
             model = StrUtil.nullToEmpty(appConfig.getScheduler().getDefaultModel()).trim();
             provider = StrUtil.nullToEmpty(appConfig.getScheduler().getDefaultProvider()).trim();
-            baseUrl = "";
+        }
+        if (StrUtil.isBlank(model) && StrUtil.isBlank(provider)) {
+            return null;
         }
         if (StrUtil.isBlank(model) || StrUtil.isBlank(provider)) {
-            return null;
+            throw new IllegalStateException(
+                    "Cron default model binding requires both provider and model");
         }
         StringBuilder override = new StringBuilder();
         if (StrUtil.isNotBlank(provider)) {
             override.append(provider).append(':');
         }
         override.append(model);
-        if (StrUtil.isNotBlank(baseUrl)) {
-            override.append(':').append(baseUrl);
-        }
         return override.toString();
     }
 

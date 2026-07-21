@@ -35,7 +35,6 @@ public class VersionUpdateCommandTest {
         assertThat(checkReply.getContent()).contains("搴旂敤鐗堟湰");
         assertThat(runReply.getContent()).contains("started update");
         assertThat(CommandRegistry.resolve("update")).isNull();
-        assertThat(CommandRegistry.resolve("personality")).isNull();
         assertThat(CommandRegistry.resolve("skin")).isNull();
     }
 

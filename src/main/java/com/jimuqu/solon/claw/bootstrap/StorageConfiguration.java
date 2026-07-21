@@ -1,6 +1,5 @@
 package com.jimuqu.solon.claw.bootstrap;
 
-import com.jimuqu.solon.claw.agent.AgentProfileRepository;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
@@ -11,7 +10,6 @@ import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
-import com.jimuqu.solon.claw.storage.repository.SqliteAgentProfileRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteApprovalAuditRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteChannelInboundMessageRepository;
@@ -140,17 +138,6 @@ public class StorageConfiguration {
     @Bean
     public GlobalSettingRepository globalSettingRepository(SqliteDatabase sqliteDatabase) {
         return new SqliteGlobalSettingRepository(sqliteDatabase);
-    }
-
-    /**
-     * 执行Agent角色配置仓储相关逻辑。
-     *
-     * @param sqliteDatabase SQLiteDatabase参数。
-     * @return 返回Agent角色配置仓储结果。
-     */
-    @Bean
-    public AgentProfileRepository agentProfileRepository(SqliteDatabase sqliteDatabase) {
-        return new SqliteAgentProfileRepository(sqliteDatabase);
     }
 
     /**

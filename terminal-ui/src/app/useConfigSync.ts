@@ -25,15 +25,14 @@ import {
 import { turnController } from './turnController.js'
 import { patchUiState } from './uiStore.js'
 
-const STATUSBAR_ALIAS: Record<string, StatusBarMode> = {
+const STATUSBAR_MODES: Record<string, StatusBarMode> = {
   bottom: 'bottom',
   off: 'off',
-  on: 'top',
   top: 'top'
 }
 
 export const normalizeStatusBar = (raw: unknown): StatusBarMode =>
-  raw === false ? 'off' : typeof raw === 'string' ? (STATUSBAR_ALIAS[raw.trim().toLowerCase()] ?? 'top') : 'top'
+  typeof raw === 'string' ? (STATUSBAR_MODES[raw.trim().toLowerCase()] ?? 'top') : 'top'
 
 const BUSY_MODES = new Set<BusyInputMode>(['interrupt', 'queue', 'steer'])
 
@@ -68,58 +67,24 @@ export const normalizeIndicatorStyle = (raw: unknown): IndicatorStyle => {
   return INDICATOR_STYLE_SET.has(v) ? v : DEFAULT_INDICATOR_STYLE
 }
 
-const FALSEY_MOUSE = new Set(['0', 'false', 'no', 'off'])
-const TRUTHY_MOUSE_ALL = new Set(['1', 'true', 'yes', 'on', 'all', 'full', 'any'])
-const hasOwn = (obj: object, key: PropertyKey) => Object.prototype.hasOwnProperty.call(obj, key)
+const MOUSE_TRACKING_MODES = new Set<MouseTrackingMode>(['off', 'wheel', 'buttons', 'all'])
 
-// `display.mouse_tracking` accepts boolean (`true` ⇒ all modes, `false` ⇒ off)
-// for back-compat, plus the string presets `off|wheel|buttons|all` (aliases:
-// `on`/`full`/`any`/`1`/`true`/... → `all`; `0`/`false`/`no`/`off` → `off`).
+// `display.mouse_tracking` accepts only `off|wheel|buttons|all`.
 // `wheel` enables 1000+1006 — scroll wheel + click only, no drag or hover,
 // which silences tmux's "No image in clipboard" spam over the prompt row.
 // `buttons` adds 1002 so terminal-side text selection drags still register.
-// Legacy `tui_mouse` is honored only if `mouse_tracking` is absent.
 export const normalizeMouseTracking = (display: {
   mouse_tracking?: unknown
-  tui_mouse?: unknown
 }): MouseTrackingMode => {
-  const raw = hasOwn(display, 'mouse_tracking') ? display.mouse_tracking : display.tui_mouse
-
-  if (raw === false || raw === 0) {
-    return 'off'
-  }
-
-  if (raw === true || raw === undefined || raw === null) {
-    return 'all'
-  }
-
-  if (typeof raw === 'number') {
-    return 'all'
-  }
+  const raw = display.mouse_tracking
 
   if (typeof raw !== 'string') {
     return 'all'
   }
 
-  const v = raw.trim().toLowerCase()
+  const value = raw.trim().toLowerCase() as MouseTrackingMode
 
-  if (FALSEY_MOUSE.has(v)) {
-    return 'off'
-  }
-
-  if (TRUTHY_MOUSE_ALL.has(v)) {
-    return 'all'
-  }
-
-  if (v === 'wheel' || v === 'scroll') {
-    return 'wheel'
-  }
-
-  if (v === 'buttons' || v === 'button' || v === 'click') {
-    return 'buttons'
-  }
-
-  return 'all'
+  return MOUSE_TRACKING_MODES.has(value) ? value : 'all'
 }
 
 const MTIME_POLL_MS = 5000

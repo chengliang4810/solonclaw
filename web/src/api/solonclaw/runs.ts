@@ -14,8 +14,6 @@ export interface AgentRun {
   final_reply_preview?: string
   provider?: string
   model?: string
-  agent_name?: string
-  agent_snapshot?: Record<string, unknown>
   attempts: number
   context_estimate_tokens?: number
   context_window_tokens?: number

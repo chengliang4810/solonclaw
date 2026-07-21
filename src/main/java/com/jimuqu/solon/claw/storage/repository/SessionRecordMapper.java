@@ -20,7 +20,6 @@ final class SessionRecordMapper {
         record.setModelOverride(resultSet.getString("model_override"));
         record.setServiceTierOverride(resultSet.getString("service_tier_override"));
         record.setReasoningEffortOverride(resultSet.getString("reasoning_effort_override"));
-        record.setActiveAgentName(resultSet.getString("active_agent_name"));
         record.setPlatformMessageId(resultSet.getString("platform_message_id"));
         record.setMetadataJson(resultSet.getString("metadata_json"));
         record.setNdjson(resultSet.getString("ndjson"));
@@ -62,7 +61,6 @@ final class SessionRecordMapper {
             record.getModelOverride(),
             record.getServiceTierOverride(),
             record.getReasoningEffortOverride(),
-            record.getActiveAgentName(),
             record.getGoalStateJson(),
             Long.valueOf(record.getLastLearningAt())
         };

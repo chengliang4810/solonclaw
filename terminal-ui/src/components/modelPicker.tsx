@@ -35,6 +35,8 @@ export function ModelPicker({ allowPersistGlobal = true, gw, onCancel, onSelect,
   const [filter, setFilter] = useState('')
 
   const { stdout } = useStdout()
+  const canChooseScope = allowPersistGlobal && Boolean(sessionId)
+  const persistGlobally = !sessionId || (canChooseScope && persistGlobal)
   // Pin the picker to a stable width so the FloatBox parent (which shrinks-
   // to-fit with alignSelf="flex-start") doesn't resize as long provider /
   // model names scroll into view, and so `wrap="truncate-end"` on each row
@@ -330,7 +332,7 @@ export function ModelPicker({ allowPersistGlobal = true, gw, onCancel, onSelect,
 
       if (provider && model) {
         onSelect(
-          `${model} --provider ${provider.slug}${allowPersistGlobal && persistGlobal ? ' --global' : ` ${TUI_SESSION_MODEL_FLAG}`}`
+          `${model} --provider ${provider.slug}${persistGlobally ? ' --global' : ` ${TUI_SESSION_MODEL_FLAG}`}`
         )
       } else {
         setStage('provider')
@@ -359,7 +361,7 @@ export function ModelPicker({ allowPersistGlobal = true, gw, onCancel, onSelect,
     // Persist-global toggle moved to Ctrl+G so 'g' can be typed into the
     // filter. With Ctrl held, @solonclaw/ink reports `ch` as the key name ('g'),
     // not the raw control byte (see input-event.ts: input = ctrl ? name : seq).
-    if (allowPersistGlobal && key.ctrl && ch === 'g') {
+    if (canChooseScope && key.ctrl && ch === 'g') {
       setPersistGlobal(v => !v)
 
       return
@@ -560,8 +562,8 @@ export function ModelPicker({ allowPersistGlobal = true, gw, onCancel, onSelect,
         </Text>
 
         <Text color={t.color.muted} wrap="truncate-end">
-          persist: {allowPersistGlobal ? (persistGlobal ? 'global' : 'session') : 'session'}
-          {allowPersistGlobal ? ' · ^g toggle' : ' only'}
+          persist: {!sessionId ? 'global' : canChooseScope ? (persistGlobal ? 'global' : 'session') : 'session'}
+          {!sessionId || !canChooseScope ? ' only' : ' · ^g toggle'}
         </Text>
         <OverlayHint t={t}>↑/↓ select · Enter choose · ^d disconnect · Esc clear/back · q close</OverlayHint>
       </Box>
@@ -628,8 +630,8 @@ export function ModelPicker({ allowPersistGlobal = true, gw, onCancel, onSelect,
       </Text>
 
       <Text color={t.color.muted} wrap="truncate-end">
-        persist: {allowPersistGlobal ? (persistGlobal ? 'global' : 'session') : 'session'}
-        {allowPersistGlobal ? ' · ^g toggle' : ' only'}
+        persist: {!sessionId ? 'global' : canChooseScope ? (persistGlobal ? 'global' : 'session') : 'session'}
+        {!sessionId || !canChooseScope ? ' only' : ' · ^g toggle'}
       </Text>
       <OverlayHint t={t}>
         {models.length ? '↑/↓ select · Enter switch · Esc clear/back · q close' : 'Esc back · q close'}

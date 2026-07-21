@@ -1,6 +1,5 @@
 package com.jimuqu.solon.claw.bootstrap;
 
-import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
@@ -318,7 +317,6 @@ public class GatewayConfiguration {
      * @param appUpdateService 应用Update服务依赖。
      * @param dangerousCommandApprovalService dangerous命令审批服务依赖。
      * @param agentRunControlService Agent运行控制服务依赖。
-     * @param agentProfileService 文件或目录路径参数。
      * @param agentRunRepository Agent运行仓储依赖。
      * @param dashboardMcpService dashboardMCP服务依赖。
      * @param goalService 目标服务依赖。
@@ -354,7 +352,6 @@ public class GatewayConfiguration {
             AppUpdateService appUpdateService,
             DangerousCommandApprovalService dangerousCommandApprovalService,
             AgentRunControlService agentRunControlService,
-            AgentProfileService agentProfileService,
             AgentRunRepository agentRunRepository,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
@@ -389,7 +386,6 @@ public class GatewayConfiguration {
                         appUpdateService,
                         dangerousCommandApprovalService,
                         agentRunControlService,
-                        agentProfileService,
                         agentRunRepository,
                         dashboardMcpService,
                         goalService,

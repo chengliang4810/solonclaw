@@ -29,7 +29,9 @@ public class DefaultConversationOrchestratorLoggingTest {
                         null,
                         null,
                         null,
-                        new FailingMemoryManager(leakedToken));
+                        new FailingMemoryManager(leakedToken),
+                        null,
+                        null);
         Logger logger = (Logger) LoggerFactory.getLogger(DefaultConversationOrchestrator.class);
         ListAppender<ILoggingEvent> appender = new ListAppender<ILoggingEvent>();
         appender.start();

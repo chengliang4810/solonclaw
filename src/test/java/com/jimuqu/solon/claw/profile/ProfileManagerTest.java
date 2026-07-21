@@ -12,6 +12,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -54,10 +59,23 @@ class ProfileManagerTest {
     void cloneCopiesIdentityWithoutRuntimeHistory() throws Exception {
         write(
                 root.resolve("config.yml"),
-                "providers:\n  default:\n    apiKey: clone-secret\nmodel:\n  providerKey: default\n  default: clone-model\n");
+                "providers:\n"
+                        + "  default:\n"
+                        + "    apiKey: clone-secret\n"
+                        + "    defaultModel: clone-model\n"
+                        + "    models:\n"
+                        + "      - clone-model\n"
+                        + "model:\n"
+                        + "  providerKey: default\n"
+                        + "  default: clone-model\n");
         write(
                 root.resolve(".env"),
-                "TOKEN=clone-secret\nOPENAI_API_KEY=model-secret\nSOLONCLAW_PROVIDER_DEFAULT_API_KEY=provider-secret\n");
+                "TOKEN=clone-secret\n"
+                        + "OPENAI_API_KEY=user-openai-secret\n"
+                        + "GEMINI_API_KEY=user-gemini-secret\n"
+                        + "GOOGLE_API_KEY=user-google-secret\n"
+                        + "ANTHROPIC_API_KEY=user-anthropic-secret\n"
+                        + "SOLONCLAW_PROVIDER_DEFAULT_API_KEY=provider-secret\n");
         write(root.resolve("SOUL.md"), "# source soul\n");
         write(root.resolve("MEMORY.md"), "# source memory\n");
         write(root.resolve("skills/demo/SKILL.md"), "# demo\n");
@@ -73,8 +91,13 @@ class ProfileManagerTest {
                 .doesNotContain("providers:", "clone-secret");
         assertThat(work.resolve(".env"))
                 .content()
-                .contains("TOKEN=clone-secret", "SOLONCLAW_SPEECH_API_KEY=model-secret")
-                .doesNotContain("OPENAI_API_KEY", "SOLONCLAW_PROVIDER_DEFAULT_API_KEY");
+                .contains(
+                        "TOKEN=clone-secret",
+                        "OPENAI_API_KEY=user-openai-secret",
+                        "GEMINI_API_KEY=user-gemini-secret",
+                        "GOOGLE_API_KEY=user-google-secret",
+                        "ANTHROPIC_API_KEY=user-anthropic-secret")
+                .doesNotContain("SOLONCLAW_PROVIDER_DEFAULT_API_KEY", "SOLONCLAW_SPEECH_API_KEY");
         assertThat(work.resolve("SOUL.md")).exists();
         assertThat(work.resolve("MEMORY.md")).exists();
         assertThat(work.resolve("skills/demo/SKILL.md")).exists();
@@ -87,7 +110,15 @@ class ProfileManagerTest {
     void cloneAllKeepsProfileFilesButStartsWithFreshRuntimeState() throws Exception {
         write(
                 root.resolve("config.yml"),
-                "providers:\n  default:\n    apiKey: clone-all-secret\nmodel:\n  providerKey: default\n  default: source-model\n");
+                "providers:\n"
+                        + "  default:\n"
+                        + "    apiKey: clone-all-secret\n"
+                        + "    defaultModel: source-model\n"
+                        + "    models:\n"
+                        + "      - source-model\n"
+                        + "model:\n"
+                        + "  providerKey: default\n"
+                        + "  default: source-model\n");
         write(root.resolve("memory/2026-07-11.md"), "source memory\n");
         write(root.resolve("logs/gateway.log"), "source log\n");
         write(root.resolve("forensics/shutdown.json"), "runtime history\n");
@@ -187,7 +218,16 @@ class ProfileManagerTest {
     @Test
     void basicCloneMatchesFileAndTreeSymbolicLinkSemantics() throws Exception {
         assumeSymbolicLinksSupported();
-        write(root.resolve("source-config.yml"), "model:\n  default: linked-model\n");
+        write(
+                root.resolve("source-config.yml"),
+                "providers:\n"
+                        + "  default:\n"
+                        + "    defaultModel: linked-model\n"
+                        + "    models:\n"
+                        + "      - linked-model\n"
+                        + "model:\n"
+                        + "  providerKey: default\n"
+                        + "  default: linked-model\n");
         Files.createSymbolicLink(root.resolve("config.yml"), Paths.get("source-config.yml"));
         write(root.resolve("skills/demo/target.txt"), "target\n");
         Files.createSymbolicLink(root.resolve("skills/demo/link"), Paths.get("target.txt"));
@@ -197,9 +237,30 @@ class ProfileManagerTest {
 
         Path clone = manager.profileHome("linked");
         assertThat(Files.isSymbolicLink(clone.resolve("config.yml"))).isFalse();
-        assertThat(clone.resolve("config.yml")).hasContent("model:\n  default: linked-model\n");
+        assertThat(clone.resolve("config.yml"))
+                .content()
+                .contains("providerKey: default", "default: linked-model")
+                .doesNotContain("providers:");
         assertThat(Files.isSymbolicLink(clone.resolve("skills/demo/link"))).isTrue();
         assertThat(Files.isSymbolicLink(clone.resolve("skills/demo/broken"))).isTrue();
+    }
+
+    /** 克隆不得把根 Provider 注册表中不存在的模型带入新 Profile。 */
+    @Test
+    void rejectsClonedProfileWithUnregisteredModel() throws Exception {
+        writeRootProviderModels("registered-model");
+        manager.createProfile(
+                "source", new ProfileCreateOptions().setNoAlias(true).setNoSkills(true));
+        write(
+                manager.profileHome("source").resolve("config.yml"),
+                "model:\n  providerKey: default\n  default: missing-model\n");
+
+        CommandResult result =
+                run("default", "create", "copy", "--clone-from", "source", "--no-alias");
+
+        assertThat(result.exitCode).isEqualTo(1);
+        assertThat(result.stderr).contains("missing-model");
+        assertThat(manager.profileHome("copy")).doesNotExist();
     }
 
     /** clone_from 只以 null 表示未提供；显式空值必须按非法名称拒绝。 */
@@ -304,7 +365,7 @@ class ProfileManagerTest {
         write(source.resolve(".env.example"), "TOKEN=\n");
         write(source.resolve(".env.local"), "TOKEN=local-secret\n");
         write(source.resolve("MEMORY.md"), "# durable memory\n");
-        write(source.resolve("data/state.db"), "session-state");
+        createStateDatabase(source.resolve("data/state.db"));
         Path archive = tempDir.resolve("source.tar.gz");
 
         runOk("default", "export", "source", "-o", archive.toString());
@@ -329,6 +390,7 @@ class ProfileManagerTest {
     void defaultExportUsesPortableAllowListAndPreservesOutputPath() throws Exception {
         write(root.resolve("config.yml"), "model:\n  default: portable\n");
         write(root.resolve("SOUL.md"), "portable soul\n");
+        write(root.resolve("system_prompt.md"), "obsolete persona prompt\n");
         write(root.resolve("skills/demo/SKILL.md"), "# demo\n");
         write(root.resolve("unrelated-project/private.txt"), "do not export\n");
         write(root.resolve("logs/gateway.log"), "runtime log\n");
@@ -346,6 +408,7 @@ class ProfileManagerTest {
         Path exported = extracted.resolve("default");
         assertThat(exported.resolve("config.yml")).exists();
         assertThat(exported.resolve("SOUL.md")).exists();
+        assertThat(exported.resolve("system_prompt.md")).doesNotExist();
         assertThat(exported.resolve("skills/demo/SKILL.md")).exists();
         assertThat(exported.resolve("unrelated-project")).doesNotExist();
         assertThat(exported.resolve("logs")).doesNotExist();
@@ -448,6 +511,97 @@ class ProfileManagerTest {
         assertThat(imported.resolve("marker.txt")).hasContent("inferred\n");
     }
 
+    /** 导入不得留下引用未登记模型的半成品 Profile。 */
+    @Test
+    void rejectsImportedProfileWithUnregisteredModelAndRollsBack() throws Exception {
+        writeRootProviderModels("registered-model");
+        manager.createProfile(
+                "portable", new ProfileCreateOptions().setNoAlias(true).setNoSkills(true));
+        write(
+                manager.profileHome("portable").resolve("config.yml"),
+                "model:\n  providerKey: default\n  default: missing-model\n");
+        Path archive = tempDir.resolve("portable-invalid.tar.gz");
+        manager.exportProfile("portable", archive);
+        manager.deleteProfile("portable");
+
+        assertThatThrownBy(() -> manager.importProfile(archive, "restored"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("missing-model");
+        assertThat(manager.profileHome("restored")).doesNotExist();
+    }
+
+    /** 导入必须校验备用链中的每个 Provider/模型对并删除失败后的半成品。 */
+    @Test
+    void rejectsImportedProfileWithUnregisteredFallbackModelAndRollsBack() throws Exception {
+        writeRootProviderModels("registered-model");
+        manager.createProfile(
+                "portable", new ProfileCreateOptions().setNoAlias(true).setNoSkills(true));
+        write(
+                manager.profileHome("portable").resolve("config.yml"),
+                "model:\n"
+                        + "  providerKey: default\n"
+                        + "  default: registered-model\n"
+                        + "fallbackProviders:\n"
+                        + "  - provider: default\n"
+                        + "    model: missing-fallback\n");
+        Path archive = tempDir.resolve("portable-invalid-fallback.tar.gz");
+        manager.exportProfile("portable", archive);
+        manager.deleteProfile("portable");
+
+        assertThatThrownBy(() -> manager.importProfile(archive, "restored"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("missing-fallback");
+        assertThat(manager.profileHome("restored")).doesNotExist();
+    }
+
+    /** 导入必须校验六类后台任务路由中的显式模型引用。 */
+    @Test
+    void rejectsImportedProfileWithUnregisteredTaskModelAndRollsBack() throws Exception {
+        writeRootProviderModels("registered-model");
+        manager.createProfile(
+                "portable", new ProfileCreateOptions().setNoAlias(true).setNoSkills(true));
+        write(
+                manager.profileHome("portable").resolve("config.yml"),
+                "model:\n"
+                        + "  providerKey: default\n"
+                        + "  default: registered-model\n"
+                        + "solonclaw:\n"
+                        + "  proactive:\n"
+                        + "    modelProvider: default\n"
+                        + "    model: missing-monitor\n");
+        Path archive = tempDir.resolve("portable-invalid-task.tar.gz");
+        manager.exportProfile("portable", archive);
+        manager.deleteProfile("portable");
+
+        assertThatThrownBy(() -> manager.importProfile(archive, "restored"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("missing-monitor");
+        assertThat(manager.profileHome("restored")).doesNotExist();
+    }
+
+    /** 导入必须只读校验归档状态库中的 Cron 固定模型引用。 */
+    @Test
+    void rejectsImportedProfileWithUnregisteredCronModelAndRollsBack() throws Exception {
+        writeRootProviderModels("registered-model");
+        manager.createProfile(
+                "portable", new ProfileCreateOptions().setNoAlias(true).setNoSkills(true));
+        write(
+                manager.profileHome("portable").resolve("config.yml"),
+                "model:\n  providerKey: default\n  default: registered-model\n");
+        createCronStateDatabase(
+                manager.profileHome("portable").resolve("data/state.db"),
+                "default",
+                "missing-cron-model");
+        Path archive = tempDir.resolve("portable-invalid-cron.tar.gz");
+        manager.exportProfile("portable", archive);
+        manager.deleteProfile("portable");
+
+        assertThatThrownBy(() -> manager.importProfile(archive, "restored"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("missing-cron-model");
+        assertThat(manager.profileHome("restored")).doesNotExist();
+    }
+
     /** 归档成员必须留在临时解压目录内，拒绝绝对路径和父目录穿越。 */
     @Test
     void rejectsUnsafeArchiveMemberPaths() {
@@ -462,11 +616,14 @@ class ProfileManagerTest {
     /** install/info 支持本地分发包；force 覆盖分发文件时保留凭据、记忆和会话数据。 */
     @Test
     void installsDistributionAndPreservesUserStateOnForce() throws Exception {
+        writeRootProviderModels("first-model", "second-model");
         Path distribution = tempDir.resolve("distribution");
         write(
                 distribution.resolve("distribution.yaml"),
                 "name: ops\nversion: 1.0.0\ndescription: ops profile\n");
-        write(distribution.resolve("config.yml"), "model:\n  default: first-model\n");
+        write(
+                distribution.resolve("config.yml"),
+                "model:\n  providerKey: default\n  default: first-model\n");
         write(distribution.resolve("skills/ops/SKILL.md"), "# first\n");
 
         runOk("default", "install", "--alias", "--name=ops", "-y", distribution.toString());
@@ -479,19 +636,40 @@ class ProfileManagerTest {
 
         write(installed.resolve(".env"), "TOKEN=user-secret\n");
         write(installed.resolve("MEMORY.md"), "# user memory\n");
-        write(installed.resolve("data/state.db"), "user-state");
+        createStateDatabase(installed.resolve("data/state.db"));
         write(
                 distribution.resolve("distribution.yaml"),
                 "name: ops\nversion: 2.0.0\ndescription: ops profile v2\n");
-        write(distribution.resolve("config.yml"), "model:\n  default: second-model\n");
+        write(
+                distribution.resolve("config.yml"),
+                "model:\n  providerKey: default\n  default: second-model\n");
 
         runOk("default", "install", "--force", "--yes", distribution.toString());
 
         assertThat(Files.readString(installed.resolve("config.yml"))).contains("second-model");
         assertThat(Files.readString(installed.resolve(".env"))).contains("user-secret");
         assertThat(Files.readString(installed.resolve("MEMORY.md"))).contains("user memory");
-        assertThat(Files.readString(installed.resolve("data/state.db"))).contains("user-state");
+        assertThat(hasStateDatabaseProbe(installed.resolve("data/state.db"))).isTrue();
         assertThat(runOk("default", "info", "ops").stdout).contains("Version: 2.0.0");
+    }
+
+    /** 分发安装必须在创建目标目录前拒绝未登记 Provider。 */
+    @Test
+    void rejectsDistributionWithUnregisteredProviderBeforeInstall() throws Exception {
+        writeRootProviderModels("registered-model");
+        Path distribution = tempDir.resolve("invalid-provider-distribution");
+        write(
+                distribution.resolve("distribution.yaml"),
+                "name: invalid-provider\nversion: 1.0.0\n");
+        write(
+                distribution.resolve("config.yml"),
+                "model:\n  providerKey: missing-provider\n  default: registered-model\n");
+
+        CommandResult result = run("default", "install", distribution.toString(), "-y");
+
+        assertThat(result.exitCode).isEqualTo(1);
+        assertThat(result.stderr).contains("missing-provider");
+        assertThat(manager.profileHome("invalid-provider")).doesNotExist();
     }
 
     /** create/describe/no-skills 写入 Profile 局部元数据，并通过结构化视图公开隔离路径。 */
@@ -510,7 +688,7 @@ class ProfileManagerTest {
         assertThat(view.getDescription()).isEqualTo("Routes focused tasks.");
         assertThat(view.isNoBundledSkills()).isTrue();
         assertThat(view.getSoul()).isRegularFile();
-        assertThat(Files.readString(view.getSoul())).isEmpty();
+        assertThat(Files.readString(view.getSoul())).contains("# SOUL.md - 我如何成为我");
         assertThat(view.getHome()).isEqualTo(manager.profileHome("router"));
         assertThat(view.getSessions().toString()).endsWith("data/state.db");
         assertThat(view.getMemoryDir().toString()).endsWith("memory");
@@ -681,16 +859,23 @@ class ProfileManagerTest {
     /** 分发 update 默认保留本机 config.yml，--force-config 才应用远端配置。 */
     @Test
     void updatesDistributionWithoutOverwritingLocalConfigByDefault() throws Exception {
+        writeRootProviderModels("first-model", "local-model", "second-model");
         Path distribution = tempDir.resolve("updatable-distribution");
         write(distribution.resolve("distribution.yaml"), "name: deploy\nversion: 1.0.0\n");
-        write(distribution.resolve("config.yml"), "model:\n  default: first-model\n");
+        write(
+                distribution.resolve("config.yml"),
+                "model:\n  providerKey: default\n  default: first-model\n");
         write(distribution.resolve("skills/deploy/SKILL.md"), "# first\n");
         runOk("default", "install", distribution.toString(), "-y");
 
         Path installed = manager.profileHome("deploy");
-        write(installed.resolve("config.yml"), "model:\n  default: local-model\n");
+        write(
+                installed.resolve("config.yml"),
+                "model:\n  providerKey: default\n  default: local-model\n");
         write(distribution.resolve("distribution.yaml"), "name: deploy\nversion: 2.0.0\n");
-        write(distribution.resolve("config.yml"), "model:\n  default: second-model\n");
+        write(
+                distribution.resolve("config.yml"),
+                "model:\n  providerKey: default\n  default: second-model\n");
         write(distribution.resolve("skills/deploy/SKILL.md"), "# second\n");
 
         runOk("default", "update", "deploy", "-y");
@@ -704,6 +889,31 @@ class ProfileManagerTest {
                 .contains("Version: 2.0.0")
                 .contains("Installed:")
                 .contains("Updated:");
+    }
+
+    /** 强制更新配置前必须校验模型引用，失败时保留已安装版本与配置。 */
+    @Test
+    void rejectsDistributionUpdateWithUnregisteredModelBeforeMutation() throws Exception {
+        writeRootProviderModels("registered-model");
+        Path distribution = tempDir.resolve("invalid-update-distribution");
+        write(distribution.resolve("distribution.yaml"), "name: guarded\nversion: 1.0.0\n");
+        write(
+                distribution.resolve("config.yml"),
+                "model:\n  providerKey: default\n  default: registered-model\n");
+        runOk("default", "install", distribution.toString(), "-y");
+        Path installedConfig = manager.profileHome("guarded").resolve("config.yml");
+
+        write(distribution.resolve("distribution.yaml"), "name: guarded\nversion: 2.0.0\n");
+        write(
+                distribution.resolve("config.yml"),
+                "model:\n  providerKey: default\n  default: missing-model\n");
+
+        CommandResult result = run("default", "update", "guarded", "--force-config", "-y");
+
+        assertThat(result.exitCode).isEqualTo(1);
+        assertThat(result.stderr).contains("missing-model");
+        assertThat(installedConfig).content().contains("default: registered-model");
+        assertThat(manager.distributionInfo("guarded")).containsEntry("version", "1.0.0");
     }
 
     /** 更新 default Profile 时必须保留根工作区的全局 Provider 注册表和模型凭据。 */
@@ -1073,6 +1283,64 @@ class ProfileManagerTest {
         assertThat(missing.stdout)
                 .contains("No alias 'missing-alias' found to remove.")
                 .doesNotContain("Removed alias");
+    }
+
+    /** 写入包含明确模型清单的根 Provider 注册表。 */
+    private void writeRootProviderModels(String... models) throws Exception {
+        if (models == null || models.length == 0) {
+            throw new IllegalArgumentException("At least one model is required.");
+        }
+        StringBuilder yaml = new StringBuilder();
+        yaml.append("providers:\n");
+        yaml.append("  default:\n");
+        yaml.append("    defaultModel: ").append(models[0]).append('\n');
+        yaml.append("    models:\n");
+        for (String model : models) {
+            yaml.append("      - ").append(model).append('\n');
+        }
+        yaml.append("model:\n");
+        yaml.append("  providerKey: default\n");
+        yaml.append("  default: ").append(models[0]).append('\n');
+        write(root.resolve("config.yml"), yaml.toString());
+    }
+
+    /** 创建不含 Cron 表的有效 SQLite 状态库。 */
+    private void createStateDatabase(Path stateDb) throws Exception {
+        Files.createDirectories(stateDb.getParent());
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + stateDb);
+                Statement statement = connection.createStatement()) {
+            statement.execute("create table session_probe (id text primary key)");
+        }
+    }
+
+    /** 判断安装覆盖后原状态库探针表仍然存在。 */
+    private boolean hasStateDatabaseProbe(Path stateDb) throws Exception {
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + stateDb);
+                PreparedStatement statement =
+                        connection.prepareStatement(
+                                "select 1 from sqlite_master where type='table' and name='session_probe'");
+                ResultSet resultSet = statement.executeQuery()) {
+            return resultSet.next();
+        }
+    }
+
+    /** 创建带一条固定模型引用的最小 Cron 状态库。 */
+    private void createCronStateDatabase(Path stateDb, String provider, String model)
+            throws Exception {
+        Files.createDirectories(stateDb.getParent());
+        try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + stateDb);
+                Statement statement = connection.createStatement()) {
+            statement.execute(
+                    "create table cron_jobs (job_id text primary key, provider text, model text)");
+            try (PreparedStatement insert =
+                    connection.prepareStatement(
+                            "insert into cron_jobs (job_id, provider, model) values (?, ?, ?)")) {
+                insert.setString(1, "cron-import-reference");
+                insert.setString(2, provider);
+                insert.setString(3, model);
+                insert.executeUpdate();
+            }
+        }
     }
 
     /** 执行一个预期成功的 Profile 命令。 */

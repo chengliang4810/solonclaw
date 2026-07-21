@@ -15,6 +15,42 @@ import org.noear.solon.core.Props;
 
 /** 验证 Provider 注册表、模型列表、默认模型和故障切换配置的加载行为。 */
 public class AppConfigProviderLoadTest {
+    /** Provider 解析只允许默认模型或 models 中显式登记的模型。 */
+    @Test
+    void shouldRejectUnregisteredModelAtRuntimeBoundary() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("main-model");
+        provider.setModels(java.util.Arrays.asList("main-model", "extra-model"));
+        config.getProviders().put("custom", provider);
+        LlmProviderService service = new LlmProviderService(config);
+
+        assertThat(service.resolveProvider("custom", "extra-model").getModel())
+                .isEqualTo("extra-model");
+        assertThatThrownBy(() -> service.resolveProvider("custom", "missing-model"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("未在 Provider custom 中登记");
+    }
+
+    /** 默认 Provider 的扁平配置必须加载完整模型清单，并把默认模型规范化到首位。 */
+    @Test
+    void shouldLoadFlatDefaultProviderModels() throws Exception {
+        File workspaceHome = Files.createTempDirectory("solonclaw-flat-default-provider").toFile();
+        try {
+            Props props = new Props();
+            props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
+            props.put("providers.default.defaultModel", "main-model");
+            props.put("providers.default.models", "aux-model,main-model,aux-model");
+
+            AppConfig config = AppConfig.loadDetached(props);
+
+            assertThat(config.getProviders().get("default").getModels())
+                    .containsExactly("main-model", "aux-model");
+        } finally {
+            FileUtil.del(workspaceHome);
+        }
+    }
+
     @Test
     void shouldLoadRepositoryConfigExample() throws Exception {
         File workspaceHome = Files.createTempDirectory("solonclaw-config-example").toFile();
@@ -72,9 +108,11 @@ public class AppConfigProviderLoadTest {
                         + "  - provider: backup\n"
                         + "solonclaw:\n"
                         + "  compression:\n"
+                        + "    summaryProvider: openai-direct\n"
                         + "    summaryModel: gpt-5\n"
                         + "  learning:\n"
-                        + "    modelProvider: backup\n",
+                        + "    modelProvider: backup\n"
+                        + "    model: claude-sonnet-4\n",
                 new File(workspaceHome, "config.yml"));
 
         Props props = new Props();
@@ -114,6 +152,44 @@ public class AppConfigProviderLoadTest {
         assertThat(config.getCompression().getSummaryModel()).isEqualTo("gpt-5");
         assertThat(config.getLearning().getModelProvider()).isEqualTo("backup");
         assertThat(config.getLearning().getModel()).isEqualTo("claude-sonnet-4");
+    }
+
+    /** 后台任务模型路由必须同时提供 Provider 和模型，不自动补全半组配置。 */
+    @Test
+    void shouldRejectPartialTaskModelRoutes() throws Exception {
+        assertInvalidTaskRoute(
+                "solonclaw:\n  compression:\n    summaryModel: task-model\n",
+                "compression 必须同时指定 provider 和 model");
+        assertInvalidTaskRoute(
+                "solonclaw:\n  learning:\n    modelProvider: test\n",
+                "background_review 必须同时指定 provider 和 model");
+    }
+
+    /** 后台任务模型必须已经登记在对应 Provider 的模型清单中。 */
+    @Test
+    void shouldRejectUnregisteredTaskModel() throws Exception {
+        assertInvalidTaskRoute(
+                "solonclaw:\n"
+                        + "  compression:\n"
+                        + "    summaryProvider: test\n"
+                        + "    summaryModel: missing-model\n",
+                "compression 引用了 provider test 中未登记的模型：missing-model");
+    }
+
+    /** 主模型覆盖和故障切换模型都必须使用 Provider 已登记模型。 */
+    @Test
+    void shouldRejectUnregisteredMainAndFallbackModels() throws Exception {
+        assertInvalidModelReference(
+                "model:\n  providerKey: test\n  default: missing-main\n",
+                "model.default 引用了 provider test 中未登记的模型：missing-main");
+        assertInvalidModelReference(
+                "model:\n"
+                        + "  providerKey: test\n"
+                        + "  default: main-model\n"
+                        + "fallbackProviders:\n"
+                        + "  - provider: test\n"
+                        + "    model: missing-fallback\n",
+                "fallbackProviders 引用了 provider test 中未登记的模型：missing-fallback");
     }
 
     @Test
@@ -316,5 +392,35 @@ public class AppConfigProviderLoadTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("provider.baseUrl")
                 .hasMessageContaining("userinfo");
+    }
+
+    /** 写入完整 Provider 基础配置并断言任务路由加载失败。 */
+    private void assertInvalidTaskRoute(String routeConfig, String expectedMessage)
+            throws Exception {
+        assertInvalidModelReference(
+                "model:\n  providerKey: test\n  default: main-model\n" + routeConfig,
+                expectedMessage);
+    }
+
+    /** 写入完整 Provider 基础配置并断言指定模型引用加载失败。 */
+    private void assertInvalidModelReference(String referenceConfig, String expectedMessage)
+            throws Exception {
+        File workspaceHome = Files.createTempDirectory("jimuqu-provider-strict-model").toFile();
+        FileUtil.writeUtf8String(
+                "providers:\n"
+                        + "  test:\n"
+                        + "    name: 测试渠道\n"
+                        + "    baseUrl: https://api.example.com/v1\n"
+                        + "    defaultModel: main-model\n"
+                        + "    models: [main-model, task-model]\n"
+                        + "    dialect: openai\n"
+                        + referenceConfig,
+                new File(workspaceHome, "config.yml"));
+        Props props = new Props();
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
+
+        assertThatThrownBy(() -> AppConfig.loadDetached(props))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(expectedMessage);
     }
 }

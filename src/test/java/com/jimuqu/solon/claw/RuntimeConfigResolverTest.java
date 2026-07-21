@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.support.ModelConfigKeySupport;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import java.io.File;
 import java.nio.file.Files;
@@ -198,32 +199,37 @@ public class RuntimeConfigResolverTest {
                                 service.writeNonSecret(
                                         "providers.default.apiKey", "sk-write-secret-12345", false))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("密钥配置");
+                .hasMessageContaining(ModelConfigKeySupport.DEDICATED_ENTRY_MESSAGE);
 
         assertThatThrownBy(() -> service.updateSecret("solonclaw.react.maxSteps", "10", false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("不是密钥配置");
 
-        service.updateSecret("providers.default.apiKey", "sk-runtime-secret-12345", false);
-        assertThat(String.valueOf(service.getConfigItems().get("providers.default.apiKey")))
+        service.updateSecret("solonclaw.gateway.injectionSecret", "sk-runtime-secret-12345", false);
+        assertThat(
+                        String.valueOf(
+                                service.getConfigItems().get("solonclaw.gateway.injectionSecret")))
                 .contains("redacted_value")
                 .doesNotContain("sk-runtime-secret-12345");
-        assertThat(service.reveal("providers.default.apiKey"))
+        assertThat(service.reveal("solonclaw.gateway.injectionSecret"))
                 .containsEntry("value", "sk-runtime-secret-12345");
 
         assertThatThrownBy(
                         () ->
                                 service.updateSecret(
-                                        "providers.default.apiKey", "sk-runti...2345", false))
+                                        "solonclaw.gateway.injectionSecret",
+                                        "sk-runti...2345",
+                                        false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("占位符密钥");
         assertThatThrownBy(
                         () ->
                                 RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath())
-                                        .setFileValue("providers.default.apiKey", "configured"))
+                                        .setFileValue(
+                                                "solonclaw.gateway.injectionSecret", "configured"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("占位符密钥");
-        assertThat(service.reveal("providers.default.apiKey"))
+        assertThat(service.reveal("solonclaw.gateway.injectionSecret"))
                 .containsEntry("value", "sk-runtime-secret-12345");
         assertThatThrownBy(() -> service.reveal("solonclaw.react.maxSteps"))
                 .isInstanceOf(IllegalStateException.class)

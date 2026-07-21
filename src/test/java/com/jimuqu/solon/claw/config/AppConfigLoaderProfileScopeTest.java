@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.profile.ProfileEnvironmentLoader;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.RuntimeConfigResolverSupport;
 import java.nio.file.Files;
@@ -101,6 +102,47 @@ public class AppConfigLoaderProfileScopeTest {
         assertThat(config.getModel().getProviderKey()).isEqualTo("dwf");
     }
 
+    /** Provider 凭据只接受当前项目专属键，不再读取协议通用环境变量。 */
+    @Test
+    void shouldOnlyLoadExplicitSolonclawProviderCredential() throws Exception {
+        Path root = Files.createTempDirectory("profile-explicit-provider-env");
+        Files.writeString(
+                root.resolve(".env"),
+                "OPENAI_API_KEY=legacy-openai\n"
+                        + "GEMINI_API_KEY=legacy-gemini\n"
+                        + "GOOGLE_API_KEY=legacy-google\n"
+                        + "ANTHROPIC_API_KEY=legacy-anthropic\n");
+        AppConfig config = providerConfig("dwf", "openai");
+
+        ProfileEnvironmentLoader.applyGlobalProviderCredentials(config, root);
+
+        assertThat(config.getProviders().get("dwf").getApiKey()).isBlank();
+
+        Files.writeString(root.resolve(".env"), "SOLONCLAW_PROVIDER_DWF_API_KEY=current-key\n");
+        ProfileEnvironmentLoader.applyGlobalProviderCredentials(config, root);
+
+        assertThat(config.getProviders().get("dwf").getApiKey()).isEqualTo("current-key");
+    }
+
+    /** 语音凭据只接受当前项目专属键，不再隐式复用模型 Provider 密钥。 */
+    @Test
+    void shouldOnlyLoadExplicitSolonclawSpeechCredential() {
+        AppConfig config = new AppConfig();
+        Map<String, String> environment = new LinkedHashMap<String, String>();
+        environment.put("OPENAI_API_KEY", "legacy-openai");
+
+        ProfileEnvironmentLoader.apply(config, environment);
+
+        assertThat(config.getSpeech().getTts().getApiKey()).isBlank();
+        assertThat(config.getSpeech().getStt().getApiKey()).isBlank();
+
+        environment.put("SOLONCLAW_SPEECH_API_KEY", "speech-key");
+        ProfileEnvironmentLoader.apply(config, environment);
+
+        assertThat(config.getSpeech().getTts().getApiKey()).isEqualTo("speech-key");
+        assertThat(config.getSpeech().getStt().getApiKey()).isEqualTo("speech-key");
+    }
+
     /** 每个 Profile 的运行时解析器必须独立重载自己的配置，并且不能替换进程全局解析器。 */
     @Test
     void shouldKeepRuntimeConfigResolversIndependentAcrossProfiles() throws Exception {
@@ -151,6 +193,16 @@ public class AppConfigLoaderProfileScopeTest {
         props.put("security.allowPrivateUrls", String.valueOf(allowPrivateUrls));
         props.put("solonclaw.gateway.multiplexProfiles", String.valueOf(multiplexProfiles));
         return props;
+    }
+
+    /** 创建仅含一个 Provider 的最小配置，用于验证根工作区凭据加载。 */
+    private AppConfig providerConfig(String providerKey, String dialect) {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDialect(dialect);
+        config.getProviders().put(providerKey, provider);
+        config.getModel().setProviderKey(providerKey);
+        return config;
     }
 
     /** 复现配置加载器认可的 true 令牌，用于计算当前进程环境预期值。 */

@@ -253,7 +253,6 @@ public class DashboardSessionServiceTest {
         root.setBranchName("main-token=ghp_rootbranchsecret12345");
         root.setLastResolvedProvider("provider-token=ghp_rootprovidersecret12345");
         root.setLastResolvedModel("model-token=ghp_rootmodelsecret12345");
-        root.setActiveAgentName("agent-token=ghp_rootagentsecret12345");
         root.setCompressedSummary("summary token=ghp_rootsummarysecret12345");
         root.setNdjson(
                 MessageSupport.toNdjson(

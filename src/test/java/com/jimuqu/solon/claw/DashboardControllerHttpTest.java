@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.ModelConfigKeySupport;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -137,7 +138,6 @@ public class DashboardControllerHttpTest {
         run.setSessionId(sessionId);
         run.setSourceKey(sourceKey);
         run.setRunKind("conversation");
-        run.setAgentName("default");
         run.setStatus("failed");
         run.setPhase("failed");
         run.setInputPreview(userInput);
@@ -207,7 +207,7 @@ public class DashboardControllerHttpTest {
         HttpResult authorizedRuntimeConfig = request("GET", "/api/workspace-config", null, token);
         assertThat(authorizedRuntimeConfig.status).isEqualTo(200);
         assertThat(authorizedRuntimeConfig.body)
-                .contains("providers.default.apiKey")
+                .contains("solonclaw.gateway.injectionSecret")
                 .contains("solonclaw.task.toolOutputInlineLimit")
                 .contains("solonclaw.task.toolOutputTurnBudget")
                 .contains("solonclaw.task.toolOutputMaxLines")
@@ -546,24 +546,19 @@ public class DashboardControllerHttpTest {
                         "/api/config",
                         "{\"config\":{\"dashboard\":{\"accessToken\":\""
                                 + DASHBOARD_TEST_TOKEN
-                                + "\"},\"providers\":{\"default\":{\"defaultModel\":\"dashboard-model\"}},\"scheduler\":{\"tickSeconds\":45}}}",
+                                + "\"},\"llm\":{\"temperature\":0.35},\"scheduler\":{\"tickSeconds\":45}}}",
                         token);
         assertThat(saveConfig.status).isEqualTo(200);
         File overrideFile = new File(workspaceHome, "config.yml");
         assertThat(overrideFile).exists();
         assertThat(FileUtil.readUtf8String(overrideFile))
-                .contains("providers:")
-                .contains("defaultModel: dashboard-model")
-                .doesNotContain("model: dashboard-model");
+                .contains("llm:")
+                .contains("temperature: 0.35")
+                .doesNotContain("dashboard-model");
 
         HttpResult configSchema = request("GET", "/api/config/schema", null, token);
         assertThat(configSchema.status).isEqualTo(200);
         assertThat(configSchema.body)
-                .contains("\"model.providerKey\"")
-                .contains("\"providers.default.name\"")
-                .contains("\"providers.default.baseUrl\"")
-                .contains("\"providers.default.defaultModel\"")
-                .contains("\"providers.default.dialect\"")
                 .contains("\"task.toolOutputInlineLimit\"")
                 .contains("\"task.toolOutputTurnBudget\"")
                 .contains("\"task.toolOutputMaxLines\"")
@@ -572,6 +567,11 @@ public class DashboardControllerHttpTest {
                 .contains("\"channels.feishu.freeResponseChats\"")
                 .contains("\"channels.dingtalk.requireMention\"")
                 .contains("\"channels.dingtalk.freeResponseChats\"")
+                .doesNotContain("\"model.providerKey\"")
+                .doesNotContain("\"providers.default.name\"")
+                .doesNotContain("\"providers.default.baseUrl\"")
+                .doesNotContain("\"providers.default.defaultModel\"")
+                .doesNotContain("\"providers.default.dialect\"")
                 .doesNotContain("\"llm.provider\"")
                 .doesNotContain("\"llm.apiUrl\"")
                 .doesNotContain("\"llm.model\"")
@@ -581,11 +581,12 @@ public class DashboardControllerHttpTest {
                 request(
                         "PUT",
                         "/api/workspace-config",
-                        "{\"key\":\"providers.default.apiKey\",\"value\":\"secret12345678\"}",
+                        "{\"key\":\"solonclaw.gateway.injectionSecret\",\"value\":\"secret12345678\"}",
                         token);
         assertThat(saveRuntimeConfig.status).isEqualTo(200);
         assertThat(overrideFile).exists();
-        assertThat(FileUtil.readUtf8String(overrideFile)).contains("apiKey: secret12345678");
+        assertThat(FileUtil.readUtf8String(overrideFile))
+                .contains("injectionSecret: secret12345678");
 
         HttpResult saveToolOutputBudget =
                 request(
@@ -603,7 +604,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/workspace-config/reveal",
-                        "{\"key\":\"providers.default.apiKey\"}",
+                        "{\"key\":\"solonclaw.gateway.injectionSecret\"}",
                         token);
         assertThat(revealRuntimeConfig.status).isEqualTo(200);
         assertThat(revealRuntimeConfig.body).contains("secret12345678");
@@ -1105,12 +1106,12 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/cron/jobs",
-                        "{\"prompt\":\"daily summary\",\"schedule\":\"0 9 * * *\",\"name\":\"Daily summary\",\"deliver\":\"feishu\",\"deliver_chat_id\":\"chat-dashboard\",\"deliver_thread_id\":\"thread-dashboard\",\"provider\":\"openai-direct\",\"model\":\"gpt-5-mini\",\"base_url\":\"https://api.cron.example/v1/\"}",
+                        "{\"prompt\":\"daily summary\",\"schedule\":\"0 9 * * *\",\"name\":\"Daily summary\",\"deliver\":\"feishu\",\"deliver_chat_id\":\"chat-dashboard\",\"deliver_thread_id\":\"thread-dashboard\",\"provider\":\"openai-direct\",\"model\":\"gpt-5-mini\"}",
                         token);
         assertThat(createCron.status).isEqualTo(200);
         assertThat(createCron.body).contains("\"model\":\"gpt-5-mini\"");
         assertThat(createCron.body).contains("\"provider\":\"openai-direct\"");
-        assertThat(createCron.body).contains("\"base_url\":\"https://api.cron.example/v1\"");
+        assertThat(createCron.body).doesNotContain("\"base_url\"");
         assertThat(createCron.body).contains("\"deliver_chat_id\":\"chat-dashboard\"");
         assertThat(createCron.body).contains("\"deliver_thread_id\":\"thread-dashboard\"");
         String dashboardCronId = ONode.ofJson(createCron.body).get("data").get("id").getString();
@@ -1801,7 +1802,6 @@ public class DashboardControllerHttpTest {
         run.setSessionId("session-log-index-tool-20260614");
         run.setSourceKey("MEMORY:session-log-index-tool-20260614:user");
         run.setRunKind("conversation");
-        run.setAgentName("default");
         run.setStatus("success");
         run.setPhase("completed");
         run.setInputPreview("请执行只读工具 " + marker + " api_key=sk-logindex-runsecret12345");
@@ -3066,7 +3066,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "PUT",
                         "/api/workspace-config",
-                        "{\"key\":\"providers.default.apiKey\",\"value\":\"NONE\"}",
+                        "{\"key\":\"solonclaw.gateway.injectionSecret\",\"value\":\"NONE\"}",
                         token);
         assertThat(saveRuntimeConfig.status).isEqualTo(400);
         assertThat(saveRuntimeConfig.body)
@@ -3151,7 +3151,10 @@ public class DashboardControllerHttpTest {
                 .contains("请求体 JSON 解析失败")
                 .doesNotContain("ghp_invalidreveal12345")
                 .doesNotContain("providers.default.apiKey");
-        assertThat(deleteByBody.status).isEqualTo(200);
+        assertThat(deleteByBody.status).isEqualTo(400);
+        assertThat(deleteByBody.body)
+                .contains("WORKSPACE_CONFIG_BAD_REQUEST")
+                .contains(ModelConfigKeySupport.DEDICATED_ENTRY_MESSAGE);
     }
 
     @Test
@@ -3207,6 +3210,29 @@ public class DashboardControllerHttpTest {
                 .contains("CONFIG_BAD_REQUEST")
                 .contains("workspace-relative paths")
                 .doesNotContain("ghp_configraw12345");
+
+        HttpResult modelConfigSave =
+                request(
+                        "PUT",
+                        "/api/config",
+                        "{\"config\":{\"model\":{\"providerKey\":\"default\"}}}",
+                        token);
+        assertThat(modelConfigSave.status).isEqualTo(400);
+        assertThat(modelConfigSave.body)
+                .contains("CONFIG_BAD_REQUEST")
+                .contains(ModelConfigKeySupport.DEDICATED_ENTRY_MESSAGE);
+
+        HttpResult modelRawSave =
+                request(
+                        "PUT",
+                        "/api/config/raw",
+                        "{\"yaml_text\":\"providers:\\n  default:\\n    defaultModel: bypass-model\"}",
+                        token);
+        assertThat(modelRawSave.status).isEqualTo(400);
+        assertThat(modelRawSave.body)
+                .contains("CONFIG_BAD_REQUEST")
+                .contains(ModelConfigKeySupport.DEDICATED_ENTRY_MESSAGE)
+                .doesNotContain("bypass-model");
     }
 
     @Test
@@ -3267,7 +3293,7 @@ public class DashboardControllerHttpTest {
         assertThat(deleteDefault.status).isEqualTo(400);
         assertThat(deleteDefault.body)
                 .contains("PROVIDER_BAD_REQUEST")
-                .contains("当前默认 provider 不能删除");
+                .contains("Provider 正被根配置使用：default");
     }
 
     @Test

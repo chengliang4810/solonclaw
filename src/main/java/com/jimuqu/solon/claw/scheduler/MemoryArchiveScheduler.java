@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** 仅在 Agent 空闲时运行旧每日记忆归档的独立固定延迟调度器。 */
+/** 仅在 Agent 空闲时运行每日记忆归档的独立固定延迟调度器。 */
 public class MemoryArchiveScheduler {
     /** 调度日志。 */
     private static final Logger log = LoggerFactory.getLogger(MemoryArchiveScheduler.class);

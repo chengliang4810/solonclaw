@@ -53,7 +53,6 @@ public final class CommandServiceTestSupport {
                 appUpdateService,
                 env.dangerousCommandApprovalService,
                 env.agentRunControlService,
-                env.agentProfileService,
                 env.agentRunRepository,
                 null,
                 null,
@@ -93,6 +92,12 @@ public final class CommandServiceTestSupport {
         return new ContextService() {
             @Override
             public String buildSystemPrompt(String sourceKey) {
+                return "";
+            }
+
+            /** 测试上下文不注入人格提示词。 */
+            @Override
+            public String buildSoulPrompt(String sourceKey) {
                 return "";
             }
         };

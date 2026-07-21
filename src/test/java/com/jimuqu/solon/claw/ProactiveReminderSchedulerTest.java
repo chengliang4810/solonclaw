@@ -158,6 +158,9 @@ class ProactiveReminderSchedulerTest {
         assertThat(state.getUnansweredCount()).isEqualTo(1);
         assertThat(llmGateway.userPrompts.get(0))
                 .contains("current_time:", "last_user_activity_at:", "last_sent_at:");
+        assertThat(llmGateway.systemPrompts.get(1))
+                .contains("SOUL.md", "Proactive Message Rules")
+                .doesNotContain("语气随意自然，像朋友", "表达陪伴感");
 
         ProactiveDiagnosticsService diagnostics =
                 new ProactiveDiagnosticsService(
@@ -558,6 +561,9 @@ class ProactiveReminderSchedulerTest {
         /** 收到的用户提示。 */
         private final List<String> userPrompts = new ArrayList<String>();
 
+        /** 收到的系统提示，用于验证主动消息只从 SOUL 继承人格。 */
+        private final List<String> systemPrompts = new ArrayList<String>();
+
         /** 收到的模型会话，用于验证任务路由覆盖。 */
         private final List<SessionRecord> sessions = new ArrayList<SessionRecord>();
 
@@ -579,6 +585,7 @@ class ProactiveReminderSchedulerTest {
                 String userMessage,
                 List<Object> toolObjects) {
             sessions.add(session);
+            systemPrompts.add(systemPrompt);
             userPrompts.add(userMessage);
             int index = userPrompts.size() - 1;
             String content = index < responses.size() ? responses.get(index) : "";

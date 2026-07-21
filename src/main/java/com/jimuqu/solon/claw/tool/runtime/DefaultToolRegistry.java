@@ -1,7 +1,6 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -92,9 +91,6 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     /** 会话仓储。 */
     private final SessionRepository sessionRepository;
-
-    /** Agent profile 服务。 */
-    private final AgentProfileService agentProfileService;
 
     /** 定时任务仓储。 */
     private final CronJobService cronJobService;
@@ -216,7 +212,6 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param appConfig 应用运行配置。
      * @param preferenceStore 本地偏好存储依赖。
      * @param sessionRepository 会话仓储依赖。
-     * @param agentProfileService Agent profile 服务依赖。
      * @param cronJobService 定时任务Job服务依赖。
      * @param deliveryService 投递服务依赖。
      * @param memoryService 记忆服务依赖。
@@ -260,7 +255,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
             SessionRepository sessionRepository,
-            AgentProfileService agentProfileService,
             CronJobService cronJobService,
             DeliveryService deliveryService,
             MemoryService memoryService,
@@ -302,7 +296,6 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
         this.sessionRepository = sessionRepository;
-        this.agentProfileService = agentProfileService;
         this.cronJobService = cronJobService;
         this.deliveryService = deliveryService;
         this.memoryService = memoryService;

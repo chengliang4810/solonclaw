@@ -214,7 +214,6 @@ public class PersonaWorkspaceService {
     private void ensureSeeded() {
         boolean newWorkspace =
                 !file(ContextFileConstants.KEY_AGENTS).exists()
-                        && !file(ContextFileConstants.KEY_SOUL).exists()
                         && !file(ContextFileConstants.KEY_IDENTITY).exists()
                         && !file(ContextFileConstants.KEY_USER).exists();
         for (String key : orderedKeys()) {

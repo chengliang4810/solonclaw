@@ -177,7 +177,7 @@ function taskTagColor(status: ProfileTask['status']): string {
                     <h2>{{ profile.name }}</h2>
                     <Tag v-if="profile.name === 'default'">{{ t('profileAgents.defaultBadge') }}</Tag>
                   </div>
-                  <p>{{ profile.description || (profile.name === 'default' ? t('profileAgents.defaultRole') : t('profiles.noDescription')) }}</p>
+                  <p>{{ profile.description || (profile.name === 'default' ? t('profileAgents.defaultDescription') : t('profiles.noDescription')) }}</p>
                 </div>
               </div>
               <Tooltip :title="t('profileAgents.configure')">

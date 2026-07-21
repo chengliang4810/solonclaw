@@ -61,7 +61,6 @@ public class CronjobToolsSchedulerTest {
                         null,
                         null,
                         null,
-                        null,
                         null);
         Map<?, ?> created = (Map<?, ?>) ONode.ofJson(createdJson).toData();
         String jobId = String.valueOf(created.get("job_id"));
@@ -100,7 +99,6 @@ public class CronjobToolsSchedulerTest {
                         null,
                         null,
                         null,
-                        null,
                         null);
         Map<?, ?> duplicate = (Map<?, ?>) ONode.ofJson(duplicateJson).toData();
         assertThat(duplicate.get("job_id")).isEqualTo(jobId);
@@ -121,7 +119,6 @@ public class CronjobToolsSchedulerTest {
                                                 "FEISHU",
                                                 "chat-tool",
                                                 "thread-tool",
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -172,7 +169,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         String localModeJobId = String.valueOf(localModePayload.get("job_id"));
@@ -193,7 +189,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 "",
                                                 "",
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -231,12 +226,10 @@ public class CronjobToolsSchedulerTest {
                 null,
                 null,
                 null,
-                null,
                 null);
         tools.cronjob(
                 "remove",
                 localModeJobId,
-                null,
                 null,
                 null,
                 null,
@@ -264,7 +257,6 @@ public class CronjobToolsSchedulerTest {
         secretJob.setWorkdir("/tmp/token-workdir-ghp_crontoolworkdir12345");
         secretJob.setModel("model-ghp_crontoolmodel12345");
         secretJob.setProvider("provider-ghp_crontoolprovider12345");
-        secretJob.setBaseUrl("https://u:p@example.com/v1?token=crontool-token");
         secretJob.setStatus("PAUSED");
         secretJob.setPausedReason("paused token=ghp_crontoolpaused12345");
         env.cronJobRepository.save(secretJob);
@@ -279,7 +271,6 @@ public class CronjobToolsSchedulerTest {
                 .doesNotContain("ghp_crontoolworkdir12345")
                 .doesNotContain("ghp_crontoolmodel12345")
                 .doesNotContain("ghp_crontoolprovider12345")
-                .doesNotContain("crontool-token")
                 .doesNotContain("ghp_crontoolpaused12345")
                 .doesNotContain("u:p@example.com");
         service.remove(secretJob.getJobId());
@@ -313,7 +304,6 @@ public class CronjobToolsSchedulerTest {
                                                 Boolean.TRUE,
                                                 jobId,
                                                 "terminal,file",
-                                                null,
                                                 null,
                                                 null))
                                 .toData();
@@ -354,7 +344,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         Map<?, ?> aliasJob = (Map<?, ?>) aliasPayload.get("job");
@@ -381,12 +370,10 @@ public class CronjobToolsSchedulerTest {
                 null,
                 null,
                 null,
-                null,
                 null);
         tools.cronjob(
                 "remove",
                 metadataJobId,
-                null,
                 null,
                 null,
                 null,
@@ -426,7 +413,6 @@ public class CronjobToolsSchedulerTest {
                                                 java.util.Collections.singletonList(jobId),
                                                 java.util.Arrays.asList("web", "file"),
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         Map<?, ?> arrayJob = (Map<?, ?>) arrayPayload.get("job");
@@ -442,7 +428,6 @@ public class CronjobToolsSchedulerTest {
         tools.cronjob(
                 "remove",
                 arrayJobId,
-                null,
                 null,
                 null,
                 null,
@@ -480,7 +465,6 @@ public class CronjobToolsSchedulerTest {
                 null,
                 null,
                 null,
-                null,
                 "waiting for upstream fix");
         Map<?, ?> pausedTool = (Map<?, ?>) ONode.ofJson(cronjobList(tools, Boolean.TRUE)).toData();
         List<?> pausedJobs = (List<?>) pausedTool.get("jobs");
@@ -493,7 +477,7 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "inspect", jobId, null, null, null, null, null,
                                                 null, null, null, null, null, null, null, null,
-                                                null, null, null, null))
+                                                null, null, null))
                                 .toData();
         assertThat(inspected.get("job_id")).isEqualTo(jobId);
         assertThat(((Map<?, ?>) inspected.get("job")).get("paused_reason"))
@@ -504,7 +488,7 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "show", jobId, null, null, null, null, null, null,
                                                 null, null, null, null, null, null, null, null,
-                                                null, null, null))
+                                                null, null))
                                 .toData();
         Map<?, ?> detailAlias =
                 (Map<?, ?>)
@@ -512,7 +496,7 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "detail", jobId, null, null, null, null, null, null,
                                                 null, null, null, null, null, null, null, null,
-                                                null, null, null))
+                                                null, null))
                                 .toData();
         assertThat(showAlias.get("summary").toString()).contains("定时任务详情");
         assertThat(detailAlias.get("summary").toString()).contains("定时任务详情");
@@ -523,7 +507,7 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "list", null, null, null, null, null, null, null,
                                                 null, null, null, null, null, null, null, null,
-                                                null, null, null))
+                                                null, null))
                                 .toData();
         assertThat(defaultList.get("count")).isEqualTo(Integer.valueOf(1));
         List<?> defaultJobs = (List<?>) defaultList.get("jobs");
@@ -550,7 +534,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         assertThat(filteredList.get("count")).isEqualTo(Integer.valueOf(0));
@@ -569,7 +552,7 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "run", jobId, null, null, null, null, null, null,
                                                 null, null, null, null, null, null, null, null,
-                                                null, null, null))
+                                                null, null))
                                 .toData();
         assertThat(triggered.get("triggered")).isEqualTo(Boolean.TRUE);
         assertThat(triggered.get("trigger_message").toString()).contains("下一次调度 tick");
@@ -582,7 +565,7 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "remove", jobId, null, null, null, null, null, null,
                                                 null, null, null, null, null, null, null, null,
-                                                null, null, null))
+                                                null, null))
                                 .toData();
         assertThat(removed.get("message")).isEqualTo("定时任务 'tool-job' 已删除。");
         assertThat(((Map<?, ?>) removed.get("removed_job")).get("schedule")).isEqualTo("30m");
@@ -608,71 +591,38 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         assertThat(missingJob.get("status")).isEqualTo("error");
         assertThat(missingJob.get("error")).asString().contains("Job not found");
 
-        Map<String, Object> toolModel = new LinkedHashMap<String, Object>();
-        toolModel.put("model", "tool-object-model");
-        toolModel.put("provider", "custom");
-        Map<?, ?> toolObjectModel =
+        Map<?, ?> toolModel =
                 (Map<?, ?>)
                         ONode.ofJson(
                                         tools.cronjob(
                                                 "create",
+                                                null,
+                                                "tool-model",
+                                                "30m",
+                                                "tool model prompt",
+                                                "local",
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
+                                                null,
                                                 null,
                                                 "tool-object-model",
-                                                "30m",
-                                                "tool object model prompt",
-                                                "local",
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                toolModel,
-                                                null,
-                                                null))
+                                                "default"))
                                 .toData();
-        Map<?, ?> objectModelJob = (Map<?, ?>) toolObjectModel.get("job");
-        assertThat(objectModelJob.get("model")).isEqualTo("tool-object-model");
-        assertThat(objectModelJob.get("provider")).isEqualTo("default");
-
-        Map<?, ?> toolJsonModel =
-                (Map<?, ?>)
-                        ONode.ofJson(
-                                        tools.cronjob(
-                                                "create",
-                                                null,
-                                                "tool-json-model",
-                                                "30m",
-                                                "tool json model prompt",
-                                                "local",
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                null,
-                                                "{\"provider\":\"default\",\"model\":\"tool-json-model\",\"base_url\":\"https://api.json.example/\"}",
-                                                null,
-                                                null))
-                                .toData();
-        Map<?, ?> jsonModelJob = (Map<?, ?>) toolJsonModel.get("job");
-        assertThat(jsonModelJob.get("model")).isEqualTo("tool-json-model");
-        assertThat(jsonModelJob.get("provider")).isEqualTo("default");
-        assertThat(jsonModelJob.get("base_url")).isEqualTo("https://api.json.example");
+        Map<?, ?> modelJob = (Map<?, ?>) toolModel.get("job");
+        assertThat(modelJob.get("model")).isEqualTo("tool-object-model");
+        assertThat(modelJob.get("provider")).isEqualTo("default");
+        assertThat(modelJob.containsKey("base_url")).isFalse();
 
         Map<?, ?> emptyUpdate =
                 (Map<?, ?>)
@@ -680,7 +630,6 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "edit",
                                                 "missing-job",
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -724,7 +673,6 @@ public class CronjobToolsSchedulerTest {
                                                 Integer.valueOf(1),
                                                 null,
                                                 Boolean.TRUE,
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -849,7 +797,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         String upstreamJobId = String.valueOf(upstreamPayload.get("job_id"));
@@ -875,8 +822,7 @@ public class CronjobToolsSchedulerTest {
                                                 upstreamJobId,
                                                 "terminal,file",
                                                 "clear-model",
-                                                "default",
-                                                "https://api.clear.example/v1/"))
+                                                "default"))
                                 .toData();
         String jobId = String.valueOf(createPayload.get("job_id"));
         Map<?, ?> createdJob = (Map<?, ?>) createPayload.get("job");
@@ -888,7 +834,6 @@ public class CronjobToolsSchedulerTest {
                 .isEqualTo(java.util.Arrays.asList("terminal", "file"));
         assertThat(createdJob.get("model")).isEqualTo("clear-model");
         assertThat(createdJob.get("provider")).isEqualTo("default");
-        assertThat(createdJob.get("base_url")).isEqualTo("https://api.clear.example/v1");
 
         Map<?, ?> updatePayload =
                 (Map<?, ?>)
@@ -911,7 +856,6 @@ public class CronjobToolsSchedulerTest {
                                                 java.util.Collections.emptyList(),
                                                 java.util.Collections.emptyList(),
                                                 "",
-                                                "",
                                                 ""))
                                 .toData();
         Map<?, ?> updatedJob = (Map<?, ?>) updatePayload.get("job");
@@ -923,7 +867,7 @@ public class CronjobToolsSchedulerTest {
         assertThat(updatedJob.get("enabled_toolsets")).isNull();
         assertThat(updatedJob.get("model")).isNull();
         assertThat(updatedJob.get("provider")).isNull();
-        assertThat(updatedJob.get("base_url")).isNull();
+        assertThat(updatedJob.containsKey("base_url")).isFalse();
         assertThat(((CronJobRecord) service.require(jobId)).getPrompt())
                 .isEqualTo("agent prompt after clearing");
     }
@@ -948,7 +892,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 java.util.Arrays.asList("alpha", "beta"),
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -1003,7 +946,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         assertThat(((Map<?, ?>) updatePayload.get("job")).get("skills"))
@@ -1028,7 +970,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 Boolean.TRUE,
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -1074,7 +1015,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         String jobId = String.valueOf(createPayload.get("job_id"));
@@ -1085,7 +1025,6 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "update",
                                                 jobId,
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -1123,8 +1062,8 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "update", jobId, null, null, null, null, null, null,
                                                 null, null, null, null, null, null, null, null,
-                                                null, null, null, null, null, null, null, null,
-                                                "active", null, null, null))
+                                                null, null, null, null, null, null, null, "active",
+                                                null, null, null))
                                 .toData();
         Map<?, ?> resumedJob = (Map<?, ?>) resumedPayload.get("job");
         assertThat(resumedJob.get("enabled")).isEqualTo(Boolean.TRUE);
@@ -1159,7 +1098,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         Map<?, ?> soonPayload =
@@ -1183,7 +1121,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         Map<?, ?> pausedPayload =
@@ -1196,7 +1133,6 @@ public class CronjobToolsSchedulerTest {
                                                 "30m",
                                                 "paused prompt",
                                                 "local",
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -1247,7 +1183,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 Integer.valueOf(1)))
                                 .toData();
 
@@ -1265,7 +1200,6 @@ public class CronjobToolsSchedulerTest {
                         ONode.ofJson(
                                         tools.cronjob(
                                                 "upcoming",
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -1318,7 +1252,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         Map<?, ?> missing =
@@ -1327,7 +1260,6 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "pause",
                                                 "job_token=ghp_cronjob12345",
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -1385,7 +1317,6 @@ public class CronjobToolsSchedulerTest {
                         null,
                         null,
                         null,
-                        null,
                         null);
 
         Map<?, ?> created = (Map<?, ?>) ONode.ofJson(createdJson).toData();
@@ -1436,7 +1367,6 @@ public class CronjobToolsSchedulerTest {
                                                 "tool-origin",
                                                 "30m",
                                                 "origin prompt",
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -1548,7 +1478,7 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "policy", null, null, null, null, null, null, null,
                                                 null, null, null, null, null, null, null, null,
-                                                null, null, null))
+                                                null, null))
                                 .toData();
         Map<?, ?> policy = (Map<?, ?>) payload.get("policy");
         Map<?, ?> delivery = (Map<?, ?>) policy.get("delivery");
@@ -1618,7 +1548,7 @@ public class CronjobToolsSchedulerTest {
         assertThat(String.valueOf(policy.get("clear_fields")))
                 .contains("deliver_thread_id")
                 .contains("context_from")
-                .contains("base_url");
+                .doesNotContain("base_url");
         assertThat(String.valueOf(policy.get("status_fields")))
                 .contains("recent_failures")
                 .contains("due");
@@ -1693,7 +1623,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         assertThat(capabilities.get("execution")).isEqualTo(execution);
@@ -1714,7 +1643,7 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "guide", null, null, null, null, null, null, null,
                                                 null, null, null, null, null, null, null, null,
-                                                null, null, null))
+                                                null, null))
                                 .toData();
 
         assertThat(payload.get("status")).isEqualTo("success");
@@ -1769,7 +1698,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 Integer.valueOf(10)))
                                 .toData();
         Map<?, ?> overview = (Map<?, ?>) status.get("cron_status");
@@ -1807,7 +1735,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 Integer.valueOf(1)))
                                 .toData();
         assertThat(String.valueOf(inspected.get("job")))
@@ -1821,7 +1748,6 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "retry",
                                                 "status-failed",
-                                                null,
                                                 null,
                                                 null,
                                                 null,
@@ -1871,7 +1797,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 null))
                                 .toData();
         String jobId = String.valueOf(created.get("job_id"));
@@ -1882,7 +1807,7 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "stop", jobId, null, null, null, null, null, null,
                                                 null, null, null, null, null, null, null, null,
-                                                null, null, null))
+                                                null, null))
                                 .toData();
         assertThat(((Map<?, ?>) stopped.get("job")).get("state")).isEqualTo("paused");
         assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("PAUSED");
@@ -1893,19 +1818,19 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "enable", jobId, null, null, null, null, null, null,
                                                 null, null, null, null, null, null, null, null,
-                                                null, null, null))
+                                                null, null))
                                 .toData();
         assertThat(((Map<?, ?>) enabled.get("job")).get("state")).isEqualTo("scheduled");
         assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("ACTIVE");
 
         tools.cronjob(
                 "disable", jobId, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null);
         assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("PAUSED");
 
         tools.cronjob(
                 "start", jobId, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null);
+                null, null, null, null, null);
         assertThat(env.cronJobRepository.findById(jobId).getStatus()).isEqualTo("ACTIVE");
     }
 
@@ -1955,7 +1880,6 @@ public class CronjobToolsSchedulerTest {
                                                 null,
                                                 null,
                                                 null,
-                                                null,
                                                 Integer.valueOf(3)))
                                 .toData();
         assertThat(history.get("count")).isEqualTo(Integer.valueOf(1));
@@ -1971,7 +1895,6 @@ public class CronjobToolsSchedulerTest {
                                         tools.cronjob(
                                                 "inspect",
                                                 "job-history",
-                                                null,
                                                 null,
                                                 null,
                                                 null,

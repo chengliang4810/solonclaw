@@ -16,8 +16,7 @@ public class AgentRuntimePromptTest {
         FakeLlmGateway fake = (FakeLlmGateway) env.llmGateway;
         assertThat(fake.lastSystemPrompt)
                 .contains("[Agent Runtime]")
-                .contains("agent_name=default")
-                .contains("agent_display_name=默认 Agent")
+                .doesNotContain("agent_name=", "agent_display_name=", "agent_default_model=")
                 .contains("[Workspace]")
                 .contains("Working directory: " + env.appConfig.getRuntime().getHome())
                 .contains("Single global file workspace unless explicitly told otherwise.")

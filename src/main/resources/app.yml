@@ -65,13 +65,14 @@ solonclaw.scheduler.wrapResponse: true
 solonclaw.scheduler.scriptTimeoutSeconds: 120
 solonclaw.scheduler.inactivityTimeoutSeconds: 600
 solonclaw.scheduler.enabledToolsets:
-# Cron 任务未单独绑定模型时使用；留空则沿用 Profile 主模型。
+# Cron 默认 Provider 与模型必须同时填写；两项都空时沿用当前 Profile 主模型。
 solonclaw.scheduler.defaultProvider:
 solonclaw.scheduler.defaultModel:
 
 # 上下文压缩
 solonclaw.compression.enabled: true
 solonclaw.compression.thresholdPercent: 0.5
+# 压缩摘要 Provider 与模型必须同时填写；两项都空时沿用当前 Profile 主模型。
 solonclaw.compression.summaryProvider:
 solonclaw.compression.summaryModel:
 solonclaw.compression.protectHeadMessages: 3
@@ -80,10 +81,11 @@ solonclaw.compression.tailRatio: 0.2
 # 主回复后的自动学习
 solonclaw.learning.enabled: true
 solonclaw.learning.toolCallThreshold: 5
+# 对话后复盘 Provider 与模型必须同时填写；两项都空时沿用当前 Profile 主模型。
 solonclaw.learning.modelProvider:
 solonclaw.learning.model:
 
-# 旧每日记忆不可变归档与派生摘要
+# 每日记忆不可变归档与派生摘要
 solonclaw.memory.archive.enabled: true
 solonclaw.memory.archive.retentionDays: 30
 solonclaw.memory.archive.intervalHours: 24
@@ -181,19 +183,9 @@ approvals.subagentAutoApprove: false
 approvals.timeoutSeconds: 60
 # /reload-mcp 默认需要确认，避免工具 schema 变更影响下一轮模型调用。
 approvals.mcpReloadConfirm: true
-# 危险操作智能审批模型；两项留空时沿用当前 Profile 主模型。
+# 危险操作智能审批 Provider 与模型必须同时填写；两项都空时沿用当前 Profile 主模型。
 approvals.modelProvider:
 approvals.model:
-
-# 预定义人格
-solonclaw.agent.personalities.helpful.description: 友好、通用的默认助手
-solonclaw.agent.personalities.helpful.systemPrompt: 你是一个友好、可靠的中文技术助手，优先给出准确、可执行的答案。
-solonclaw.agent.personalities.concise.description: 简洁直接，优先最短有效答案
-solonclaw.agent.personalities.concise.systemPrompt: 你是一个非常简洁的中文技术助手，只输出解决问题所需的最少内容。
-solonclaw.agent.personalities.technical.description: 偏工程化，强调原因、边界与验证
-solonclaw.agent.personalities.technical.systemPrompt: 你是一个工程导向的中文技术助手，回答时强调约束、原因、风险和验证方式。
-solonclaw.agent.personalities.technical.tone: 冷静、直接
-solonclaw.agent.personalities.technical.style: 优先用清晰术语描述系统行为和实现边界
 
 # 飞书渠道
 solonclaw.channels.feishu.enabled: false

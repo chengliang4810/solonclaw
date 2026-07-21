@@ -82,6 +82,17 @@ public class AgentRunSupervisor implements AgentRunControlService {
     private static final String UNKNOWN_TOOL_EFFECT_RESULT =
             "[恢复提示] effect_disposition=unknown：该副作用工具可能已在服务中断前执行；重试前请先检查当前状态。";
 
+    /** 表示运行线程在没有用户停止请求时收到中断，必须作为明确失败而不是用户取消处理。 */
+    private static final class UnexpectedRunInterruptException extends IllegalStateException {
+        /** 创建未归属运行中断异常，并保留原始中断原因。 */
+        private UnexpectedRunInterruptException(String runId, Throwable cause) {
+            super("任务 " + StrUtil.blankToDefault(runId, "unknown") + " 的执行线程被中断，但没有收到用户停止请求。");
+            if (cause != null) {
+                addSuppressed(cause);
+            }
+        }
+    }
+
     /** 注入应用配置，用于Agent运行Supervisor。 */
     private final AppConfig appConfig;
 
@@ -1112,12 +1123,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             throws Exception {
         if (agentScope == null) {
             agentScope = new AgentRuntimeScope();
-            agentScope.setAgentName(
-                    AgentRuntimeScope.normalizeName(
-                            session == null ? null : session.getActiveAgentName()));
             agentScope.setWorkspaceDir(appConfig.getWorkspace().getDir());
-            agentScope.setSkillsDir(appConfig.getRuntime().getSkillsDir());
-            agentScope.setCacheDir(appConfig.getRuntime().getCacheDir());
         }
         long now = System.currentTimeMillis();
         String queuedRunId = extractQueuedMarker(userMessage, QUEUED_RUN_ID_KEY);
@@ -1145,8 +1151,6 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                         ? messageRunKind
                                         : (resume ? "resume" : "conversation"))));
         runRecord.setParentRunId(subagentRun ? parentContext.getRunId() : null);
-        runRecord.setAgentName(agentScope.getEffectiveName());
-        runRecord.setAgentSnapshotJson(agentScope.getSnapshotJson());
         runRecord.setStatus("running");
         runRecord.setPhase("queued");
         runRecord.setBusyPolicy(normalizeBusyPolicy(appConfig.getTask().getBusyPolicy()));
@@ -1191,7 +1195,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             runContext.event("run.start", resume ? "恢复挂起会话" : "开始执行用户请求");
             eventSink.onRunStarted(session.getSessionId());
 
-            CandidatePlan candidatePlan = buildCandidateConfigs(session, agentScope);
+            CandidatePlan candidatePlan = buildCandidateConfigs(session);
             List<AppConfig.LlmConfig> candidates = candidatePlan.candidates;
             List<CandidateFailure> candidateFailures = candidatePlan.failures;
             for (CandidateFailure skipped : candidateFailures) {
@@ -1408,6 +1412,16 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                 || isCancellationRequested(session.getSourceKey())) {
                             throw new AgentRunCancelledException();
                         }
+                        if (e instanceof UnexpectedRunInterruptException) {
+                            throw e;
+                        }
+                        if (hasInterruptedException(e)) {
+                            throw unexpectedRunInterrupt(runHandle, e);
+                        }
+                        if (Thread.currentThread().isInterrupted()) {
+                            // 部分网络客户端会在普通请求失败后错误遗留中断标记；异常本身并非中断时才清理并继续故障切换。
+                            Thread.interrupted();
+                        }
                         updateRunPhase(runRecord, "retry");
                         lastError = e;
                         String errorMessage = safeError(e);
@@ -1583,6 +1597,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
             heartbeat(runRecord);
             agentRunRepository.saveRun(runRecord);
             runContext.event("run.cancelled", safeError(e));
+            throw e;
+        } catch (Exception e) {
+            markUnexpectedRunFailure(runRecord, runContext, e);
             throw e;
         } finally {
             SubprocessEnvironmentSanitizer.clearSkillEnvironmentPassthrough();
@@ -1824,19 +1841,13 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * 构建Candidate Configs。
      *
      * @param session 会话参数。
-     * @param agentScope 当前运行冻结后的 Agent 范围。
      * @return 返回创建好的Candidate Configs。
      */
-    private CandidatePlan buildCandidateConfigs(
-            SessionRecord session, AgentRuntimeScope agentScope) {
+    private CandidatePlan buildCandidateConfigs(SessionRecord session) {
         CandidatePlan plan = new CandidatePlan();
         LinkedHashSet<String> seen = new LinkedHashSet<String>();
         try {
-            addCandidate(
-                    plan,
-                    seen,
-                    llmProviderService.resolveEffectiveProvider(
-                            session, agentScope == null ? null : agentScope.getDefaultModel()));
+            addCandidate(plan, seen, llmProviderService.resolveEffectiveProvider(session));
         } catch (Exception e) {
             plan.failures.add(
                     CandidateFailure.skipped(
@@ -2934,6 +2945,30 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     /**
+     * 把尚未收敛的运行异常持久化为失败终态，避免意外中断留下永久 running 记录。
+     *
+     * @param runRecord 当前运行记录。
+     * @param runContext 当前运行上下文。
+     * @param error 需要记录的运行异常。
+     * @throws Exception 运行记录持久化失败时抛出。
+     */
+    private void markUnexpectedRunFailure(
+            AgentRunRecord runRecord, AgentRunContext runContext, Exception error)
+            throws Exception {
+        if (runRecord == null || "failed".equals(runRecord.getStatus())) {
+            return;
+        }
+        runRecord.setStatus("failed");
+        runRecord.setPhase("failed");
+        runRecord.setExitReason("failed");
+        runRecord.setFinishedAt(System.currentTimeMillis());
+        runRecord.setError(safeError(error));
+        heartbeat(runRecord);
+        agentRunRepository.saveRun(runRecord);
+        runContext.event("run.failed", safeError(error));
+    }
+
+    /**
      * 检查Cancellation。
      *
      * @param sourceKey 渠道来源键。
@@ -2945,8 +2980,42 @@ public class AgentRunSupervisor implements AgentRunControlService {
             throw new AgentRunCancelledException();
         }
         if (Thread.currentThread().isInterrupted()) {
-            throw new AgentRunCancelledException();
+            throw unexpectedRunInterrupt(runHandle, null);
         }
+    }
+
+    /**
+     * 把没有运行取消标记的线程中断转换为明确失败，并清除当前线程标记以便上层可靠写入失败终态。
+     *
+     * @param runHandle 当前运行句柄。
+     * @param cause 原始中断异常；直接检测到中断标记时可为空。
+     * @return 带运行标识的明确中断异常。
+     */
+    private UnexpectedRunInterruptException unexpectedRunInterrupt(
+            RunHandle runHandle, Throwable cause) {
+        Thread.interrupted();
+        return new UnexpectedRunInterruptException(
+                runHandle == null ? null : runHandle.runId, cause);
+    }
+
+    /**
+     * 判断异常因果链中是否包含真实 InterruptedException，防止将停机或执行器中断当成供应商故障重试。
+     *
+     * @param error 待检查异常。
+     * @return 因果链包含 InterruptedException 时返回 true。
+     */
+    private boolean hasInterruptedException(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof InterruptedException) {
+                return true;
+            }
+            if (current.getCause() == current) {
+                break;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     /**

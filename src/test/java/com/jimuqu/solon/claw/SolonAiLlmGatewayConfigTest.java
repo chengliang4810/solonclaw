@@ -207,6 +207,7 @@ public class SolonAiLlmGatewayConfigTest {
         AppConfig.ProviderConfig approval = new AppConfig.ProviderConfig();
         approval.setBaseUrl("https://approval.example/v1");
         approval.setDefaultModel("approval-default");
+        approval.setModels(java.util.Arrays.asList("approval-default", "approval-model"));
         approval.setDialect("openai");
         config.getProviders().put("main", main);
         config.getProviders().put("approval", approval);

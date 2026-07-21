@@ -8,6 +8,14 @@ public interface ContextService {
     String buildSystemPrompt(String sourceKey);
 
     /**
+     * 只构建当前 Profile 的 SOUL 人格提示词，不注入用户资料、记忆或技能。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 仅包含 SOUL.md 的系统提示词。
+     */
+    String buildSoulPrompt(String sourceKey);
+
+    /**
      * 构建System提示词。
      *
      * @param sourceKey 渠道来源键。

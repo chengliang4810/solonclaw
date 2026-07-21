@@ -8,12 +8,15 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
+import com.jimuqu.solon.claw.profile.ProfileMutationLock;
 import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.FilePathSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,6 +27,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
+import org.noear.solon.core.Props;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -130,6 +134,9 @@ public class CronJobService {
     /** 保存定时任务任务仓储依赖，用于访问持久化数据。 */
     private final CronJobRepository cronJobRepository;
 
+    /** 服务创建时的根 Provider 配置文件快照，用于判断是否需要跨进程重新加载。 */
+    private final byte[] providerConfigSnapshot;
+
     /** 创建或修改 Cron 脚本时使用的版本授权服务；测试和无审批环境可不注入。 */
     private CronScriptApprovalService cronScriptApprovalService;
 
@@ -142,6 +149,7 @@ public class CronJobService {
     public CronJobService(AppConfig appConfig, CronJobRepository cronJobRepository) {
         this.appConfig = appConfig;
         this.cronJobRepository = cronJobRepository;
+        this.providerConfigSnapshot = readProviderConfigSnapshot();
     }
 
     /**
@@ -161,71 +169,76 @@ public class CronJobService {
      * @return 返回create结果。
      */
     public CronJobRecord create(String sourceKey, Map<String, Object> body) throws Exception {
-        String schedule = scheduleValue(body.get("schedule"), body.get("cronExpr"), null);
-        String prompt = string(body.get("prompt"), "");
-        List<String> skills = canonicalSkills(body);
-        String script = string(body.get("script"), null);
-        boolean noAgent = bool(body.get("no_agent"), bool(body.get("noAgent"), false));
-        ModelOverride modelOverride =
-                modelOverride(
-                        body.get("model"),
-                        body.get("provider"),
-                        body.get("base_url"),
-                        body.get("baseUrl"),
-                        null,
-                        null,
-                        null);
-        if (StrUtil.isBlank(schedule)) {
-            throw new IllegalStateException("schedule is required");
-        }
-        if (noAgent && StrUtil.isBlank(script)) {
-            throw new IllegalStateException("no_agent requires script");
-        }
-        if (!noAgent && StrUtil.isBlank(prompt) && CollUtil.isEmpty(skills)) {
-            throw new IllegalStateException("prompt or skills are required");
-        }
-        scanPrompt(prompt);
-        validateScript(script);
-        String workdir = normalizeWorkdir(string(body.get("workdir"), null));
-        List<String> dependencyRefs = dependencyRefs(body);
-        validateContextFrom(dependencyRefs);
+        return withMutationLock(
+                () -> {
+                    AppConfig modelConfig = currentModelConfig();
+                    rejectTaskEndpointOverride(body);
+                    String schedule =
+                            scheduleValue(body.get("schedule"), body.get("cronExpr"), null);
+                    String prompt = string(body.get("prompt"), "");
+                    List<String> skills = canonicalSkills(body);
+                    String script = string(body.get("script"), null);
+                    boolean noAgent = bool(body.get("no_agent"), bool(body.get("noAgent"), false));
+                    ModelOverride modelOverride =
+                            modelOverride(body.get("model"), body.get("provider"), null, null);
+                    if (StrUtil.isBlank(schedule)) {
+                        throw new IllegalStateException("schedule is required");
+                    }
+                    if (noAgent && StrUtil.isBlank(script)) {
+                        throw new IllegalStateException("no_agent requires script");
+                    }
+                    if (!noAgent && StrUtil.isBlank(prompt) && CollUtil.isEmpty(skills)) {
+                        throw new IllegalStateException("prompt or skills are required");
+                    }
+                    scanPrompt(prompt);
+                    validateScript(script);
+                    String workdir = normalizeWorkdir(string(body.get("workdir"), null));
+                    List<String> dependencyRefs = dependencyRefs(body);
+                    validateContextFrom(dependencyRefs);
 
-        long now = System.currentTimeMillis();
-        CronJobRecord record = new CronJobRecord();
-        record.setJobId(IdSupport.newId());
-        record.setName(defaultJobName(body, prompt, skills, script, noAgent));
-        record.setCronExpr(schedule);
-        record.setPrompt(prompt);
-        record.setSourceKey(StrUtil.blankToDefault(sourceKey, DEFAULT_SOURCE));
-        String deliver = deliverValue(body.get("deliver"), defaultDeliver(body));
-        validateDeliverTargets(deliver);
-        record.setDeliverPlatform(deliver);
-        record.setDeliverChatId(
-                string(body.get("deliver_chat_id"), string(body.get("deliverChatId"), null)));
-        record.setDeliverThreadId(
-                string(body.get("deliver_thread_id"), string(body.get("deliverThreadId"), null)));
-        record.setOriginJson(json(body.get("origin")));
-        record.setSkillsJson(json(skills));
-        record.setRepeatTimes(intValue(body.get("repeat"), 0));
-        record.setRepeatCompleted(0);
-        record.setScript(script);
-        record.setApprovedScriptFingerprint(null);
-        record.setWorkdir(workdir);
-        record.setNoAgent(noAgent);
-        record.setContextFromJson(json(dependencyRefs));
-        record.setEnabledToolsetsJson(json(cronEnabledToolsets(body)));
-        applyModelPin(record, modelOverride.model, modelOverride.provider, modelOverride.baseUrl);
-        record.setWrapResponse(
-                bool(
-                        body.get("wrap_response"),
-                        bool(body.get("wrapResponse"), appConfig.getScheduler().isWrapResponse())));
-        record.setStatus(STATUS_ACTIVE);
-        record.setNextRunAt(CronSupport.nextRunAt(schedule, now));
-        record.setLastRunAt(0L);
-        record.setCreatedAt(now);
-        record.setUpdatedAt(now);
-        prepareScriptApproval(record);
-        return cronJobRepository.save(record);
+                    long now = System.currentTimeMillis();
+                    CronJobRecord record = new CronJobRecord();
+                    record.setJobId(IdSupport.newId());
+                    record.setName(defaultJobName(body, prompt, skills, script, noAgent));
+                    record.setCronExpr(schedule);
+                    record.setPrompt(prompt);
+                    record.setSourceKey(StrUtil.blankToDefault(sourceKey, DEFAULT_SOURCE));
+                    String deliver = deliverValue(body.get("deliver"), defaultDeliver(body));
+                    validateDeliverTargets(deliver);
+                    record.setDeliverPlatform(deliver);
+                    record.setDeliverChatId(
+                            string(
+                                    body.get("deliver_chat_id"),
+                                    string(body.get("deliverChatId"), null)));
+                    record.setDeliverThreadId(
+                            string(
+                                    body.get("deliver_thread_id"),
+                                    string(body.get("deliverThreadId"), null)));
+                    record.setOriginJson(json(body.get("origin")));
+                    record.setSkillsJson(json(skills));
+                    record.setRepeatTimes(intValue(body.get("repeat"), 0));
+                    record.setRepeatCompleted(0);
+                    record.setScript(script);
+                    record.setApprovedScriptFingerprint(null);
+                    record.setWorkdir(workdir);
+                    record.setNoAgent(noAgent);
+                    record.setContextFromJson(json(dependencyRefs));
+                    record.setEnabledToolsetsJson(json(cronEnabledToolsets(body)));
+                    applyModelPin(modelConfig, record, modelOverride.model, modelOverride.provider);
+                    record.setWrapResponse(
+                            bool(
+                                    body.get("wrap_response"),
+                                    bool(
+                                            body.get("wrapResponse"),
+                                            appConfig.getScheduler().isWrapResponse())));
+                    record.setStatus(STATUS_ACTIVE);
+                    record.setNextRunAt(CronSupport.nextRunAt(schedule, now));
+                    record.setLastRunAt(0L);
+                    record.setCreatedAt(now);
+                    record.setUpdatedAt(now);
+                    prepareScriptApproval(record);
+                    return cronJobRepository.save(record);
+                });
     }
 
     /**
@@ -255,137 +268,152 @@ public class CronJobService {
      * @return 返回更新结果。
      */
     public CronJobRecord update(String jobId, Map<String, Object> body) throws Exception {
-        CronJobRecord record = require(jobId);
-        boolean scriptSecurityChanged = false;
-        if (body.containsKey("name")) {
-            record.setName(string(body.get("name"), record.getName()));
-        }
-        if (body.containsKey("prompt")) {
-            String prompt = string(body.get("prompt"), "");
-            scanPrompt(prompt);
-            record.setPrompt(prompt);
-        }
-        if (body.containsKey("schedule") || body.containsKey("cronExpr")) {
-            String schedule =
-                    scheduleValue(body.get("schedule"), body.get("cronExpr"), record.getCronExpr());
-            CronSupport.validate(schedule);
-            record.setCronExpr(schedule);
-            record.setNextRunAt(CronSupport.nextRunAt(schedule, System.currentTimeMillis()));
-            if (!STATUS_PAUSED.equalsIgnoreCase(record.getStatus())) {
-                record.setStatus(STATUS_ACTIVE);
-            }
-        }
-        if (body.containsKey("deliver")) {
-            String deliver = deliverValue(body.get("deliver"), "local");
-            validateDeliverTargets(deliver);
-            record.setDeliverPlatform(deliver);
-        }
-        if (body.containsKey("deliver_chat_id") || body.containsKey("deliverChatId")) {
-            record.setDeliverChatId(
-                    string(body.get("deliver_chat_id"), string(body.get("deliverChatId"), null)));
-        }
-        if (body.containsKey("deliver_thread_id") || body.containsKey("deliverThreadId")) {
-            record.setDeliverThreadId(
-                    string(
-                            body.get("deliver_thread_id"),
-                            string(body.get("deliverThreadId"), null)));
-        }
-        if (clearSkills(body)) {
-            record.setSkillsJson(json(new ArrayList<String>()));
-        } else if (body.containsKey("skills") || body.containsKey("skill")) {
-            record.setSkillsJson(json(canonicalSkills(body)));
-        } else if (hasSkillsDelta(body)) {
-            record.setSkillsJson(json(applySkillsDelta(parseList(record.getSkillsJson()), body)));
-        }
-        if (body.containsKey("repeat")) {
-            int repeat = intValue(body.get("repeat"), 0);
-            record.setRepeatTimes(Math.max(0, repeat));
-        }
-        if (body.containsKey("script")) {
-            String script = string(body.get("script"), null);
-            validateScript(script);
-            if (!sameText(record.getScript(), script)) {
-                record.setScript(script);
-                record.setApprovedScriptFingerprint(null);
-                scriptSecurityChanged = true;
-            }
-        }
-        if (body.containsKey("workdir")) {
-            String workdir = normalizeWorkdir(string(body.get("workdir"), null));
-            if (!sameText(record.getWorkdir(), workdir)) {
-                record.setWorkdir(workdir);
-                record.setApprovedScriptFingerprint(null);
-                scriptSecurityChanged = true;
-            }
-        }
-        if (body.containsKey("no_agent") || body.containsKey("noAgent")) {
-            boolean noAgent = bool(body.get("no_agent"), bool(body.get("noAgent"), false));
-            if (noAgent && StrUtil.isBlank(record.getScript())) {
-                throw new IllegalStateException("no_agent requires script");
-            }
-            if (record.isNoAgent() != noAgent) {
-                record.setNoAgent(noAgent);
-                record.setApprovedScriptFingerprint(null);
-                scriptSecurityChanged = true;
-            }
-        }
-        if (containsDependencyRefs(body)) {
-            List<String> refs = dependencyRefs(body);
-            validateContextFrom(refs);
-            record.setContextFromJson(json(refs));
-        }
-        if (body.containsKey("enabled_toolsets") || body.containsKey("enabledToolsets")) {
-            record.setEnabledToolsetsJson(json(cronEnabledToolsets(body)));
-        }
-        if (body.containsKey("model")
-                || body.containsKey("provider")
-                || body.containsKey("base_url")
-                || body.containsKey("baseUrl")) {
-            ModelOverride modelOverride =
-                    modelOverride(
-                            body.get("model"),
-                            body.get("provider"),
-                            body.get("base_url"),
-                            body.get("baseUrl"),
-                            defaultModelValue(body, record),
-                            defaultProviderValue(body, record),
-                            defaultBaseUrlValue(body, record));
-            applyModelPin(
-                    record, modelOverride.model, modelOverride.provider, modelOverride.baseUrl);
-        }
-        if (body.containsKey("wrap_response") || body.containsKey("wrapResponse")) {
-            record.setWrapResponse(
-                    bool(body.get("wrap_response"), bool(body.get("wrapResponse"), true)));
-        }
-        if (body.containsKey("enabled")) {
-            boolean enabled = bool(body.get("enabled"), true);
-            record.setStatus(enabled ? STATUS_ACTIVE : STATUS_PAUSED);
-            record.setPausedAt(enabled ? 0L : System.currentTimeMillis());
-            if (enabled) {
-                record.setPausedReason(null);
-            }
-        }
-        if (body.containsKey("status") || body.containsKey("state")) {
-            applyEditableStatus(
-                    record, string(body.get("status"), string(body.get("state"), null)));
-        }
-        if (body.containsKey("paused_reason") || body.containsKey("pausedReason")) {
-            String reason =
-                    string(body.get("paused_reason"), string(body.get("pausedReason"), null));
-            if (STATUS_PAUSED.equalsIgnoreCase(record.getStatus())) {
-                record.setPausedReason(StrUtil.blankToDefault(reason, "paused from edit"));
-                if (record.getPausedAt() <= 0L) {
-                    record.setPausedAt(System.currentTimeMillis());
-                }
-            }
-        }
-        if (record.isNoAgent() && StrUtil.isBlank(record.getScript())) {
-            throw new IllegalStateException("no_agent requires script");
-        }
-        if (scriptSecurityChanged) {
-            prepareScriptApproval(record);
-        }
-        return cronJobRepository.update(record);
+        return withMutationLock(
+                () -> {
+                    AppConfig modelConfig = currentModelConfig();
+                    rejectTaskEndpointOverride(body);
+                    CronJobRecord record = require(jobId);
+                    boolean scriptSecurityChanged = false;
+                    if (body.containsKey("name")) {
+                        record.setName(string(body.get("name"), record.getName()));
+                    }
+                    if (body.containsKey("prompt")) {
+                        String prompt = string(body.get("prompt"), "");
+                        scanPrompt(prompt);
+                        record.setPrompt(prompt);
+                    }
+                    if (body.containsKey("schedule") || body.containsKey("cronExpr")) {
+                        String schedule =
+                                scheduleValue(
+                                        body.get("schedule"),
+                                        body.get("cronExpr"),
+                                        record.getCronExpr());
+                        CronSupport.validate(schedule);
+                        record.setCronExpr(schedule);
+                        record.setNextRunAt(
+                                CronSupport.nextRunAt(schedule, System.currentTimeMillis()));
+                        if (!STATUS_PAUSED.equalsIgnoreCase(record.getStatus())) {
+                            record.setStatus(STATUS_ACTIVE);
+                        }
+                    }
+                    if (body.containsKey("deliver")) {
+                        String deliver = deliverValue(body.get("deliver"), "local");
+                        validateDeliverTargets(deliver);
+                        record.setDeliverPlatform(deliver);
+                    }
+                    if (body.containsKey("deliver_chat_id") || body.containsKey("deliverChatId")) {
+                        record.setDeliverChatId(
+                                string(
+                                        body.get("deliver_chat_id"),
+                                        string(body.get("deliverChatId"), null)));
+                    }
+                    if (body.containsKey("deliver_thread_id")
+                            || body.containsKey("deliverThreadId")) {
+                        record.setDeliverThreadId(
+                                string(
+                                        body.get("deliver_thread_id"),
+                                        string(body.get("deliverThreadId"), null)));
+                    }
+                    if (clearSkills(body)) {
+                        record.setSkillsJson(json(new ArrayList<String>()));
+                    } else if (body.containsKey("skills") || body.containsKey("skill")) {
+                        record.setSkillsJson(json(canonicalSkills(body)));
+                    } else if (hasSkillsDelta(body)) {
+                        record.setSkillsJson(
+                                json(applySkillsDelta(parseList(record.getSkillsJson()), body)));
+                    }
+                    if (body.containsKey("repeat")) {
+                        int repeat = intValue(body.get("repeat"), 0);
+                        record.setRepeatTimes(Math.max(0, repeat));
+                    }
+                    if (body.containsKey("script")) {
+                        String script = string(body.get("script"), null);
+                        validateScript(script);
+                        if (!sameText(record.getScript(), script)) {
+                            record.setScript(script);
+                            record.setApprovedScriptFingerprint(null);
+                            scriptSecurityChanged = true;
+                        }
+                    }
+                    if (body.containsKey("workdir")) {
+                        String workdir = normalizeWorkdir(string(body.get("workdir"), null));
+                        if (!sameText(record.getWorkdir(), workdir)) {
+                            record.setWorkdir(workdir);
+                            record.setApprovedScriptFingerprint(null);
+                            scriptSecurityChanged = true;
+                        }
+                    }
+                    if (body.containsKey("no_agent") || body.containsKey("noAgent")) {
+                        boolean noAgent =
+                                bool(body.get("no_agent"), bool(body.get("noAgent"), false));
+                        if (noAgent && StrUtil.isBlank(record.getScript())) {
+                            throw new IllegalStateException("no_agent requires script");
+                        }
+                        if (record.isNoAgent() != noAgent) {
+                            record.setNoAgent(noAgent);
+                            record.setApprovedScriptFingerprint(null);
+                            scriptSecurityChanged = true;
+                        }
+                    }
+                    if (containsDependencyRefs(body)) {
+                        List<String> refs = dependencyRefs(body);
+                        validateContextFrom(refs);
+                        record.setContextFromJson(json(refs));
+                    }
+                    if (body.containsKey("enabled_toolsets")
+                            || body.containsKey("enabledToolsets")) {
+                        record.setEnabledToolsetsJson(json(cronEnabledToolsets(body)));
+                    }
+                    if (body.containsKey("model") || body.containsKey("provider")) {
+                        ModelOverride modelOverride =
+                                modelOverride(
+                                        body.get("model"),
+                                        body.get("provider"),
+                                        defaultModelValue(body, record),
+                                        defaultProviderValue(body, record));
+                        applyModelPin(
+                                modelConfig, record, modelOverride.model, modelOverride.provider);
+                    }
+                    if (body.containsKey("wrap_response") || body.containsKey("wrapResponse")) {
+                        record.setWrapResponse(
+                                bool(
+                                        body.get("wrap_response"),
+                                        bool(body.get("wrapResponse"), true)));
+                    }
+                    if (body.containsKey("enabled")) {
+                        boolean enabled = bool(body.get("enabled"), true);
+                        record.setStatus(enabled ? STATUS_ACTIVE : STATUS_PAUSED);
+                        record.setPausedAt(enabled ? 0L : System.currentTimeMillis());
+                        if (enabled) {
+                            record.setPausedReason(null);
+                        }
+                    }
+                    if (body.containsKey("status") || body.containsKey("state")) {
+                        applyEditableStatus(
+                                record,
+                                string(body.get("status"), string(body.get("state"), null)));
+                    }
+                    if (body.containsKey("paused_reason") || body.containsKey("pausedReason")) {
+                        String reason =
+                                string(
+                                        body.get("paused_reason"),
+                                        string(body.get("pausedReason"), null));
+                        if (STATUS_PAUSED.equalsIgnoreCase(record.getStatus())) {
+                            record.setPausedReason(
+                                    StrUtil.blankToDefault(reason, "paused from edit"));
+                            if (record.getPausedAt() <= 0L) {
+                                record.setPausedAt(System.currentTimeMillis());
+                            }
+                        }
+                    }
+                    if (record.isNoAgent() && StrUtil.isBlank(record.getScript())) {
+                        throw new IllegalStateException("no_agent requires script");
+                    }
+                    if (scriptSecurityChanged) {
+                        prepareScriptApproval(record);
+                    }
+                    return cronJobRepository.update(record);
+                });
     }
 
     /**
@@ -480,14 +508,7 @@ public class CronJobService {
         String script = string(body.get("script"), null);
         boolean noAgent = bool(body.get("no_agent"), bool(body.get("noAgent"), false));
         ModelOverride modelOverride =
-                modelOverride(
-                        body.get("model"),
-                        body.get("provider"),
-                        body.get("base_url"),
-                        body.get("baseUrl"),
-                        null,
-                        null,
-                        null);
+                modelOverride(body.get("model"), body.get("provider"), null, null);
         String workdir = normalizeWorkdir(string(body.get("workdir"), null));
         List<String> dependencyRefs = dependencyRefs(body);
         String deliver = deliverValue(body.get("deliver"), defaultDeliver(body));
@@ -519,7 +540,6 @@ public class CronJobService {
                 && sameJson(job.getEnabledToolsetsJson(), cronEnabledToolsets(body))
                 && sameText(job.getModel(), modelOverride.model)
                 && sameText(job.getProvider(), modelOverride.provider)
-                && sameText(job.getBaseUrl(), modelOverride.baseUrl)
                 && job.isWrapResponse() == wrapResponse;
     }
 
@@ -734,9 +754,52 @@ public class CronJobService {
      * @return 返回remove结果。
      */
     public CronJobRecord remove(String jobId) throws Exception {
-        CronJobRecord record = require(jobId);
-        cronJobRepository.delete(jobId);
-        return record;
+        return withMutationLock(
+                () -> {
+                    CronJobRecord record = require(jobId);
+                    cronJobRepository.delete(jobId);
+                    return record;
+                });
+    }
+
+    /**
+     * 在根目录跨进程锁内执行 Cron 变更。
+     *
+     * @param action 受保护动作。
+     * @param <T> 返回值类型。
+     * @return 动作结果。
+     * @throws Exception 加锁或动作执行失败时抛出异常。
+     */
+    private <T> T withMutationLock(ProfileMutationLock.Action<T> action) throws Exception {
+        return new ProfileMutationLock(appConfig).withLock(action);
+    }
+
+    /** 在变更锁内重新加载当前 Profile 的 Provider 注册表，避免使用过期配置快照。 */
+    private AppConfig currentModelConfig() {
+        if (Arrays.equals(providerConfigSnapshot, readProviderConfigSnapshot())) {
+            return appConfig;
+        }
+        Props props = new Props();
+        props.put("solonclaw.workspace", appConfig.getRuntime().getHome());
+        AppConfig current = AppConfig.loadDetached(props);
+        return current.getProviders().isEmpty() && !appConfig.getProviders().isEmpty()
+                ? appConfig
+                : current;
+    }
+
+    /** 读取机器级根工作区的 Provider 配置文件内容；读取失败时返回空快照。 */
+    private byte[] readProviderConfigSnapshot() {
+        try {
+            Path lockPath = ProfileMutationLock.lockPath(appConfig);
+            Path profilesHome = lockPath.getParent();
+            Path root = profilesHome == null ? null : profilesHome.getParent();
+            Path configFile = root == null ? null : root.resolve("config.yml");
+            return configFile != null && Files.isRegularFile(configFile)
+                    ? Files.readAllBytes(configFile)
+                    : new byte[0];
+        } catch (Exception e) {
+            return new byte[0];
+        }
     }
 
     /**
@@ -822,6 +885,7 @@ public class CronJobService {
     /**
      * 运行To视图。
      *
+     * @param modelConfig 锁内重新加载的当前模型配置。
      * @param record 记录参数。
      * @return 返回To视图。
      */
@@ -920,7 +984,6 @@ public class CronJobService {
                 filterProtectedCronToolsets(parseList(record.getEnabledToolsetsJson())));
         result.put("model", record.getModel());
         result.put("provider", record.getProvider());
-        result.put("base_url", record.getBaseUrl());
         result.put("wrap_response", Boolean.valueOf(record.isWrapResponse()));
         result.put(
                 "last_run_at",
@@ -968,7 +1031,6 @@ public class CronJobService {
                         "enabledToolsets",
                         "model",
                         "provider",
-                        "base_url",
                         "wrap_response",
                         "enabled",
                         "status",
@@ -1059,7 +1121,6 @@ public class CronJobService {
                         "enabledToolsets",
                         "model",
                         "provider",
-                        "base_url",
                         "enabled",
                         "status",
                         "paused_reason"));
@@ -1077,8 +1138,7 @@ public class CronJobService {
                         "enabled_toolsets",
                         "enabledToolsets",
                         "model",
-                        "provider",
-                        "base_url"));
+                        "provider"));
         policy.put(
                 "status_fields",
                 Arrays.asList(
@@ -1197,7 +1257,6 @@ public class CronJobService {
         execution.put("workdirSecurityChecked", Boolean.TRUE);
         execution.put("modelPinSupported", Boolean.TRUE);
         execution.put("providerPinSupported", Boolean.TRUE);
-        execution.put("baseUrlPinSupported", Boolean.TRUE);
         execution.put("dangerousCommandApprovalApplied", Boolean.TRUE);
         execution.put("promptThreatScanApplied", Boolean.TRUE);
         execution.put("secretRedactionApplied", Boolean.TRUE);
@@ -1413,7 +1472,7 @@ public class CronJobService {
                 "Agent 无活动超时由 scheduler.inactivityTimeoutSeconds 或 SOLONCLAW_CRON_TIMEOUT 控制。");
         result.put("script_fields", Arrays.asList("script", "workdir", "enabled_toolsets"));
         result.put("dependency_fields", Arrays.asList("context_from", "depends_on"));
-        result.put("model_pin_fields", Arrays.asList("model", "provider", "base_url"));
+        result.put("model_pin_fields", Arrays.asList("model", "provider"));
         result.put(
                 "clear_flags",
                 Arrays.asList(
@@ -1423,8 +1482,7 @@ public class CronJobService {
                         "--clear-toolsets",
                         "--clear-enabled-toolsets",
                         "--clear-model",
-                        "--clear-provider",
-                        "--clear-base-url"));
+                        "--clear-provider"));
         result.put("mode_flags", Arrays.asList("--no-agent", "--agent"));
         return result;
     }
@@ -2044,20 +2102,15 @@ public class CronJobService {
         /** 记录模型Override中的提供方。 */
         private final String provider;
 
-        /** 记录模型Override中的基础URL。 */
-        private final String baseUrl;
-
         /**
          * 创建模型Override实例，并注入运行所需依赖。
          *
          * @param model 模型名称。
          * @param provider 模型或能力提供方。
-         * @param baseUrl 待校验或访问的地址参数。
          */
-        private ModelOverride(String model, String provider, String baseUrl) {
+        private ModelOverride(String model, String provider) {
             this.model = model;
             this.provider = provider;
-            this.baseUrl = baseUrl;
         }
     }
 
@@ -2413,33 +2466,19 @@ public class CronJobService {
      * @param record 记录参数。
      * @param model 模型名称。
      * @param provider 模型或能力提供方。
-     * @param baseUrl 待校验或访问的地址参数。
      */
     private void applyModelPin(
-            CronJobRecord record, String model, String provider, String baseUrl) {
+            AppConfig modelConfig, CronJobRecord record, String model, String provider) {
         String normalizedModel = CronJobSupport.normalizeBlank(model);
         String normalizedProvider = CronJobSupport.normalizeBlank(provider);
-        String normalizedBaseUrl = normalizeBaseUrl(baseUrl);
         validateModelPinPair(normalizedProvider, normalizedModel);
-        if ("custom".equals(normalizedProvider)) {
-            normalizedProvider = null;
-        }
-        if (StrUtil.isNotBlank(normalizedModel) && StrUtil.isBlank(normalizedProvider)) {
-            normalizedProvider = StrUtil.nullToEmpty(appConfig.getModel().getProviderKey()).trim();
-        }
-        if (StrUtil.isNotBlank(normalizedModel)
-                && StrUtil.isBlank(normalizedProvider)
-                && appConfig.getProviders().size() == 1) {
-            normalizedProvider = appConfig.getProviders().keySet().iterator().next();
-        }
         if (StrUtil.isNotBlank(normalizedProvider)
-                && !appConfig.getProviders().containsKey(normalizedProvider)) {
+                && !modelConfig.getProviders().containsKey(normalizedProvider)) {
             throw new IllegalStateException("provider not found: " + normalizedProvider);
         }
-        validateRegisteredModel(normalizedProvider, normalizedModel);
+        validateRegisteredModel(modelConfig, normalizedProvider, normalizedModel);
         record.setModel(normalizedModel);
         record.setProvider(normalizedProvider);
-        record.setBaseUrl(normalizedBaseUrl);
     }
 
     /**
@@ -2460,14 +2499,15 @@ public class CronJobService {
     /**
      * 校验 Cron 固定模型已登记在最终 Provider 的模型清单中，避免定时执行时才暴露拼写错误。
      *
+     * @param modelConfig 锁内重新加载的当前模型配置。
      * @param providerKey 最终 Provider 键。
      * @param model 模型名称。
      */
-    private void validateRegisteredModel(String providerKey, String model) {
+    private void validateRegisteredModel(AppConfig modelConfig, String providerKey, String model) {
         if (StrUtil.isBlank(providerKey) || StrUtil.isBlank(model)) {
             return;
         }
-        AppConfig.ProviderConfig provider = appConfig.getProviders().get(providerKey);
+        AppConfig.ProviderConfig provider = modelConfig.getProviders().get(providerKey);
         if (provider == null) {
             throw new IllegalStateException("provider not found: " + providerKey);
         }
@@ -2488,45 +2528,59 @@ public class CronJobService {
     }
 
     /**
+     * 拒绝 Cron 任务直接覆盖模型端点，端点必须由已登记的 Provider 统一管理。
+     *
+     * @param body Cron 创建或更新参数。
+     */
+    private void rejectTaskEndpointOverride(Map<String, Object> body) {
+        if (body == null) {
+            return;
+        }
+        boolean topLevelOverride =
+                body.containsKey("base_url")
+                        || body.containsKey("baseUrl")
+                        || body.containsKey("api_url")
+                        || body.containsKey("apiUrl");
+        if (topLevelOverride) {
+            throw new IllegalStateException("Cron 不支持任务级模型端点，请在 Provider 中配置 baseUrl。");
+        }
+        requireTextModelField(body, "model");
+        requireTextModelField(body, "provider");
+    }
+
+    /**
+     * 校验 Cron 模型绑定字段使用最终字符串结构，不接受对象、数组或序列化对象。
+     *
+     * @param body Cron 创建或更新参数。
+     * @param key 待校验的字段名。
+     */
+    private void requireTextModelField(Map<String, Object> body, String key) {
+        Object value = body.get(key);
+        if (value == null) {
+            return;
+        }
+        if (!(value instanceof CharSequence)) {
+            throw new IllegalStateException("Cron " + key + " 必须是字符串");
+        }
+        String text = value.toString().trim();
+        if (text.startsWith("{") || text.startsWith("[")) {
+            throw new IllegalStateException("Cron " + key + " 必须是字符串");
+        }
+    }
+
+    /**
      * 执行模型Override相关逻辑。
      *
      * @param modelValue 模型值参数。
      * @param providerValue 提供方值标识或键值。
-     * @param baseUrlValue 待校验或访问的地址参数。
-     * @param baseUrlAliasValue 待校验或访问的地址参数。
      * @param defaultModel 默认模型参数。
      * @param defaultProvider 默认提供方标识或键值。
-     * @param defaultBaseUrl 待校验或访问的地址参数。
      * @return 返回模型Override结果。
      */
     private ModelOverride modelOverride(
-            Object modelValue,
-            Object providerValue,
-            Object baseUrlValue,
-            Object baseUrlAliasValue,
-            String defaultModel,
-            String defaultProvider,
-            String defaultBaseUrl) {
-        Map<?, ?> modelObject = objectMap(modelValue);
-        String model =
-                modelObject != null
-                        ? CronJobSupport.firstString(modelObject, "model", "name", "id")
-                        : string(modelValue, defaultModel);
-        String provider =
-                providerValue != null
-                        ? string(providerValue, defaultProvider)
-                        : modelObject != null
-                                ? CronJobSupport.firstString(
-                                        modelObject, "provider", "providerKey", "provider_key")
-                                : defaultProvider;
-        String baseUrl =
-                baseUrlValue != null || baseUrlAliasValue != null
-                        ? string(baseUrlValue, string(baseUrlAliasValue, defaultBaseUrl))
-                        : modelObject != null
-                                ? CronJobSupport.firstString(
-                                        modelObject, "base_url", "baseUrl", "api_url", "apiUrl")
-                                : defaultBaseUrl;
-        return new ModelOverride(model, provider, baseUrl);
+            Object modelValue, Object providerValue, String defaultModel, String defaultProvider) {
+        return new ModelOverride(
+                string(modelValue, defaultModel), string(providerValue, defaultProvider));
     }
 
     /**
@@ -2552,45 +2606,6 @@ public class CronJobService {
     }
 
     /**
-     * 执行默认基础URL值相关逻辑。
-     *
-     * @param body 请求体或消息正文内容。
-     * @param record 记录参数。
-     * @return 返回默认Base URL Value结果。
-     */
-    private String defaultBaseUrlValue(Map<String, Object> body, CronJobRecord record) {
-        return body.containsKey("base_url") || body.containsKey("baseUrl")
-                ? null
-                : record.getBaseUrl();
-    }
-
-    /**
-     * 执行object映射相关逻辑。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回object Map结果。
-     */
-    private Map<?, ?> objectMap(Object value) {
-        if (value instanceof Map) {
-            return (Map<?, ?>) value;
-        }
-        if (!(value instanceof String)) {
-            return null;
-        }
-        String text = ((String) value).trim();
-        if (!text.startsWith("{") || !text.endsWith("}")) {
-            return null;
-        }
-        try {
-            Object data = ONode.ofJson(text).toData();
-            return data instanceof Map ? (Map<?, ?>) data : null;
-        } catch (Exception e) {
-            logCronBestEffortFailure("unknown", "object_map", e);
-            return null;
-        }
-    }
-
-    /**
      * 记录定时任务管理中的可恢复失败，日志仅包含任务标识、阶段和异常类型。
      *
      * @param jobId 定时任务标识。
@@ -2603,20 +2618,6 @@ public class CronJobService {
                 CronJobSupport.safeLogJobId(jobId),
                 phase,
                 CronJobSupport.exceptionType(error));
-    }
-
-    /**
-     * 规范化Base URL。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回Base URL结果。
-     */
-    private String normalizeBaseUrl(String value) {
-        String normalized = CronJobSupport.normalizeBlank(value);
-        while (StrUtil.isNotBlank(normalized) && normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        return normalized;
     }
 
     /**

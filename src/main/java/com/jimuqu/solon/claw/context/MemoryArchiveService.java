@@ -45,7 +45,7 @@ import org.noear.snack4.ONode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** 将旧每日记忆迁移为可恢复原文，并生成可重建、可审批的内容摘要。 */
+/** 将到期的每日记忆保存为可恢复原文，并生成可重建、可审批的内容摘要。 */
 public class MemoryArchiveService {
     /** 归档日志。 */
     private static final Logger log = LoggerFactory.getLogger(MemoryArchiveService.class);

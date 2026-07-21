@@ -4034,28 +4034,28 @@ public class SolonAiLlmGateway implements LlmGateway {
         String normalized = StrUtil.nullToEmpty(toolName).trim().toLowerCase(Locale.ROOT);
         String suffix = step > 1 ? "（第 " + step + " 步）" : "";
         if (normalized.contains("search") || normalized.contains("fetch")) {
-            return "【阶段说明】正在检索并核对信息" + suffix;
+            return "【阶段说明】我正在检索并核对信息" + suffix;
         }
         if (normalized.contains("read") || normalized.contains("list")) {
-            return "【阶段说明】正在读取并核对资料" + suffix;
+            return "【阶段说明】我正在读取并核对资料" + suffix;
         }
         if (normalized.contains("write")
                 || normalized.contains("patch")
                 || normalized.contains("edit")) {
-            return "【阶段说明】正在更新并检查内容" + suffix;
+            return "【阶段说明】我正在更新并检查内容" + suffix;
         }
         if (normalized.contains("shell")
                 || normalized.contains("terminal")
                 || normalized.contains("execute")) {
-            return "【阶段说明】正在执行并验证操作" + suffix;
+            return "【阶段说明】我正在执行并验证操作" + suffix;
         }
         if (normalized.contains("delegate") || normalized.contains("profile")) {
-            return "【阶段说明】正在分派并汇总任务" + suffix;
+            return "【阶段说明】我正在分派并汇总任务" + suffix;
         }
         if (normalized.contains("approval")) {
-            return "【阶段说明】正在等待操作确认" + suffix;
+            return "【阶段说明】我正在等待操作确认" + suffix;
         }
-        return "【阶段说明】正在继续处理任务" + suffix;
+        return "【阶段说明】我正在继续处理任务" + suffix;
     }
 
     /** 续写请求的 assistant 增量缓冲器，确认无重复后再交给真实展示层。 */

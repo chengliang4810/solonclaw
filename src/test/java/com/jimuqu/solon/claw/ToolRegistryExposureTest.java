@@ -496,7 +496,7 @@ public class ToolRegistryExposureTest {
         ONode summary =
                 ONode.ofJson(
                         ((RunTools) tool)
-                                .runManage("run", "run-session-tool", null, null, null, 20));
+                                .runManage("run", "run-session-tool", null, null, null, null, 20));
 
         assertToolSuccess(sessionRuns);
         assertThat(sessionRuns.get("result").get("runs").get(0).get("run_id").getString())
@@ -1029,14 +1029,9 @@ public class ToolRegistryExposureTest {
 
         assertToolSuccess(result);
         assertThat(result.get("result").get("items").get("providers.default.apiKey").isNull())
-                .isFalse();
-        assertThat(
-                        result.get("result")
-                                .get("items")
-                                .get("providers.default.apiKey")
-                                .get("is_password")
-                                .getBoolean())
                 .isTrue();
+        assertThat(result.get("result").get("items").get("solonclaw.react.maxSteps").isNull())
+                .isFalse();
     }
 
     @Test
@@ -1052,10 +1047,7 @@ public class ToolRegistryExposureTest {
         ONode saved =
                 ONode.ofJson(
                         ((WorkspaceConfigManageTools) tool)
-                                .workspaceConfigManage(
-                                        "set",
-                                        "providers.default.defaultModel",
-                                        "workspace-config-test-model"));
+                                .workspaceConfigManage("set", "solonclaw.react.maxSteps", "17"));
         ONode items =
                 ONode.ofJson(
                         ((WorkspaceConfigManageTools) tool)
@@ -1063,30 +1055,31 @@ public class ToolRegistryExposureTest {
         ONode removed =
                 ONode.ofJson(
                         ((WorkspaceConfigManageTools) tool)
-                                .workspaceConfigManage(
-                                        "remove", "providers.default.defaultModel", null));
+                                .workspaceConfigManage("remove", "solonclaw.react.maxSteps", null));
         ONode secretWrite =
                 ONode.ofJson(
                         ((WorkspaceConfigManageTools) tool)
                                 .workspaceConfigManage(
-                                        "set", "providers.default.apiKey", "sk-test-secret"));
+                                        "set",
+                                        "solonclaw.gateway.injectionSecret",
+                                        "sk-test-secret"));
 
         assertToolSuccess(saved);
         assertThat(saved.get("result").get("ok").getBoolean()).isTrue();
         assertThat(
                         items.get("result")
                                 .get("items")
-                                .get("providers.default.defaultModel")
+                                .get("solonclaw.react.maxSteps")
                                 .get("is_set")
                                 .getBoolean())
                 .isTrue();
         assertThat(
                         items.get("result")
                                 .get("items")
-                                .get("providers.default.defaultModel")
+                                .get("solonclaw.react.maxSteps")
                                 .get("redacted_value")
                                 .getString())
-                .isEqualTo("work...odel");
+                .isEqualTo("****");
         assertToolSuccess(removed);
         assertThat(removed.get("result").get("ok").getBoolean()).isTrue();
         assertToolError(secretWrite);

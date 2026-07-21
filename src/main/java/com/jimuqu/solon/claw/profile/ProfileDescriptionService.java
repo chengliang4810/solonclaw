@@ -131,17 +131,56 @@ public class ProfileDescriptionService {
                 return DescribeOutcome.failure(name, parsed.getReason());
             }
 
-            metadata.put("name", name);
-            metadata.put("description", parsed.getDescription());
-            metadata.put("description_auto", Boolean.TRUE);
-            if (!metadata.containsKey("aliases")) {
-                metadata.put("aliases", new ArrayList<String>());
-            }
-            writeMetadata(profileHome, metadata);
-            return DescribeOutcome.success(name, parsed.getDescription());
+            return writeGeneratedDescription(
+                    appConfig, profileHome, name, parsed.getDescription(), overwrite);
         } catch (Exception e) {
             return DescribeOutcome.failure(name, failureReason(e));
         }
+    }
+
+    /**
+     * 在 Profile 根目录统一变更锁内合并并写回自动说明。
+     *
+     * @param appConfig 目标 Profile 配置快照。
+     * @param profileHome Profile 工作区。
+     * @param name Profile 名。
+     * @param description 已校验的自动说明。
+     * @param overwrite 是否允许覆盖人工说明。
+     * @return 写入成功或并发状态变化后的明确结果。
+     * @throws Exception 加锁或元数据写入失败。
+     */
+    private DescribeOutcome writeGeneratedDescription(
+            AppConfig appConfig,
+            Path profileHome,
+            String name,
+            String description,
+            boolean overwrite)
+            throws Exception {
+        return new ProfileMutationLock(appConfig)
+                .withLock(
+                        () -> {
+                            if (!Files.isDirectory(profileHome)) {
+                                return DescribeOutcome.failure(name, "profile not found");
+                            }
+                            Map<String, Object> latest = readMetadata(profileHome);
+                            String existing = text(latest.get("description"));
+                            boolean existingAutomatic =
+                                    Boolean.TRUE.equals(latest.get("description_auto"));
+                            if (StrUtil.isNotBlank(existing) && !existingAutomatic && !overwrite) {
+                                return DescribeOutcome.failure(
+                                        name,
+                                        "profile already has a user-authored description (use"
+                                                + " --overwrite to replace)");
+                            }
+                            latest.put("name", name);
+                            latest.put("description", description);
+                            latest.put("description_auto", Boolean.TRUE);
+                            if (!latest.containsKey("aliases")) {
+                                latest.put("aliases", new ArrayList<String>());
+                            }
+                            writeMetadata(profileHome, latest);
+                            return DescribeOutcome.success(name, description);
+                        });
     }
 
     /**

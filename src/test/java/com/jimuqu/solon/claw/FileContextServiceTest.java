@@ -136,7 +136,6 @@ public class FileContextServiceTest {
         String memory = "MEMORY_MUST_FOLLOW_CURRENT_RULES";
         workspace.write(ContextFileConstants.KEY_MEMORY, memory);
         AgentRuntimeScope scope = new AgentRuntimeScope();
-        scope.setAgentName("project-agent");
         scope.setWorkspaceDir(projectDir.getAbsolutePath());
         scope.setWorkspaceDirOverride(true);
         FileContextService service =

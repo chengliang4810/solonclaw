@@ -76,6 +76,7 @@ public class CoreConfigOverrideLoadTest {
                         + "  compression:\n"
                         + "    enabled: false\n"
                         + "    thresholdPercent: 0.75\n"
+                        + "    summaryProvider: default\n"
                         + "    summaryModel: gpt-5.4-mini\n"
                         + "  memory:\n"
                         + "    archive:\n"
@@ -121,6 +122,7 @@ public class CoreConfigOverrideLoadTest {
 
         Props props = new Props();
         props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
+        props.put("providers.default.models", "gpt-5.4,gpt-5.4-mini");
         props.put("solonclaw.scheduler.enabled", "true");
         props.put("solonclaw.channels.feishu.enabled", "false");
         props.put("solonclaw.channels.weixin.enabled", "false");
@@ -179,6 +181,7 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(45);
         assertThat(config.getCompression().isEnabled()).isFalse();
         assertThat(config.getCompression().getThresholdPercent()).isEqualTo(0.75D);
+        assertThat(config.getCompression().getSummaryProvider()).isEqualTo("default");
         assertThat(config.getCompression().getSummaryModel()).isEqualTo("gpt-5.4-mini");
         assertThat(config.getMemory().getArchive().isEnabled()).isFalse();
         assertThat(config.getMemory().getArchive().getRetentionDays()).isEqualTo(45);

@@ -29,7 +29,7 @@ describe('applyDisplay', () => {
             show_reasoning: true,
             streaming: false,
             tui_compact: true,
-            tui_statusbar: false
+            tui_statusbar: 'off'
           }
         }
       },
@@ -47,16 +47,6 @@ describe('applyDisplay', () => {
     expect(s.streaming).toBe(false)
   })
 
-  it('coerces legacy true + "on" alias to top', () => {
-    const setBell = vi.fn()
-
-    applyDisplay({ config: { display: { tui_statusbar: true as unknown as 'on' } } }, setBell)
-    expect($uiState.get().statusBar).toBe('top')
-
-    applyDisplay({ config: { display: { tui_statusbar: 'on' } } }, setBell)
-    expect($uiState.get().statusBar).toBe('top')
-  })
-
   it('applies v1 parity defaults when display fields are missing', () => {
     const setBell = vi.fn()
 
@@ -72,17 +62,14 @@ describe('applyDisplay', () => {
     expect(s.sections).toEqual({})
   })
 
-  it('uses documented mouse_tracking with legacy tui_mouse fallback', () => {
+  it('uses documented mouse_tracking values', () => {
     const setBell = vi.fn()
 
-    applyDisplay({ config: { display: { mouse_tracking: false } } }, setBell)
+    applyDisplay({ config: { display: { mouse_tracking: 'off' } } }, setBell)
     expect($uiState.get().mouseTracking).toBe('off')
 
-    applyDisplay({ config: { display: { mouse_tracking: true, tui_mouse: false } } }, setBell)
+    applyDisplay({ config: { display: { mouse_tracking: 'all' } } }, setBell)
     expect($uiState.get().mouseTracking).toBe('all')
-
-    applyDisplay({ config: { display: { tui_mouse: false } } }, setBell)
-    expect($uiState.get().mouseTracking).toBe('off')
   })
 
   it('threads mouse_tracking presets through to $uiState', () => {
@@ -167,12 +154,6 @@ describe('applyDisplay', () => {
 })
 
 describe('normalizeStatusBar', () => {
-  it('maps legacy bool + on alias to top/off', () => {
-    expect(normalizeStatusBar(true)).toBe('top')
-    expect(normalizeStatusBar(false)).toBe('off')
-    expect(normalizeStatusBar('on')).toBe('top')
-  })
-
   it('passes through the canonical enum', () => {
     expect(normalizeStatusBar('off')).toBe('off')
     expect(normalizeStatusBar('top')).toBe('top')
@@ -189,31 +170,20 @@ describe('normalizeStatusBar', () => {
   it('trims whitespace and folds case', () => {
     expect(normalizeStatusBar(' Bottom ')).toBe('bottom')
     expect(normalizeStatusBar('TOP')).toBe('top')
-    expect(normalizeStatusBar('  on  ')).toBe('top')
     expect(normalizeStatusBar('OFF')).toBe('off')
   })
 })
 
 describe('normalizeMouseTracking', () => {
-  it('defaults to all and prefers canonical mouse_tracking over legacy tui_mouse', () => {
+  it('defaults to all and normalizes mouse_tracking', () => {
     expect(normalizeMouseTracking({})).toBe('all')
-    expect(normalizeMouseTracking({ mouse_tracking: false })).toBe('off')
-    expect(normalizeMouseTracking({ mouse_tracking: 0 })).toBe('off')
     expect(normalizeMouseTracking({ mouse_tracking: 'off' })).toBe('off')
-    expect(normalizeMouseTracking({ mouse_tracking: 'false' })).toBe('off')
-    expect(normalizeMouseTracking({ mouse_tracking: null, tui_mouse: false })).toBe('all')
-    expect(normalizeMouseTracking({ mouse_tracking: true, tui_mouse: false })).toBe('all')
-    expect(normalizeMouseTracking({ tui_mouse: false })).toBe('off')
   })
 
-  it('accepts preset strings (wheel/buttons/all) and their aliases', () => {
+  it('accepts canonical preset strings', () => {
     expect(normalizeMouseTracking({ mouse_tracking: 'wheel' })).toBe('wheel')
-    expect(normalizeMouseTracking({ mouse_tracking: 'scroll' })).toBe('wheel')
     expect(normalizeMouseTracking({ mouse_tracking: 'buttons' })).toBe('buttons')
-    expect(normalizeMouseTracking({ mouse_tracking: 'click' })).toBe('buttons')
     expect(normalizeMouseTracking({ mouse_tracking: 'all' })).toBe('all')
-    expect(normalizeMouseTracking({ mouse_tracking: 'full' })).toBe('all')
-    expect(normalizeMouseTracking({ mouse_tracking: 'on' })).toBe('all')
     expect(normalizeMouseTracking({ mouse_tracking: ' WHEEL ' })).toBe('wheel')
   })
 

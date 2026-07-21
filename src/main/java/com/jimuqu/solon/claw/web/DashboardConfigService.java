@@ -6,8 +6,10 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.ConfigFlattenSupport;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.profile.ProfileMutationLock;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.BootstrapPromptBudgetSupport;
+import com.jimuqu.solon.claw.support.ModelConfigKeySupport;
 import com.jimuqu.solon.claw.support.RuntimeSetupSpec;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileConfigFile;
@@ -206,7 +208,11 @@ public class DashboardConfigService {
         Map<String, Object> flat = flattenFieldMap(nestedConfig);
         validateKeys(flat.keySet());
         validateValues(flat);
-        writeOverrideFile(flat);
+        withMutationLock(
+                () -> {
+                    writeOverrideFile(flat);
+                    return null;
+                });
         refresh(true);
         return Collections.<String, Object>singletonMap("ok", true);
     }
@@ -229,10 +235,14 @@ public class DashboardConfigService {
      * @return 返回原始结果。
      */
     public Map<String, Object> saveRaw(String yamlText) {
-        Map<String, Object> flat = loadFieldMap(yamlText);
+        Map<String, Object> flat = loadWritableFieldMap(yamlText);
         validateKeys(flat.keySet());
         validateValues(flat);
-        writeOverrideFile(flat);
+        withMutationLock(
+                () -> {
+                    writeOverrideFile(flat);
+                    return null;
+                });
         refresh(true);
         return Collections.<String, Object>singletonMap("ok", true);
     }
@@ -269,10 +279,14 @@ public class DashboardConfigService {
             Map<String, Object> flatUpdates, boolean reconnectChannels) {
         Map<String, Object> normalizedUpdates = normalizeFlatUpdates(flatUpdates);
         validateKeys(normalizedUpdates.keySet());
-        Map<String, Object> merged = mergeBaseValues();
-        merged.putAll(normalizedUpdates);
-        validateValues(merged);
-        writeOverrideFile(merged);
+        withMutationLock(
+                () -> {
+                    Map<String, Object> merged = mergeBaseValues();
+                    merged.putAll(normalizedUpdates);
+                    validateValues(merged);
+                    writeOverrideFile(merged);
+                    return null;
+                });
         refresh(reconnectChannels);
         return Collections.<String, Object>singletonMap("ok", true);
     }
@@ -315,6 +329,23 @@ public class DashboardConfigService {
     }
 
     /**
+     * 在当前 Profile 所属根目录的跨进程锁内执行配置写入。
+     *
+     * @param action 配置变更动作。
+     * @param <T> 返回值类型。
+     * @return 配置变更结果。
+     */
+    private <T> T withMutationLock(ProfileMutationLock.Action<T> action) {
+        try {
+            return new ProfileMutationLock(appConfig).withLock(action);
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to lock configuration update.", e);
+        }
+    }
+
+    /**
      * 规范化Flat Updates。
      *
      * @param flatUpdates flatUpdates 参数。
@@ -336,21 +367,6 @@ public class DashboardConfigService {
 
     /** 注册Fields。 */
     private void registerFields() {
-        addField(
-                new FieldDefinition("model.providerKey", "string", "general", "当前默认模型 provider 键"));
-        addField(
-                new FieldDefinition(
-                        "providers.default.name", "string", "general", "默认 provider 名称"));
-        addField(
-                new FieldDefinition(
-                        "providers.default.baseUrl", "string", "general", "默认 provider API 地址"));
-        addField(
-                new FieldDefinition(
-                        "providers.default.defaultModel", "string", "general", "默认 provider 模型名"));
-        addField(
-                new FieldDefinition(
-                                "providers.default.dialect", "select", "general", "默认 provider 协议")
-                        .options("openai", "openai-responses", "ollama", "gemini", "anthropic"));
         addField(new FieldDefinition("llm.stream", "boolean", "general", "是否启用流式输出"));
         addField(
                 new FieldDefinition("llm.reasoningEffort", "select", "general", "默认推理强度")
@@ -451,7 +467,7 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "learning.auxiliaryTimeoutSeconds", "number", "agent", "自动学习辅助模型调用总超时（秒）"));
-        addField(new FieldDefinition("memory.archive.enabled", "boolean", "agent", "启用旧每日记忆不可变归档"));
+        addField(new FieldDefinition("memory.archive.enabled", "boolean", "agent", "启用每日记忆不可变归档"));
         addField(
                 new FieldDefinition(
                         "memory.archive.retentionDays", "number", "agent", "每日记忆活动保留天数"));
@@ -491,15 +507,6 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "skills.curator.aiEnabled", "boolean", "agent", "启用基于真实会话证据的技能 AI 评估"));
-        addField(
-                new FieldDefinition(
-                        "skills.curator.aiProvider",
-                        "text",
-                        "agent",
-                        "技能 AI 评估专用 Provider，留空沿用默认路由"));
-        addField(
-                new FieldDefinition(
-                        "skills.curator.aiModel", "text", "agent", "技能 AI 评估专用模型，留空沿用默认路由"));
         addField(
                 new FieldDefinition(
                         "skills.curator.aiTimeoutSeconds", "number", "agent", "单技能 AI 评估超时（秒）"));
@@ -616,59 +623,10 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "workspace", "string", "security", "Agent 工作区目录，支持相对运行 Jar 的相对路径"));
-        addField(
-                new FieldDefinition(
-                        "agent.personalities.helpful.description",
-                        "string",
-                        "agent",
-                        "helpful 人格描述"));
-        addField(
-                new FieldDefinition(
-                        "agent.personalities.helpful.systemPrompt",
-                        "text",
-                        "agent",
-                        "helpful 人格系统提示词"));
-        addField(
-                new FieldDefinition(
-                        "agent.personalities.concise.description",
-                        "string",
-                        "agent",
-                        "concise 人格描述"));
-        addField(
-                new FieldDefinition(
-                        "agent.personalities.concise.systemPrompt",
-                        "text",
-                        "agent",
-                        "concise 人格系统提示词"));
-        addField(
-                new FieldDefinition(
-                        "agent.personalities.technical.description",
-                        "string",
-                        "agent",
-                        "technical 人格描述"));
-        addField(
-                new FieldDefinition(
-                        "agent.personalities.technical.systemPrompt",
-                        "text",
-                        "agent",
-                        "technical 人格系统提示词"));
-        addField(
-                new FieldDefinition(
-                        "agent.personalities.technical.tone", "string", "agent", "technical 人格语气"));
-        addField(
-                new FieldDefinition(
-                        "agent.personalities.technical.style",
-                        "string",
-                        "agent",
-                        "technical 人格风格"));
-
         addField(new FieldDefinition("compression.enabled", "boolean", "compression", "启用上下文压缩"));
         addField(
                 new FieldDefinition(
                         "compression.thresholdPercent", "number", "compression", "触发压缩的阈值比例"));
-        addField(
-                new FieldDefinition(
-                        "compression.summaryModel", "string", "compression", "可选压缩/工作记忆摘要模型"));
         addField(
                 new FieldDefinition(
                         "compression.protectHeadMessages", "number", "compression", "头部保护消息数"));
@@ -1205,6 +1163,28 @@ public class DashboardConfigService {
      * @return 返回Field Map结果。
      */
     private Map<String, Object> loadFieldMap(String yamlText) {
+        return selectSupportedFields(flattenYaml(yamlText));
+    }
+
+    /**
+     * 加载允许由通用 Dashboard 配置入口写入的字段。
+     *
+     * @param yamlText YAML 文本。
+     * @return 已校验并筛选的可写字段。
+     */
+    private Map<String, Object> loadWritableFieldMap(String yamlText) {
+        Map<String, Object> flattened = flattenYaml(yamlText);
+        rejectDedicatedModelConfigKeys(flattened.keySet());
+        return selectSupportedFields(flattened);
+    }
+
+    /**
+     * 将 YAML 解析为扁平配置字段。
+     *
+     * @param yamlText YAML 文本。
+     * @return 扁平配置字段。
+     */
+    private Map<String, Object> flattenYaml(String yamlText) {
         if (StrUtil.isBlank(yamlText)) {
             return Collections.emptyMap();
         }
@@ -1216,7 +1196,16 @@ public class DashboardConfigService {
 
         Map<String, Object> flattened = new LinkedHashMap<String, Object>();
         ConfigFlattenSupport.flatten("", (Map<?, ?>) parsed, flattened);
+        return flattened;
+    }
 
+    /**
+     * 从扁平配置中保留通用 Dashboard 管理的字段。
+     *
+     * @param flattened 扁平配置字段。
+     * @return Dashboard 支持的字段。
+     */
+    private Map<String, Object> selectSupportedFields(Map<String, Object> flattened) {
         Map<String, Object> fieldValues = new LinkedHashMap<String, Object>();
         for (Map.Entry<String, Object> entry : flattened.entrySet()) {
             String key = canonicalFieldKey(entry.getKey());
@@ -1243,6 +1232,7 @@ public class DashboardConfigService {
         Assert.notNull(nested, "config body is required");
         Map<String, Object> output = new LinkedHashMap<String, Object>();
         flattenNested("", nested, output);
+        rejectDedicatedModelConfigKeys(output.keySet());
 
         Map<String, Object> filtered = new LinkedHashMap<String, Object>();
         for (Map.Entry<String, Object> entry : output.entrySet()) {
@@ -1319,11 +1309,26 @@ public class DashboardConfigService {
      * @param keys 候选键列表。
      */
     private void validateKeys(Iterable<String> keys) {
+        rejectDedicatedModelConfigKeys(keys);
         for (String key : keys) {
             String canonicalKey = canonicalFieldKey(key);
             if (!fields.containsKey(canonicalKey) && !isSupportedPassthroughKey(key)) {
                 throw new IllegalStateException("Unsupported config key: " + key);
             }
+        }
+    }
+
+    /** 拒绝一组必须由模型设置专用入口维护的配置键。 */
+    private void rejectDedicatedModelConfigKeys(Iterable<String> keys) {
+        for (String key : keys) {
+            rejectDedicatedModelConfigKey(canonicalFieldKey(key));
+        }
+    }
+
+    /** 拒绝通过通用 Dashboard 配置入口修改必须原子维护的模型配置。 */
+    private void rejectDedicatedModelConfigKey(String key) {
+        if (ModelConfigKeySupport.isDedicatedKey(key)) {
+            throw new IllegalStateException(ModelConfigKeySupport.DEDICATED_ENTRY_MESSAGE);
         }
     }
 

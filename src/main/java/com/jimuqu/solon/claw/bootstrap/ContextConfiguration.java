@@ -1,9 +1,6 @@
 package com.jimuqu.solon.claw.bootstrap;
 
 import cn.hutool.core.io.FileUtil;
-import com.jimuqu.solon.claw.agent.AgentProfileRepository;
-import com.jimuqu.solon.claw.agent.AgentProfileService;
-import com.jimuqu.solon.claw.agent.AgentRuntimeService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.AsyncSkillLearningService;
 import com.jimuqu.solon.claw.context.BuiltinMemoryProvider;
@@ -167,7 +164,7 @@ public class ContextConfiguration {
     }
 
     /**
-     * 创建旧每日记忆不可变归档与派生摘要服务。
+     * 创建每日记忆不可变归档与派生摘要服务。
      *
      * @param appConfig 应用配置。
      * @param memoryService 现有记忆服务。
@@ -183,33 +180,6 @@ public class ContextConfiguration {
             GlobalSettingRepository globalSettingRepository) {
         return new MemoryArchiveService(
                 appConfig, memoryService, llmGateway, globalSettingRepository);
-    }
-
-    /**
-     * 执行Agent运行时服务相关逻辑。
-     *
-     * @param appConfig 应用运行配置。
-     * @param agentProfileRepository 文件或目录路径参数。
-     * @return 返回Agent运行时服务结果。
-     */
-    @Bean
-    public AgentRuntimeService agentRuntimeService(
-            AppConfig appConfig, AgentProfileRepository agentProfileRepository) {
-        return new AgentRuntimeService(appConfig, agentProfileRepository);
-    }
-
-    /**
-     * 执行Agent角色配置服务相关逻辑。
-     *
-     * @param agentProfileRepository 文件或目录路径参数。
-     * @param agentRuntimeService Agent运行时服务依赖。
-     * @return 返回Agent角色配置服务结果。
-     */
-    @Bean
-    public AgentProfileService agentProfileService(
-            AgentProfileRepository agentProfileRepository,
-            AgentRuntimeService agentRuntimeService) {
-        return new AgentProfileService(agentProfileRepository, agentRuntimeService);
     }
 
     /**

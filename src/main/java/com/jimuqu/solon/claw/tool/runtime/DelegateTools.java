@@ -36,8 +36,6 @@ public class DelegateTools {
             @Param(name = "tasks", description = "批量结构化任务，每项必须包含 goal", required = false)
                     List<DelegateTaskInput> tasks,
             @Param(name = "model", description = "单任务使用的模型", required = false) String model,
-            @Param(name = "system_prompt", description = "可选的极简系统提示", required = false)
-                    String systemPrompt,
             @Param(name = "allowed_tools", description = "单任务工具白名单", required = false)
                     List<String> allowedTools,
             @Param(name = "background", description = "协议字段；执行方式由运行时决定，模型值不改变调度", required = false)
@@ -49,8 +47,7 @@ public class DelegateTools {
 
         try {
             if (tasks != null && !tasks.isEmpty()) {
-                List<DelegationTask> items =
-                        toTasks(tasks, context, model, systemPrompt, allowedTools);
+                List<DelegationTask> items = toTasks(tasks, context, model, allowedTools);
                 if (items == null) {
                     return error("each task requires a goal, model, and explicit tool whitelist");
                 }
@@ -71,7 +68,6 @@ public class DelegateTools {
             task.setPrompt(goal.trim());
             task.setContext(context);
             task.setModel(model);
-            task.setSystemPrompt(systemPrompt);
             task.setAllowedTools(allowedTools);
             if (!validTask(task)) {
                 return error("model and explicit tool whitelist are required");
@@ -101,7 +97,6 @@ public class DelegateTools {
      * @param tasks 结构化任务。
      * @param sharedContext 顶层共享上下文。
      * @param model 顶层模型。
-     * @param systemPrompt 顶层精简系统提示。
      * @param allowedTools 顶层工具白名单。
      * @return 参数非法时返回 null，否则返回领域任务列表。
      */
@@ -109,7 +104,6 @@ public class DelegateTools {
             List<DelegateTaskInput> tasks,
             String sharedContext,
             String model,
-            String systemPrompt,
             List<String> allowedTools) {
         List<DelegationTask> items = new ArrayList<DelegationTask>();
         for (int i = 0; i < tasks.size(); i++) {
@@ -122,7 +116,6 @@ public class DelegateTools {
             task.setPrompt(input.getGoal().trim());
             task.setContext(StrUtil.blankToDefault(input.getContext(), sharedContext));
             task.setModel(StrUtil.blankToDefault(input.getModel(), model));
-            task.setSystemPrompt(StrUtil.blankToDefault(input.getSystemPrompt(), systemPrompt));
             task.setAllowedTools(
                     input.getAllowedTools() == null ? allowedTools : input.getAllowedTools());
             if (!validTask(task)) {
@@ -134,10 +127,10 @@ public class DelegateTools {
     }
 
     /**
-     * 规范化子代理角色。
+     * 校验委托任务是否已显式指定模型和工具白名单。
      *
-     * @param role 原始角色。
-     * @return leaf/orchestrator；非法值返回 null。
+     * @param task 待校验的委托任务。
+     * @return 参数完整时返回 true，否则返回 false。
      */
     private boolean validTask(DelegationTask task) {
         return task != null
@@ -174,10 +167,6 @@ public class DelegateTools {
         /** 子任务模型；为空时使用顶层 model。 */
         @Param(description = "Model for this task", required = false)
         private String model;
-
-        /** 子任务极简系统提示；为空时使用顶层 system_prompt。 */
-        @Param(description = "Minimal system prompt", required = false)
-        private String systemPrompt;
 
         /** 子任务工具白名单；为空时使用顶层 allowed_tools。 */
         @Param(description = "Explicit tool whitelist", required = false)

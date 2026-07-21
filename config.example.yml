@@ -117,9 +117,9 @@ approvals:
   # /reload-mcp 会让下一轮模型请求重新发送完整工具 schema，默认需要确认。
   # 设为 false 后，/reload-mcp 将直接执行。
   mcpReloadConfirm: true
-  # 危险操作智能审批专用 Provider；留空时沿用当前 Profile 主模型。
+  # 危险操作智能审批专用 Provider；必须与 model 同时填写，两项都空时沿用当前 Profile 主模型。
   modelProvider: ""
-  # 危险操作智能审批专用模型；留空时沿用当前 Profile 主模型。
+  # 危险操作智能审批专用模型；必须与 modelProvider 同时填写。
   model: ""
   # 用户自定义不可绕过的命令 deny 列表，支持 glob 通配（* 和 ?）。
   # 即使 guardrailMode 设为 bypass 也不放过，用于补充内置 hardline 规则。
@@ -179,9 +179,9 @@ solonclaw:
     # 未设置 job.enabled_toolsets 时，cron 平台默认启用的工具集；空列表表示沿用全部默认工具。
     # cron 运行时始终会额外禁用 cronjob / messaging / clarify，避免无人值守递归调度或主动发消息。
     enabledToolsets: []
-    # Cron 任务未单独绑定模型时使用的 Provider；留空时沿用当前 Profile 主模型。
+    # Cron 默认 Provider；必须与 defaultModel 同时填写，两项都空时沿用当前 Profile 主模型。
     defaultProvider: ""
-    # Cron 任务未单独绑定模型时使用的模型；留空时沿用当前 Profile 主模型。
+    # Cron 默认模型；必须与 defaultProvider 同时填写。
     defaultModel: ""
 
   # MCP 工具适配配置。
@@ -261,9 +261,9 @@ solonclaw:
     enabled: true
     # 触发压缩的上下文占用比例。
     thresholdPercent: 0.5
-    # 压缩摘要专用 Provider；留空时使用当前 Profile 主模型。
+    # 压缩摘要专用 Provider；必须与 summaryModel 同时填写，两项都空时沿用当前 Profile 主模型。
     summaryProvider: ""
-    # 可选压缩摘要模型；留空时使用当前默认模型。
+    # 压缩摘要专用模型；必须与 summaryProvider 同时填写。
     summaryModel: ""
     # 压缩时保护开头消息数量。
     protectHeadMessages: 3
@@ -278,12 +278,12 @@ solonclaw:
     toolCallThreshold: 5
     # 自动学习分类/技能总结等辅助模型调用的总超时，单位秒。
     auxiliaryTimeoutSeconds: 60
-    # 对话后复盘、记忆和技能维护专用 Provider；留空时沿用当前 Profile 主模型。
+    # 对话后复盘专用 Provider；必须与 model 同时填写，两项都空时沿用当前 Profile 主模型。
     modelProvider: ""
-    # 对话后复盘、记忆和技能维护专用模型；留空时沿用当前 Profile 主模型。
+    # 对话后复盘专用模型；必须与 modelProvider 同时填写。
     model: ""
 
-  # 旧每日记忆生命周期配置。
+  # 每日记忆生命周期配置。
   memory:
     archive:
       # 是否启用不可变原文归档和可重建派生摘要。
@@ -329,6 +329,10 @@ solonclaw:
       staleAfterDays: 30
       # 多久未触达后标记 archived；不会自动删除。
       archiveAfterDays: 90
+      # Curator 专用 Provider；必须与 aiModel 同时填写，两项都空时沿用当前 Profile 主模型。
+      aiProvider: ""
+      # Curator 专用模型；必须与 aiProvider 同时填写。
+      aiModel: ""
 
   # 跨会话反思配置。
   reflection:
@@ -510,31 +514,6 @@ solonclaw:
     heartbeat:
       # 心跳间隔，单位分钟；0 表示不启用自动心跳。
       intervalMinutes: 15
-    # 预定义人格配置。
-    personalities:
-      # 默认友好人格。
-      helpful:
-        # 人格说明。
-        description: 友好、通用的默认助手
-        # 人格系统提示词。
-        systemPrompt: 你是一个友好、可靠的中文技术助手，优先给出准确、可执行的答案。
-      # 简洁人格。
-      concise:
-        # 人格说明。
-        description: 简洁直接，优先最短有效答案
-        # 人格系统提示词。
-        systemPrompt: 你是一个非常简洁的中文技术助手，只输出解决问题所需的最少内容。
-      # 工程技术人格。
-      technical:
-        # 人格说明。
-        description: 偏工程化，强调原因、边界与验证
-        # 人格系统提示词。
-        systemPrompt: 你是一个工程导向的中文技术助手，回答时强调约束、原因、风险和验证方式。
-        # 人格语气说明。
-        tone: 冷静、直接
-        # 人格表达风格说明。
-        style: 优先用清晰术语描述系统行为和实现边界
-
   # 主动提醒配置。模型按 PROACTIVITY_ANALYSIS.md 调整频率，并按 PROACTIVE.md 生成消息。
   proactive:
     # 是否启用主动提醒。
@@ -550,9 +529,9 @@ solonclaw:
     # 免打扰起止时间，格式为 HH:mm。
     quietStart: "22:00"
     quietEnd: "08:00"
-    # 主动监控和重要性分类专用 Provider；留空时沿用当前 Profile 主模型。
+    # 主动监控专用 Provider；必须与 model 同时填写，两项都空时沿用当前 Profile 主模型。
     modelProvider: ""
-    # 主动监控和重要性分类专用模型；留空时沿用当前 Profile 主模型。
+    # 主动监控专用模型；必须与 modelProvider 同时填写。
     model: ""
 
   # 国内消息渠道配置。

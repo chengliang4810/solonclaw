@@ -183,19 +183,7 @@ public class LocalSkillService implements SkillCatalogService {
             throws Exception {
         processPendingImportsQuietly();
         List<SkillDescriptor> skills = listConfiguredSkills(null);
-        if (agentScope != null
-                && !agentScope.isDefaultAgentName()
-                && StrUtil.isNotBlank(agentScope.getSkillsDir())) {
-            addUniqueSkills(
-                    skills,
-                    listSkillsFromRoot(
-                            FileUtil.file(agentScope.getSkillsDir()),
-                            null,
-                            "local",
-                            "agent-created"));
-        }
         skills.sort(skillComparator());
-        skills = filterAgentSkills(skills, agentScope);
         return filterCategory(skills, category);
     }
 
@@ -1177,27 +1165,6 @@ public class LocalSkillService implements SkillCatalogService {
             }
         }
         return null;
-    }
-
-    /**
-     * 执行过滤器Agent技能相关逻辑。
-     *
-     * @param skills 技能参数。
-     * @param agentScope 当前运行冻结后的 Agent 范围。
-     * @return 返回filter Agent技能结果。
-     */
-    private List<SkillDescriptor> filterAgentSkills(
-            List<SkillDescriptor> skills, AgentRuntimeScope agentScope) {
-        if (AgentRuntimePolicy.resolveAllowedSkills(agentScope).isEmpty()) {
-            return skills;
-        }
-        List<SkillDescriptor> filtered = new ArrayList<SkillDescriptor>();
-        for (SkillDescriptor descriptor : skills) {
-            if (AgentRuntimePolicy.isSkillAllowed(agentScope, descriptor)) {
-                filtered.add(descriptor);
-            }
-        }
-        return filtered;
     }
 
     /** 从 SKILL.md 中提取描述；若无 frontmatter，则回退到首行正文。 */

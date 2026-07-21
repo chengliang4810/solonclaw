@@ -1,7 +1,10 @@
 package com.jimuqu.solon.claw.profile;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeStatusService;
+import com.jimuqu.solon.claw.storage.repository.ReadOnlyCronJobReferenceRepository;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimePathSupport;
 import com.jimuqu.solon.claw.support.RuntimeProcessSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -45,6 +48,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
+import org.noear.solon.core.Props;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
@@ -131,7 +135,6 @@ public class ProfileManager {
                     "MEMORY.md",
                     "USER.md",
                     "todo.json",
-                    "system_prompt.md",
                     "AGENTS.md",
                     "IDENTITY.md",
                     "TOOLS.md",
@@ -234,6 +237,9 @@ public class ProfileManager {
     /** 当前发行版内置技能同步器。 */
     private final ProfileBundledSkillSeeder bundledSkillSeeder;
 
+    /** Provider、Profile 与 Cron 共用的根目录变更锁。 */
+    private final ProfileMutationLock mutationLock;
+
     /**
      * 创建 Profile 管理器。
      *
@@ -294,6 +300,7 @@ public class ProfileManager {
                 launcher == null || launcher.trim().length() == 0 ? "solonclaw" : launcher.trim();
         this.profileDescriptionService = profileDescriptionService;
         this.bundledSkillSeeder = bundledSkillSeeder;
+        this.mutationLock = ProfileMutationLock.forRoot(this.root);
     }
 
     /**
@@ -351,7 +358,7 @@ public class ProfileManager {
                         parseCommandArguments(values, 1, action, noOptions(), noOptions());
                 requirePositionals(parsed, 1, 1, "profile use <name>");
                 String name = parsed.positionals.get(0);
-                setActiveProfile(name);
+                useProfile(name);
                 out.println("Active profile: " + normalizeName(name));
             } else if ("create".equals(action)) {
                 createProfileCommand(values, selectedProfile, out);
@@ -504,6 +511,18 @@ public class ProfileManager {
     }
 
     /**
+     * 在 Provider、Profile 与 Cron 共用的根目录锁内执行变更。
+     *
+     * @param action 受保护动作。
+     * @param <T> 返回值类型。
+     * @return 动作结果。
+     * @throws Exception 加锁或动作执行失败。
+     */
+    private <T> T withMutationLock(ProfileMutationLock.Action<T> action) throws Exception {
+        return mutationLock.withLock(action);
+    }
+
+    /**
      * 返回全部 Profile 的结构化隔离与运行状态视图。
      *
      * @return default 在首位、命名 Profile 按名称排序的视图列表。
@@ -584,6 +603,12 @@ public class ProfileManager {
      * @throws Exception 名称、来源、别名或文件操作失败。
      */
     public Path createProfile(String rawName, ProfileCreateOptions rawOptions) throws Exception {
+        return withMutationLock(() -> createProfileUnlocked(rawName, rawOptions));
+    }
+
+    /** 在统一根目录锁内执行 Profile 创建。 */
+    private Path createProfileUnlocked(String rawName, ProfileCreateOptions rawOptions)
+            throws Exception {
         ProfileCreateOptions options = rawOptions == null ? new ProfileCreateOptions() : rawOptions;
         String name = normalizeName(rawName);
         validateProfileName(name);
@@ -636,6 +661,7 @@ public class ProfileManager {
                 }
             }
             removeProfileProviders(target);
+            validateProfileReferences(target);
             Map<String, Object> metadata = new LinkedHashMap<String, Object>();
             metadata.put("name", name);
             metadata.put("aliases", new ArrayList<String>());
@@ -679,10 +705,14 @@ public class ProfileManager {
      * 设置 sticky 活动 Profile，不改变当前已运行 JVM 的工作区。
      *
      * @param name Profile 名。
-     * @throws IOException Profile 不存在或标记写入失败。
+     * @throws Exception Profile 不存在、加锁或标记写入失败。
      */
-    public void useProfile(String name) throws IOException {
-        setActiveProfile(name);
+    public void useProfile(String name) throws Exception {
+        withMutationLock(
+                () -> {
+                    setActiveProfile(name);
+                    return null;
+                });
     }
 
     /**
@@ -733,7 +763,7 @@ public class ProfileManager {
     }
 
     /**
-     * 写入人工维护的 Profile 职责说明。
+     * 写入人工维护的 Profile 说明。
      *
      * @param rawName Profile 名。
      * @param rawDescription 人工说明；空字符串用于清空现有说明。
@@ -741,18 +771,21 @@ public class ProfileManager {
      * @throws Exception Profile 不存在或元数据写入失败。
      */
     public ProfileView setDescription(String rawName, String rawDescription) throws Exception {
-        String name = normalizeName(rawName);
-        Path home = requireProfileHome(name);
-        String description = rawDescription == null ? "" : rawDescription.trim();
-        Map<String, Object> metadata = readMetadata(home);
-        metadata.put("name", name);
-        metadata.put("description", description);
-        metadata.put("description_auto", Boolean.FALSE);
-        if (!metadata.containsKey("aliases")) {
-            metadata.put("aliases", new ArrayList<String>());
-        }
-        writeMetadata(home, metadata);
-        return profileView(name);
+        return withMutationLock(
+                () -> {
+                    String name = normalizeName(rawName);
+                    Path home = requireProfileHome(name);
+                    String description = rawDescription == null ? "" : rawDescription.trim();
+                    Map<String, Object> metadata = readMetadata(home);
+                    metadata.put("name", name);
+                    metadata.put("description", description);
+                    metadata.put("description_auto", Boolean.FALSE);
+                    if (!metadata.containsKey("aliases")) {
+                        metadata.put("aliases", new ArrayList<String>());
+                    }
+                    writeMetadata(home, metadata);
+                    return profileView(name);
+                });
     }
 
     /**
@@ -777,9 +810,12 @@ public class ProfileManager {
      * @throws Exception Profile、别名或文件操作失败。
      */
     public ProfileView createProfileAlias(String profile, String alias) throws Exception {
-        String name = normalizeName(profile);
-        createAlias(name, trimToNull(alias) == null ? name : alias);
-        return profileView(name);
+        return withMutationLock(
+                () -> {
+                    String name = normalizeName(profile);
+                    createAlias(name, trimToNull(alias) == null ? name : alias);
+                    return profileView(name);
+                });
     }
 
     /**
@@ -791,9 +827,12 @@ public class ProfileManager {
      * @throws Exception Profile、别名或文件操作失败。
      */
     public ProfileView removeProfileAlias(String profile, String alias) throws Exception {
-        String name = normalizeName(profile);
-        removeAlias(name, trimToNull(alias) == null ? name : alias);
-        return profileView(name);
+        return withMutationLock(
+                () -> {
+                    String name = normalizeName(profile);
+                    removeAlias(name, trimToNull(alias) == null ? name : alias);
+                    return profileView(name);
+                });
     }
 
     /**
@@ -1103,10 +1142,10 @@ public class ProfileManager {
                     "Described '" + outcome.getProfileName() + "': " + outcome.getDescription());
             return 0;
         }
-        Path home = requireProfileHome(name);
-        Map<String, Object> metadata = readMetadata(home);
         String normalized = normalizeName(name);
         if (description == null) {
+            Path home = requireProfileHome(normalized);
+            Map<String, Object> metadata = readMetadata(home);
             String current = text(metadata.get("description"));
             out.println(
                     current.length() == 0
@@ -1116,13 +1155,7 @@ public class ProfileManager {
                                     : current));
             return 0;
         }
-        metadata.put("name", normalized);
-        metadata.put("description", description.trim());
-        metadata.put("description_auto", Boolean.FALSE);
-        if (!metadata.containsKey("aliases")) {
-            metadata.put("aliases", new ArrayList<String>());
-        }
-        writeMetadata(home, metadata);
+        setDescription(normalized, description);
         out.println("Description updated for '" + normalized + "'.");
         return 0;
     }
@@ -1211,6 +1244,12 @@ public class ProfileManager {
     /** 执行 Profile 重命名核心操作。 */
     private Path renameProfileInternal(String rawOld, String rawNew, PrintStream out)
             throws Exception {
+        return withMutationLock(() -> renameProfileUnlocked(rawOld, rawNew, out));
+    }
+
+    /** 在统一根目录锁内执行 Profile 重命名。 */
+    private Path renameProfileUnlocked(String rawOld, String rawNew, PrintStream out)
+            throws Exception {
         String oldName = normalizeName(rawOld);
         String newName = normalizeName(rawNew);
         validateProfileName(oldName);
@@ -1290,6 +1329,11 @@ public class ProfileManager {
 
     /** 删除受保护检查通过的命名 Profile。 */
     private Path deleteProfileInternal(String rawName) throws Exception {
+        return withMutationLock(() -> deleteProfileUnlocked(rawName));
+    }
+
+    /** 在统一根目录锁内执行 Profile 删除。 */
+    private Path deleteProfileUnlocked(String rawName) throws Exception {
         String name = normalizeName(rawName);
         if ("default".equals(name)) {
             throw new IllegalArgumentException("The default profile cannot be deleted.");
@@ -1339,13 +1383,18 @@ public class ProfileManager {
         requireProfileHome(profile);
         String alias = parsed.option("--name") == null ? profile : parsed.option("--name");
         if (parsed.hasFlag("--remove")) {
-            if (removeAlias(profile, alias)) {
+            boolean removed = withMutationLock(() -> removeAlias(profile, alias));
+            if (removed) {
                 out.println("Removed alias '" + alias + "'.");
             } else {
                 out.println("No alias '" + alias + "' found to remove.");
             }
         } else {
-            createAlias(profile, alias);
+            withMutationLock(
+                    () -> {
+                        createAlias(profile, alias);
+                        return null;
+                    });
             out.println("Alias '" + alias + "' -> solonclaw --profile " + profile);
         }
     }
@@ -1424,7 +1473,7 @@ public class ProfileManager {
         String importedName = imported.getFileName().toString();
         out.println("Imported profile '" + importedName + "': " + imported);
         try {
-            createAlias(importedName, importedName);
+            createProfileAlias(importedName, importedName);
             out.println("Wrapper created: " + wrapperPath(importedName));
         } catch (Exception ignored) {
             out.println("Profile imported; alias skipped because the command name is unavailable.");
@@ -1433,6 +1482,11 @@ public class ProfileManager {
 
     /** 执行安全 Profile 归档导入。 */
     private Path importProfileInternal(Path rawArchive, String requestedName) throws Exception {
+        return withMutationLock(() -> importProfileUnlocked(rawArchive, requestedName));
+    }
+
+    /** 在统一根目录锁内执行 Profile 归档导入。 */
+    private Path importProfileUnlocked(Path rawArchive, String requestedName) throws Exception {
         if (rawArchive == null) {
             throw new IllegalArgumentException("Profile import archive is required.");
         }
@@ -1451,26 +1505,32 @@ public class ProfileManager {
             if (Files.exists(target)) {
                 throw new IOException("Profile '" + name + "' already exists at " + target);
             }
-            copyTree(
-                    staging.resolve(archiveRoot),
-                    target,
-                    Collections.<String>emptySet(),
-                    false,
-                    false,
-                    false,
-                    false);
-            bootstrapProfile(target);
-            removeProfileProviders(target);
-            Map<String, Object> metadata = readMetadata(target);
-            metadata.put("name", name);
-            metadata.put("aliases", new ArrayList<String>());
-            writeMetadata(target, metadata);
-            Map<String, Object> manifest = readManifest(target, false);
-            if (!manifest.isEmpty()) {
-                manifest.put("name", name);
-                writeManifest(target, manifest);
+            try {
+                copyTree(
+                        staging.resolve(archiveRoot),
+                        target,
+                        Collections.<String>emptySet(),
+                        false,
+                        false,
+                        false,
+                        false);
+                bootstrapProfile(target);
+                removeProfileProviders(target);
+                validateProfileReferences(target);
+                Map<String, Object> metadata = readMetadata(target);
+                metadata.put("name", name);
+                metadata.put("aliases", new ArrayList<String>());
+                writeMetadata(target, metadata);
+                Map<String, Object> manifest = readManifest(target, false);
+                if (!manifest.isEmpty()) {
+                    manifest.put("name", name);
+                    writeManifest(target, manifest);
+                }
+                return target;
+            } catch (Exception e) {
+                deleteTree(target);
+                throw e;
             }
-            return target;
         } finally {
             deleteTree(staging);
         }
@@ -1529,32 +1589,50 @@ public class ProfileManager {
                     return null;
                 }
             }
-            if (exists) {
-                stopGateway(target);
-            } else {
-                bootstrapProfile(target);
-            }
-            applyDistribution(staged.directory, target, manifest, false);
-            bootstrapProfile(target);
-            redactConfig(target.resolve("config.yml"));
-            removeProfileProviders(target);
-            manifest.put("name", name);
-            manifest.put("version", valueOrDefault(manifest.get("version"), "0.1.0"));
-            manifest.put("source", staged.provenance);
-            manifest.put("installed_at", Instant.now().toString());
-            writeManifest(target, manifest);
-            writeEnvExample(staged.directory, target, manifest);
-            Map<String, Object> metadata = readMetadata(target);
-            metadata.put("name", name);
-            if (!metadata.containsKey("aliases")) {
-                metadata.put("aliases", new ArrayList<String>());
-            }
-            writeMetadata(target, metadata);
-            if (alias) {
-                createAlias(name, name);
-            }
-            out.println("Installed profile '" + name + "': " + target);
-            return name;
+            return withMutationLock(
+                    () -> {
+                        boolean targetExists = Files.isDirectory(target);
+                        if (targetExists && !force) {
+                            throw new IOException(
+                                    "Profile '"
+                                            + name
+                                            + "' already exists; pass --force to overwrite distribution"
+                                            + " files.");
+                        }
+                        AppConfig providerRegistry = globalAppConfig();
+                        validateProfileConfigReferences(
+                                distributionConfigCandidate(
+                                        staged.directory, target, manifest, false),
+                                providerRegistry);
+                        validateProfileCronReferences(
+                                target.resolve("data/state.db"), providerRegistry);
+                        if (targetExists) {
+                            stopGateway(target);
+                        } else {
+                            bootstrapProfile(target);
+                        }
+                        applyDistribution(staged.directory, target, manifest, false);
+                        bootstrapProfile(target);
+                        redactConfig(target.resolve("config.yml"));
+                        removeProfileProviders(target);
+                        manifest.put("name", name);
+                        manifest.put("version", valueOrDefault(manifest.get("version"), "0.1.0"));
+                        manifest.put("source", staged.provenance);
+                        manifest.put("installed_at", Instant.now().toString());
+                        writeManifest(target, manifest);
+                        writeEnvExample(staged.directory, target, manifest);
+                        Map<String, Object> metadata = readMetadata(target);
+                        metadata.put("name", name);
+                        if (!metadata.containsKey("aliases")) {
+                            metadata.put("aliases", new ArrayList<String>());
+                        }
+                        writeMetadata(target, metadata);
+                        if (alias) {
+                            createAlias(name, name);
+                        }
+                        out.println("Installed profile '" + name + "': " + target);
+                        return name;
+                    });
         } finally {
             deleteTree(staging);
         }
@@ -1612,24 +1690,48 @@ public class ProfileManager {
                     return null;
                 }
             }
-            stopGateway(target);
-            applyDistribution(staged.directory, target, incoming, !forceConfig);
-            bootstrapProfile(target);
-            if (forceConfig) {
-                redactConfig(target.resolve("config.yml"));
-            }
-            removeProfileProviders(target);
-            incoming.put("name", name);
-            incoming.put("version", valueOrDefault(incoming.get("version"), "0.1.0"));
-            incoming.put("source", source);
-            incoming.put(
-                    "installed_at",
-                    valueOrDefault(installed.get("installed_at"), Instant.now().toString()));
-            incoming.put("updated_at", Instant.now().toString());
-            writeManifest(target, incoming);
-            writeEnvExample(staged.directory, target, incoming);
-            out.println("Updated profile '" + name + "': " + target);
-            return name;
+            return withMutationLock(
+                    () -> {
+                        Path currentTarget = requireProfileHome(name);
+                        Map<String, Object> currentInstalled = readManifest(currentTarget, true);
+                        String currentSource = trimToNull(text(currentInstalled.get("source")));
+                        if (!source.equals(currentSource)) {
+                            throw new IOException(
+                                    "Profile distribution source changed while preparing update; retry.");
+                        }
+                        if (!samePath(currentTarget, root)) {
+                            AppConfig providerRegistry = globalAppConfig();
+                            validateProfileConfigReferences(
+                                    distributionConfigCandidate(
+                                            staged.directory,
+                                            currentTarget,
+                                            incoming,
+                                            !forceConfig),
+                                    providerRegistry);
+                            validateProfileCronReferences(
+                                    currentTarget.resolve("data/state.db"), providerRegistry);
+                        }
+                        stopGateway(currentTarget);
+                        applyDistribution(staged.directory, currentTarget, incoming, !forceConfig);
+                        bootstrapProfile(currentTarget);
+                        if (forceConfig) {
+                            redactConfig(currentTarget.resolve("config.yml"));
+                        }
+                        removeProfileProviders(currentTarget);
+                        incoming.put("name", name);
+                        incoming.put("version", valueOrDefault(incoming.get("version"), "0.1.0"));
+                        incoming.put("source", source);
+                        incoming.put(
+                                "installed_at",
+                                valueOrDefault(
+                                        currentInstalled.get("installed_at"),
+                                        Instant.now().toString()));
+                        incoming.put("updated_at", Instant.now().toString());
+                        writeManifest(currentTarget, incoming);
+                        writeEnvExample(staged.directory, currentTarget, incoming);
+                        out.println("Updated profile '" + name + "': " + currentTarget);
+                        return name;
+                    });
         } finally {
             deleteTree(staging);
         }
@@ -1813,7 +1915,7 @@ public class ProfileManager {
         seedProfileFiles(home);
     }
 
-    /** 为 clone-all 或缺少模板的 Profile 补齐独立凭据占位与默认人格文件。 */
+    /** 为 clone-all 或缺少模板的 Profile 补齐独立凭据占位与 SOUL 文件。 */
     private void seedProfileFiles(Path home) throws IOException {
         Path env = home.resolve(".env");
         if (!Files.exists(env, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
@@ -2123,6 +2225,211 @@ public class ProfileManager {
     }
 
     /**
+     * 校验命名 Profile 配置和 Cron 数据中的全部模型引用。
+     *
+     * @param home Profile 工作区。
+     * @throws Exception 配置、Cron 数据或 Provider 引用无效。
+     */
+    private void validateProfileReferences(Path home) throws Exception {
+        AppConfig providerRegistry = globalAppConfig();
+        validateProfileConfigReferences(home.resolve("config.yml"), providerRegistry);
+        validateProfileCronReferences(home.resolve("data/state.db"), providerRegistry);
+    }
+
+    /**
+     * 校验 Profile 主模型、备用链和六类后台任务模型均已在根 Provider 注册表登记。
+     *
+     * @param config Profile 配置文件。
+     * @param providerRegistry 根工作区 Provider 注册表快照。
+     * @throws IOException 配置无法读取或结构无效。
+     */
+    private void validateProfileConfigReferences(Path config, AppConfig providerRegistry)
+            throws IOException {
+        if (!Files.isRegularFile(config)) {
+            return;
+        }
+        final Object parsed;
+        try {
+            parsed = new Yaml(new SafeConstructor(new LoaderOptions())).load(readText(config));
+        } catch (Exception e) {
+            throw new IOException("Invalid Profile config: " + config, e);
+        }
+        if (!(parsed instanceof Map)) {
+            throw new IOException("Profile config.yml must contain a mapping: " + config);
+        }
+        Map<String, Object> configRoot = stringMap((Map<?, ?>) parsed);
+        validateConfigModelNode(
+                providerRegistry,
+                optionalConfigMap(configRoot, "model", "model", config),
+                "providerKey",
+                "default",
+                "Profile 主模型",
+                true);
+        validateFallbackReferences(configRoot.get("fallbackProviders"), providerRegistry, config);
+
+        Map<String, Object> solonclaw =
+                optionalConfigMap(configRoot, "solonclaw", "solonclaw", config);
+        validateConfigModelNode(
+                providerRegistry,
+                optionalConfigMap(solonclaw, "proactive", "solonclaw.proactive", config),
+                "modelProvider",
+                "model",
+                "monitor",
+                true);
+        validateConfigModelNode(
+                providerRegistry,
+                optionalConfigMap(solonclaw, "learning", "solonclaw.learning", config),
+                "modelProvider",
+                "model",
+                "background_review",
+                true);
+        Map<String, Object> skills =
+                optionalConfigMap(solonclaw, "skills", "solonclaw.skills", config);
+        validateConfigModelNode(
+                providerRegistry,
+                optionalConfigMap(skills, "curator", "solonclaw.skills.curator", config),
+                "aiProvider",
+                "aiModel",
+                "curator",
+                true);
+        validateConfigModelNode(
+                providerRegistry,
+                optionalConfigMap(configRoot, "approvals", "approvals", config),
+                "modelProvider",
+                "model",
+                "approval",
+                true);
+        validateConfigModelNode(
+                providerRegistry,
+                optionalConfigMap(solonclaw, "compression", "solonclaw.compression", config),
+                "summaryProvider",
+                "summaryModel",
+                "compression",
+                true);
+        validateConfigModelNode(
+                providerRegistry,
+                optionalConfigMap(solonclaw, "scheduler", "solonclaw.scheduler", config),
+                "defaultProvider",
+                "defaultModel",
+                "cron",
+                true);
+    }
+
+    /** 校验 Profile 的备用模型链全部使用完整且已登记的 Provider/模型对。 */
+    private void validateFallbackReferences(
+            Object rawFallbacks, AppConfig providerRegistry, Path config) throws IOException {
+        if (rawFallbacks == null) {
+            return;
+        }
+        if (!(rawFallbacks instanceof Iterable)) {
+            throw new IOException("Profile fallbackProviders must contain a list: " + config);
+        }
+        int index = 0;
+        for (Object rawFallback : (Iterable<?>) rawFallbacks) {
+            if (!(rawFallback instanceof Map)) {
+                throw new IOException(
+                        "Profile fallbackProviders["
+                                + index
+                                + "] must contain a mapping: "
+                                + config);
+            }
+            validateConfigModelNode(
+                    providerRegistry,
+                    stringMap((Map<?, ?>) rawFallback),
+                    "provider",
+                    "model",
+                    "Profile fallbackProviders[" + index + "]",
+                    false);
+            index++;
+        }
+    }
+
+    /**
+     * 校验一个配置节点中的 Provider/模型字段。
+     *
+     * @param providerRegistry 根工作区 Provider 注册表快照。
+     * @param node 待校验配置节点。
+     * @param providerField Provider 字段名。
+     * @param modelField 模型字段名。
+     * @param reference 引用来源说明。
+     * @param allowEmpty 是否允许两个字段同时为空并继承 Profile 主模型。
+     */
+    private void validateConfigModelNode(
+            AppConfig providerRegistry,
+            Map<String, Object> node,
+            String providerField,
+            String modelField,
+            String reference,
+            boolean allowEmpty) {
+        validateRegisteredModelPair(
+                providerRegistry,
+                text(node.get(providerField)),
+                text(node.get(modelField)),
+                reference,
+                allowEmpty);
+    }
+
+    /** 校验一个 Provider/模型对完整且已经登记。 */
+    private void validateRegisteredModelPair(
+            AppConfig providerRegistry,
+            String provider,
+            String model,
+            String reference,
+            boolean allowEmpty) {
+        String providerKey = text(provider);
+        String modelName = text(model);
+        if (providerKey.length() == 0 && modelName.length() == 0 && allowEmpty) {
+            return;
+        }
+        if (providerKey.length() == 0 || modelName.length() == 0) {
+            throw new IllegalArgumentException(reference + " 必须同时指定 provider 和 model。");
+        }
+        new LlmProviderService(providerRegistry).requireRegisteredModel(providerKey, modelName);
+    }
+
+    /**
+     * 只读校验 Profile 状态库中的全部 Cron 固定模型引用。
+     *
+     * @param stateDb Profile SQLite 状态库。
+     * @param providerRegistry 根工作区 Provider 注册表快照。
+     * @throws Exception 状态库读取或模型引用校验失败。
+     */
+    private void validateProfileCronReferences(Path stateDb, AppConfig providerRegistry)
+            throws Exception {
+        if (!Files.isRegularFile(stateDb)) {
+            return;
+        }
+        for (CronJobRecord job : new ReadOnlyCronJobReferenceRepository(stateDb).listAll()) {
+            validateRegisteredModelPair(
+                    providerRegistry,
+                    job.getProvider(),
+                    job.getModel(),
+                    "Profile 定时任务 " + text(job.getJobId()),
+                    true);
+        }
+    }
+
+    /** 读取可选配置映射；字段存在但不是映射时明确拒绝。 */
+    private Map<String, Object> optionalConfigMap(
+            Map<String, Object> parent, String key, String path, Path config) throws IOException {
+        Object raw = parent.get(key);
+        if (raw == null) {
+            return Collections.emptyMap();
+        }
+        if (!(raw instanceof Map)) {
+            throw new IOException("Profile " + path + " must contain a mapping: " + config);
+        }
+        return stringMap((Map<?, ?>) raw);
+    }
+
+    /** 返回根工作区唯一 Provider 注册表对应的独立配置快照。 */
+    private AppConfig globalAppConfig() {
+        Props props = new Props();
+        props.put("solonclaw.workspace", root.toAbsolutePath().toString());
+        return AppConfig.loadDetached(props);
+    }
+
+    /**
      * 从命名 Profile 配置中移除全局 Provider 注册表，只保留模型引用等 Profile 自有配置。
      *
      * @param home 命名 Profile 工作区。
@@ -2165,15 +2472,8 @@ public class ProfileManager {
         }
         List<String> retained = new ArrayList<String>();
         boolean changed = false;
-        boolean hasSpeechCredential = false;
-        String openAiCredential = null;
         for (String line : Files.readAllLines(environment, StandardCharsets.UTF_8)) {
             String name = environmentName(line);
-            if ("SOLONCLAW_SPEECH_API_KEY".equals(name)) {
-                hasSpeechCredential = true;
-            } else if ("OPENAI_API_KEY".equals(name)) {
-                openAiCredential = environmentValue(line);
-            }
             if (isProviderCredentialName(name)) {
                 changed = true;
             } else {
@@ -2181,9 +2481,6 @@ public class ProfileManager {
             }
         }
         if (changed) {
-            if (!hasSpeechCredential && openAiCredential != null) {
-                retained.add("SOLONCLAW_SPEECH_API_KEY=" + openAiCredential);
-            }
             String content = join(retained, System.lineSeparator());
             if (!retained.isEmpty()) {
                 content += System.lineSeparator();
@@ -2202,20 +2499,9 @@ public class ProfileManager {
         return separator <= 0 ? "" : line.substring(0, separator).trim().toUpperCase(Locale.ROOT);
     }
 
-    /** 从 dotenv 行提取等号后的原始值，供共享凭据迁移时保留原有引号和转义。 */
-    private String environmentValue(String rawLine) {
-        String line = rawLine == null ? "" : rawLine.trim();
-        int separator = line.indexOf('=');
-        return separator < 0 ? null : line.substring(separator + 1).trim();
-    }
-
     /** 判断环境变量是否属于全局模型 Provider 凭据。 */
     private boolean isProviderCredentialName(String name) {
-        return (name.startsWith("SOLONCLAW_PROVIDER_") && name.endsWith("_API_KEY"))
-                || "OPENAI_API_KEY".equals(name)
-                || "GEMINI_API_KEY".equals(name)
-                || "GOOGLE_API_KEY".equals(name)
-                || "ANTHROPIC_API_KEY".equals(name);
+        return name.startsWith("SOLONCLAW_PROVIDER_") && name.endsWith("_API_KEY");
     }
 
     /** 解析配置中的 provider/model，只读取非密展示字段。 */
@@ -2795,6 +3081,30 @@ public class ProfileManager {
             deleteTree(targetPath);
             copyIfExists(sourcePath, targetPath);
         }
+    }
+
+    /**
+     * 返回分发应用后实际生效的 Profile 配置候选文件。
+     *
+     * @param source 已完成安全校验的分发目录。
+     * @param target 目标 Profile 工作区。
+     * @param manifest 分发清单。
+     * @param preserveConfig 是否保留目标本机配置。
+     * @return 应在写入前校验的配置文件；文件可以不存在。
+     * @throws IOException 分发所有权路径无效。
+     */
+    private Path distributionConfigCandidate(
+            Path source, Path target, Map<String, Object> manifest, boolean preserveConfig)
+            throws IOException {
+        if (!preserveConfig) {
+            for (String owned : distributionOwnedPaths(manifest)) {
+                Path relative = ProfileArchive.safeRelativePath(owned);
+                if ("config.yml".equals(relative.toString().replace('\\', '/'))) {
+                    return source.resolve(relative).normalize();
+                }
+            }
+        }
+        return target.resolve("config.yml");
     }
 
     /** 读取并校验分发清单声明的所有权路径。 */

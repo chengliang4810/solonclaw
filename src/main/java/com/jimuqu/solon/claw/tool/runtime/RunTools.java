@@ -87,27 +87,6 @@ public class RunTools {
     }
 
     /**
-     * 查询或控制 Agent 运行，保留给已有测试或内部调用的旧参数顺序。
-     *
-     * @param action 操作名称。
-     * @param runId 运行标识。
-     * @param command 控制命令。
-     * @param subagentId 子 Agent 标识。
-     * @param payloadJson 控制载荷 JSON。
-     * @param limit 返回数量上限。
-     * @return 返回工具结果 JSON。
-     */
-    public String runManage(
-            String action,
-            String runId,
-            String command,
-            String subagentId,
-            String payloadJson,
-            Integer limit) {
-        return runManage(action, runId, command, subagentId, null, payloadJson, limit);
-    }
-
-    /**
      * 执行运行管理动作。
      *
      * @param action 操作名称。
@@ -135,7 +114,7 @@ public class RunTools {
         }
         if ("session_runs".equals(normalized) || "session-runs".equals(normalized)) {
             return dashboardRunService.sessionRuns(
-                    sessionId(sessionId, payloadJson), limit == null ? 20 : limit.intValue());
+                    sessionId, limit == null ? 20 : limit.intValue());
         }
         if ("recoverable".equals(normalized)) {
             return dashboardRunService.recoverable(limit == null ? 20 : limit.intValue());
@@ -165,21 +144,6 @@ public class RunTools {
             return dashboardRunService.commands(runId);
         }
         return dashboardRunService.detail(runId);
-    }
-
-    /**
-     * 解析会话运行查询的会话标识，优先使用显式工具参数。
-     *
-     * @param sessionId 显式会话标识。
-     * @param payloadJson 兼容旧调用的载荷 JSON。
-     * @return 返回会话标识。
-     */
-    private String sessionId(String sessionId, String payloadJson) {
-        if (sessionId != null && sessionId.trim().length() > 0) {
-            return sessionId;
-        }
-        Object raw = payload(payloadJson).get("session_id");
-        return raw == null ? null : String.valueOf(raw);
     }
 
     /**

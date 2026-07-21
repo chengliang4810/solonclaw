@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.profile.ProfileCreateOptions;
 import com.jimuqu.solon.claw.profile.ProfileDescriptionService;
 import com.jimuqu.solon.claw.profile.ProfileGatewayMultiplexGuard;
 import com.jimuqu.solon.claw.profile.ProfileManager;
+import com.jimuqu.solon.claw.profile.ProfileMutationLock;
 import com.jimuqu.solon.claw.profile.ProfileView;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileConfigFile;
 import java.io.File;
@@ -194,16 +195,28 @@ public class DashboardProfileService {
                         .setNoAlias(booleanValue(values.get("no_alias")))
                         .setNoSkills(booleanValue(values.get("no_skills")))
                         .setDescription(nullableText(values.get("description")));
-        Path home = profileManager.createProfile(name, options);
-        boolean modelSet = false;
         String provider = text(values.get("provider"));
         String model = text(values.get("model"));
-        if (provider.length() > 0 && model.length() > 0) {
+        boolean hasProvider = provider.length() > 0;
+        boolean hasModel = model.length() > 0;
+        if (hasProvider != hasModel) {
+            throw new IllegalArgumentException("Profile provider 和 model 必须同时填写或同时留空。");
+        }
+        if (hasProvider) {
+            ensureGlobalProviderModelExists(provider, model);
+        }
+        Path home = profileManager.createProfile(name, options);
+        boolean modelSet = hasProvider;
+        if (modelSet) {
             try {
                 updateModel(name, provider, model);
-                modelSet = true;
             } catch (Exception e) {
-                logBuilderFailure(name, "model", e);
+                try {
+                    profileManager.deleteProfile(name);
+                } catch (Exception rollbackFailure) {
+                    e.addSuppressed(rollbackFailure);
+                }
+                throw e;
             }
         }
         int mcpWritten = writeMcpServers(name, mcpServers);
@@ -479,31 +492,43 @@ public class DashboardProfileService {
             throws Exception {
         String providerKey = requiredText(provider, "Profile provider is required.");
         String modelName = requiredText(model, "Profile model is required.");
-        ensureGlobalProviderModelExists(providerKey, modelName);
-        Path home = profileManager.requireProfileHome(name);
-        DashboardProfileConfigFile config =
-                new DashboardProfileConfigFile(home.resolve("config.yml"));
-        Map<String, Object> root = config.readRoot();
-        Map<String, Object> modelConfig = stringObjectMap(root.get("model"));
-        modelConfig.put("providerKey", providerKey);
-        modelConfig.put("default", modelName);
-        root.put("model", modelConfig);
-        if (!home.toAbsolutePath()
-                .normalize()
-                .equals(profileManager.root().toAbsolutePath().normalize())) {
-            root.remove("providers");
-        }
-        Map<String, Object> application = stringObjectMap(root.get("solonclaw"));
-        Map<String, Object> llm = stringObjectMap(application.get("llm"));
-        llm.put("contextWindowTokens", Integer.valueOf(0));
-        application.put("llm", llm);
-        root.put("solonclaw", application);
-        config.writeRoot(root);
-        refreshModelConfig(name, home);
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("provider", providerKey);
-        result.put("model", modelName);
-        return result;
+        return new ProfileMutationLock(globalAppConfig())
+                .withLock(
+                        () -> {
+                            ensureGlobalProviderModelExists(providerKey, modelName);
+                            Path home = profileManager.requireProfileHome(name);
+                            DashboardProfileConfigFile config =
+                                    new DashboardProfileConfigFile(home.resolve("config.yml"));
+                            synchronized (DashboardProfileConfigFile.lockFor(config.path())) {
+                                Map<String, Object> root = config.readRoot();
+                                Map<String, Object> modelConfig =
+                                        stringObjectMap(root.get("model"));
+                                modelConfig.put("providerKey", providerKey);
+                                modelConfig.put("default", modelName);
+                                root.put("model", modelConfig);
+                                if (!home.toAbsolutePath()
+                                        .normalize()
+                                        .equals(
+                                                profileManager
+                                                        .root()
+                                                        .toAbsolutePath()
+                                                        .normalize())) {
+                                    root.remove("providers");
+                                }
+                                Map<String, Object> application =
+                                        stringObjectMap(root.get("solonclaw"));
+                                Map<String, Object> llm = stringObjectMap(application.get("llm"));
+                                llm.put("contextWindowTokens", Integer.valueOf(0));
+                                application.put("llm", llm);
+                                root.put("solonclaw", application);
+                                config.writeRoot(root);
+                            }
+                            refreshModelConfig(name, home);
+                            Map<String, Object> result = new LinkedHashMap<String, Object>();
+                            result.put("provider", providerKey);
+                            result.put("model", modelName);
+                            return result;
+                        });
     }
 
     /**
@@ -532,10 +557,7 @@ public class DashboardProfileService {
      * @param modelName 待引用的模型名。
      */
     private void ensureGlobalProviderModelExists(String providerKey, String modelName) {
-        Props props = new Props();
-        props.put("solonclaw.workspace", profileManager.root().toAbsolutePath().toString());
-        AppConfig.ProviderConfig provider =
-                AppConfig.loadDetached(props).getProviders().get(providerKey);
+        AppConfig.ProviderConfig provider = globalAppConfig().getProviders().get(providerKey);
         if (provider == null) {
             throw new IllegalArgumentException("Provider 不存在：" + providerKey);
         }
@@ -551,6 +573,13 @@ public class DashboardProfileService {
             }
         }
         throw new IllegalArgumentException("模型未加入 Provider " + providerKey + " 的模型列表：" + modelName);
+    }
+
+    /** 返回根工作区唯一 Provider 注册表对应的独立配置快照。 */
+    private AppConfig globalAppConfig() {
+        Props props = new Props();
+        props.put("solonclaw.workspace", profileManager.root().toAbsolutePath().toString());
+        return AppConfig.loadDetached(props);
     }
 
     /** 校验终端工作目录仍是管理器解析出的直接 Profile 目录，拒绝命名 Profile 符号链接。 */

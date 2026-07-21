@@ -1904,7 +1904,7 @@ final class AppConfigLoader {
                                 readString(props, overrides, "approvals.modelProvider", "")));
         config.getApprovals()
                 .setModel(resolveConfigString(readString(props, overrides, "approvals.model", "")));
-        normalizeConfiguredTaskModels(config);
+        validateConfiguredTaskModels(config);
         config.getMcp()
                 .setEnabled(
                         resolveBoolean(
@@ -2943,7 +2943,6 @@ final class AppConfigLoader {
         List<FallbackProviderConfig> fallbackChain =
                 parseFallbackProviders(structuredOverrides.get("fallbackProviders"));
 
-        includeReferencedModels(providers, modelConfig, fallbackChain);
         validateProviderConfiguration(providers, modelConfig, fallbackChain);
 
         config.setProviders(providers);
@@ -2967,145 +2966,63 @@ final class AppConfigLoader {
         config.getLlm().setModel(effectiveModel);
     }
 
-    /**
-     * 把旧配置中的主模型和故障切换模型并入 Provider 模型清单，保证升级后仍可在下拉框中选择。
-     *
-     * @param providers Provider 注册表。
-     * @param modelConfig 当前主模型配置。
-     * @param fallbackChain 故障切换链。
-     */
-    private static void includeReferencedModels(
-            Map<String, ProviderConfig> providers,
-            ModelConfig modelConfig,
-            List<FallbackProviderConfig> fallbackChain) {
-        if (modelConfig != null) {
-            includeProviderModel(providers, modelConfig.getProviderKey(), modelConfig.getDefault());
-        }
-        if (fallbackChain != null) {
-            for (FallbackProviderConfig fallback : fallbackChain) {
-                if (fallback != null) {
-                    includeProviderModel(providers, fallback.getProvider(), fallback.getModel());
-                }
-            }
-        }
+    /** 校验六类后台任务模型路由均符合当前 Provider 注册表。 */
+    private static void validateConfiguredTaskModels(AppConfig config) {
+        validateTaskModel(
+                config,
+                "monitor",
+                config.getProactive().getModelProvider(),
+                config.getProactive().getModel());
+        validateTaskModel(
+                config,
+                "background_review",
+                config.getLearning().getModelProvider(),
+                config.getLearning().getModel());
+        validateTaskModel(
+                config,
+                "curator",
+                config.getCurator().getAiProvider(),
+                config.getCurator().getAiModel());
+        validateTaskModel(
+                config,
+                "approval",
+                config.getApprovals().getModelProvider(),
+                config.getApprovals().getModel());
+        validateTaskModel(
+                config,
+                "compression",
+                config.getCompression().getSummaryProvider(),
+                config.getCompression().getSummaryModel());
+        validateTaskModel(
+                config,
+                "cron",
+                config.getScheduler().getDefaultProvider(),
+                config.getScheduler().getDefaultModel());
     }
 
     /**
-     * 向指定 Provider 模型清单追加一项现有引用。
-     *
-     * @param providers Provider 注册表。
-     * @param providerKey Provider 键。
-     * @param model 模型名。
-     */
-    private static void includeProviderModel(
-            Map<String, ProviderConfig> providers, String providerKey, String model) {
-        if (providers == null || StrUtil.isBlank(providerKey) || StrUtil.isBlank(model)) {
-            return;
-        }
-        ProviderConfig provider = providers.get(providerKey.trim());
-        if (provider == null) {
-            return;
-        }
-        List<String> models =
-                provider.getModels() == null
-                        ? new ArrayList<String>()
-                        : new ArrayList<String>(provider.getModels());
-        models.add(model.trim());
-        provider.setModels(models);
-        normalizeProviderModels(provider);
-    }
-
-    /**
-     * 规范化六类后台任务模型路由；兼容旧配置只写 Provider 或只写模型的形式。
-     *
-     * @param config 已加载的应用配置。
-     */
-    private static void normalizeConfiguredTaskModels(AppConfig config) {
-        String[] monitor =
-                normalizeTaskModel(
-                        config,
-                        "monitor",
-                        config.getProactive().getModelProvider(),
-                        config.getProactive().getModel());
-        config.getProactive().setModelProvider(monitor[0]);
-        config.getProactive().setModel(monitor[1]);
-
-        String[] backgroundReview =
-                normalizeTaskModel(
-                        config,
-                        "background_review",
-                        config.getLearning().getModelProvider(),
-                        config.getLearning().getModel());
-        config.getLearning().setModelProvider(backgroundReview[0]);
-        config.getLearning().setModel(backgroundReview[1]);
-
-        String[] curator =
-                normalizeTaskModel(
-                        config,
-                        "curator",
-                        config.getCurator().getAiProvider(),
-                        config.getCurator().getAiModel());
-        config.getCurator().setAiProvider(curator[0]);
-        config.getCurator().setAiModel(curator[1]);
-
-        String[] approval =
-                normalizeTaskModel(
-                        config,
-                        "approval",
-                        config.getApprovals().getModelProvider(),
-                        config.getApprovals().getModel());
-        config.getApprovals().setModelProvider(approval[0]);
-        config.getApprovals().setModel(approval[1]);
-
-        String[] compression =
-                normalizeTaskModel(
-                        config,
-                        "compression",
-                        config.getCompression().getSummaryProvider(),
-                        config.getCompression().getSummaryModel());
-        config.getCompression().setSummaryProvider(compression[0]);
-        config.getCompression().setSummaryModel(compression[1]);
-
-        String[] cron =
-                normalizeTaskModel(
-                        config,
-                        "cron",
-                        config.getScheduler().getDefaultProvider(),
-                        config.getScheduler().getDefaultModel());
-        config.getScheduler().setDefaultProvider(cron[0]);
-        config.getScheduler().setDefaultModel(cron[1]);
-    }
-
-    /**
-     * 把任务的半组旧配置补全为完整路由，并把模型并入 Provider 可选清单。
+     * 校验单个任务模型路由；两项均为空表示继承主模型，其余情况必须完整且已登记。
      *
      * @param config 应用配置。
      * @param category 任务类别。
      * @param providerKey 显式 Provider 键。
      * @param model 显式模型名。
-     * @return 长度为二的 Provider、模型数组；两者均未配置时返回两个空文本。
      */
-    private static String[] normalizeTaskModel(
+    private static void validateTaskModel(
             AppConfig config, String category, String providerKey, String model) {
         String normalizedProvider = StrUtil.nullToEmpty(providerKey).trim();
         String normalizedModel = StrUtil.nullToEmpty(model).trim();
         if (StrUtil.isBlank(normalizedProvider) && StrUtil.isBlank(normalizedModel)) {
-            return new String[] {"", ""};
+            return;
         }
-        normalizedProvider =
-                StrUtil.blankToDefault(normalizedProvider, config.getModel().getProviderKey())
-                        .trim();
+        if (StrUtil.isBlank(normalizedProvider) || StrUtil.isBlank(normalizedModel)) {
+            throw new IllegalStateException(category + " 必须同时指定 provider 和 model。");
+        }
         ProviderConfig provider = config.getProviders().get(normalizedProvider);
         if (provider == null) {
             throw new IllegalStateException(category + " 引用了不存在的 provider：" + normalizedProvider);
         }
-        normalizedModel =
-                StrUtil.blankToDefault(normalizedModel, provider.getDefaultModel()).trim();
-        if (StrUtil.isBlank(normalizedModel)) {
-            throw new IllegalStateException(category + " 未配置可用模型。");
-        }
-        includeProviderModel(config.getProviders(), normalizedProvider, normalizedModel);
-        return new String[] {normalizedProvider, normalizedModel};
+        validateRegisteredModel(provider, normalizedProvider, normalizedModel, category);
     }
 
     /**
@@ -3387,7 +3304,8 @@ final class AppConfigLoader {
         provider.setBaseUrl(baseUrl);
         provider.setApiKey(StrUtil.nullToEmpty(props.get("providers.default.apiKey")).trim());
         provider.setDefaultModel(defaultModel);
-        provider.setModels(new ArrayList<String>(Collections.singletonList(defaultModel)));
+        provider.setModels(resolveList(props.get("providers.default.models")));
+        normalizeProviderModels(provider);
         provider.setDialect(LlmProviderSupport.normalizeDialect(dialect));
         provider.setSupportsVision(
                 resolveOptionalBoolean(props.get("providers.default.supportsVision")));
@@ -3456,6 +3374,12 @@ final class AppConfigLoader {
             }
         }
 
+        ProviderConfig activeProvider = providers.get(modelConfig.getProviderKey());
+        String activeModel =
+                StrUtil.blankToDefault(globalDefaultModel, activeProvider.getDefaultModel()).trim();
+        validateRegisteredModel(
+                activeProvider, modelConfig.getProviderKey(), activeModel, "model.default");
+
         if (fallbackChain == null) {
             return;
         }
@@ -3474,6 +3398,32 @@ final class AppConfigLoader {
                 throw new IllegalStateException(
                         "fallback provider 缺少可用模型：" + fallback.getProvider());
             }
+            String fallbackModel =
+                    StrUtil.blankToDefault(fallback.getModel(), provider.getDefaultModel()).trim();
+            fallbackModel = StrUtil.blankToDefault(fallbackModel, globalDefaultModel).trim();
+            validateRegisteredModel(
+                    provider, fallback.getProvider().trim(), fallbackModel, "fallbackProviders");
+        }
+    }
+
+    /**
+     * 校验模型已经列入指定 Provider 的模型清单。
+     *
+     * @param provider Provider 配置。
+     * @param providerKey Provider 键。
+     * @param model 模型名。
+     * @param reference 引用该模型的配置项。
+     */
+    private static void validateRegisteredModel(
+            ProviderConfig provider, String providerKey, String model, String reference) {
+        String normalizedModel = StrUtil.nullToEmpty(model).trim();
+        List<String> configuredModels =
+                provider == null || provider.getModels() == null
+                        ? Collections.<String>emptyList()
+                        : provider.getModels();
+        if (StrUtil.isBlank(normalizedModel) || !configuredModels.contains(normalizedModel)) {
+            throw new IllegalStateException(
+                    reference + " 引用了 provider " + providerKey + " 中未登记的模型：" + normalizedModel);
         }
     }
 

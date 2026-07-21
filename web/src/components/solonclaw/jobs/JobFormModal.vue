@@ -64,7 +64,6 @@ const formData = ref({
   enabled_toolsets: [] as string[],
   provider: '',
   model: '',
-  base_url: '',
   state: 'scheduled',
   enabled: true,
   paused_reason: '',
@@ -110,36 +109,18 @@ const toolsetOptions = computed(() => {
   return options
 })
 
-const providerOptions = computed(() => {
-  const options = modelsStore.providers.map(provider => ({
+const providerOptions = computed(() =>
+  modelsStore.providers.map(provider => ({
     label: provider.label,
     value: provider.provider,
     disabled: false,
-  }))
-  const currentProvider = formData.value.provider
-  if (currentProvider && !modelsStore.providers.some(provider => provider.provider === currentProvider)) {
-    options.push({
-      label: t('models.unregisteredProvider', { provider: currentProvider }),
-      value: currentProvider,
-      disabled: true,
-    })
-  }
-  return options
-})
+  })),
+)
 
 const modelOptions = computed(() => {
   const provider = modelsStore.providers.find(item => item.provider === formData.value.provider)
   const models = Array.from(new Set(provider?.models || []))
-  const options = models.map(model => ({ label: model, value: model, disabled: false }))
-  const currentModel = formData.value.model
-  if (currentModel && !models.includes(currentModel)) {
-    options.push({
-      label: t('models.unregisteredModel', { model: currentModel }),
-      value: currentModel,
-      disabled: true,
-    })
-  }
-  return options
+  return models.map(model => ({ label: model, value: model, disabled: false }))
 })
 
 function editableScheduleValue(schedule: any, fallback: string) {
@@ -317,7 +298,6 @@ onMounted(async () => {
       const job = await jobsStore.fetchJob(props.jobId)
       const storedProvider = String(job.provider || '').trim()
       const storedModel = String(job.model || '').trim()
-      const hasCompleteModelBinding = Boolean(storedProvider && storedModel)
       formData.value = {
         name: job.name,
         schedule: '',
@@ -333,9 +313,8 @@ onMounted(async () => {
         no_agent: job.no_agent,
         context_from_text: joinTextList(job.context_from),
         enabled_toolsets: [...job.enabled_toolsets],
-        provider: hasCompleteModelBinding ? storedProvider : '',
-        model: hasCompleteModelBinding ? storedModel : '',
-        base_url: '',
+        provider: storedProvider,
+        model: storedModel,
         state: job.state === 'completed' || job.state === 'paused' ? job.state : 'scheduled',
         enabled: job.enabled,
         paused_reason: job.paused_reason || '',
@@ -355,7 +334,6 @@ function handleProviderChange(value?: string) {
   formData.value.provider = value || ''
   const provider = modelsStore.providers.find(item => item.provider === formData.value.provider)
   formData.value.model = provider?.defaultModel || provider?.models[0] || ''
-  formData.value.base_url = ''
 }
 
 async function loadToolsets() {
@@ -432,7 +410,6 @@ async function handleSave() {
       ['workdir', formData.value.workdir],
       ['provider', formData.value.provider],
       ['model', formData.value.model],
-      ['base_url', formData.value.base_url],
       ['deliver_chat_id', deliveryPayload.deliver_chat_id],
       ['deliver_thread_id', deliveryPayload.deliver_thread_id],
       ['paused_reason', formData.value.paused_reason],

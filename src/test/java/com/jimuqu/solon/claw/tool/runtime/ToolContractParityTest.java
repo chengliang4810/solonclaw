@@ -494,7 +494,6 @@ class ToolContractParityTest {
                 "shared",
                 Arrays.asList(first, second),
                 "model-main",
-                null,
                 java.util.Collections.<String>emptyList(),
                 Boolean.TRUE);
 

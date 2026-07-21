@@ -2070,15 +2070,19 @@ public class DefaultCronSchedulerTest {
         body.put("provider", "default");
         body.put("model", "gpt-5.4-mini");
         body.put("base_url", "https://api.pin.example/v1/");
+        assertThatThrownBy(() -> service.create("MEMORY:room:user", body))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Provider")
+                .hasMessageContaining("baseUrl");
+        body.remove("base_url");
         CronJobRecord job = service.create("MEMORY:room:user", body);
         assertThat(job.getDeliverPlatform()).isEqualTo("origin,MEMORY:briefing-room");
         assertThat(job.getModel()).isEqualTo("gpt-5.4-mini");
         assertThat(job.getProvider()).isEqualTo("default");
-        assertThat(job.getBaseUrl()).isEqualTo("https://api.pin.example/v1");
         assertThat(service.toView(job))
                 .containsEntry("model", "gpt-5.4-mini")
                 .containsEntry("provider", "default")
-                .containsEntry("base_url", "https://api.pin.example/v1");
+                .doesNotContainKey("base_url");
         Map<?, ?> initialActions = (Map<?, ?>) service.toView(job).get("actions");
         assertThat(initialActions.get("can_pause")).isEqualTo(Boolean.TRUE);
         assertThat(initialActions.get("can_resume")).isEqualTo(Boolean.FALSE);
@@ -2091,6 +2095,11 @@ public class DefaultCronSchedulerTest {
         update.put("provider", "default");
         update.put("model", "gpt-5.4");
         update.put("baseUrl", "https://api.next.example/");
+        assertThatThrownBy(() -> service.update(job.getJobId(), update))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Provider")
+                .hasMessageContaining("baseUrl");
+        update.remove("baseUrl");
         update.put("deliver", java.util.Arrays.asList("MEMORY:edit-room", "origin"));
         CronJobRecord updated = service.update(job.getJobId(), update);
         assertThat(ONode.ofJson(updated.getSkillsJson()).toJson()).contains("blogwatcher");
@@ -2100,7 +2109,6 @@ public class DefaultCronSchedulerTest {
         assertThat(updated.getRepeatTimes()).isEqualTo(3);
         assertThat(updated.isWrapResponse()).isFalse();
         assertThat(updated.getModel()).isEqualTo("gpt-5.4");
-        assertThat(updated.getBaseUrl()).isEqualTo("https://api.next.example");
         assertThat(updated.getDeliverPlatform()).isEqualTo("MEMORY:edit-room,origin");
 
         CronJobRecord paused = service.pause(updated.getJobId(), "action metadata check");
@@ -2127,55 +2135,56 @@ public class DefaultCronSchedulerTest {
         CronJobRecord wrapped = service.create("MEMORY:room:user", explicitWrap);
         assertThat(wrapped.isWrapResponse()).isTrue();
 
-        AppConfig.ProviderConfig directProvider = new AppConfig.ProviderConfig();
-        directProvider.setName("Direct");
-        directProvider.setBaseUrl("https://api.direct.example");
-        directProvider.setApiKey("key");
-        directProvider.setDefaultModel("direct-default");
-        directProvider.setModels(java.util.Arrays.asList("direct-default", "object-model"));
-        directProvider.setDialect("openai-responses");
-        env.appConfig.getProviders().put("direct", directProvider);
+        AppConfig.ProviderConfig customProvider = new AppConfig.ProviderConfig();
+        customProvider.setName("Custom");
+        customProvider.setBaseUrl("https://api.custom.example");
+        customProvider.setApiKey("key");
+        customProvider.setDefaultModel("custom-default");
+        customProvider.setModels(java.util.Arrays.asList("custom-default", "object-model"));
+        customProvider.setDialect("openai-responses");
+        env.appConfig.getProviders().put("custom", customProvider);
 
-        Map<String, Object> modelObject = new LinkedHashMap<String, Object>();
-        modelObject.put("provider", "direct");
-        modelObject.put("model", "object-model");
-        modelObject.put("base_url", "https://api.object.example/");
-        Map<String, Object> objectModelBody = new LinkedHashMap<String, Object>();
-        objectModelBody.put("name", "object-model");
-        objectModelBody.put("schedule", "every 2h");
-        objectModelBody.put("prompt", "对象模型");
-        objectModelBody.put("model", modelObject);
-        CronJobRecord objectModel = service.create("MEMORY:room:user", objectModelBody);
-        assertThat(objectModel.getProvider()).isEqualTo("direct");
-        assertThat(objectModel.getModel()).isEqualTo("object-model");
-        assertThat(objectModel.getBaseUrl()).isEqualTo("https://api.object.example");
+        Map<String, Object> legacyModelBody = new LinkedHashMap<String, Object>();
+        legacyModelBody.put("name", "legacy-model-object");
+        legacyModelBody.put("schedule", "every 2h");
+        legacyModelBody.put("prompt", "拒绝旧模型对象");
+        legacyModelBody.put("model", java.util.Collections.singletonMap("model", "object-model"));
+        assertThatThrownBy(() -> service.create("MEMORY:room:user", legacyModelBody))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Cron model 必须是字符串");
 
-        Map<String, Object> customModel = new LinkedHashMap<String, Object>();
-        customModel.put("provider", "custom");
-        customModel.put("model", "fallback-provider-model");
-        Map<String, Object> customUpdate = new LinkedHashMap<String, Object>();
-        customUpdate.put("model", customModel);
-        CronJobRecord customUpdated = service.update(objectModel.getJobId(), customUpdate);
-        assertThat(customUpdated.getProvider()).isEqualTo("default");
-        assertThat(customUpdated.getModel()).isEqualTo("fallback-provider-model");
+        Map<String, Object> customModelBody = new LinkedHashMap<String, Object>();
+        customModelBody.put("name", "custom-model");
+        customModelBody.put("schedule", "every 2h");
+        customModelBody.put("prompt", "独立模型字段");
+        customModelBody.put("provider", "custom");
+        customModelBody.put("model", "object-model");
+        CronJobRecord customModel = service.create("MEMORY:room:user", customModelBody);
+        assertThat(customModel.getProvider()).isEqualTo("custom");
+        assertThat(customModel.getModel()).isEqualTo("object-model");
+
+        Map<String, Object> defaultModelUpdate = new LinkedHashMap<String, Object>();
+        defaultModelUpdate.put("provider", "default");
+        defaultModelUpdate.put("model", "fallback-provider-model");
+        CronJobRecord defaultModel = service.update(customModel.getJobId(), defaultModelUpdate);
+        assertThat(defaultModel.getProvider()).isEqualTo("default");
+        assertThat(defaultModel.getModel()).isEqualTo("fallback-provider-model");
 
         Map<String, Object> topLevelOverride = new LinkedHashMap<String, Object>();
-        topLevelOverride.put("model", modelObject);
+        topLevelOverride.put("model", "object-model");
         topLevelOverride.put("provider", "default");
         topLevelOverride.put("base_url", "https://api.top.example/");
-        CronJobRecord topLevelUpdated = service.update(objectModel.getJobId(), topLevelOverride);
-        assertThat(topLevelUpdated.getProvider()).isEqualTo("default");
-        assertThat(topLevelUpdated.getModel()).isEqualTo("object-model");
-        assertThat(topLevelUpdated.getBaseUrl()).isEqualTo("https://api.top.example");
+        assertThatThrownBy(() -> service.update(customModel.getJobId(), topLevelOverride))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Provider")
+                .hasMessageContaining("baseUrl");
 
         Map<String, Object> clearModelPin = new LinkedHashMap<String, Object>();
         clearModelPin.put("model", "");
         clearModelPin.put("provider", "");
-        clearModelPin.put("base_url", "");
-        CronJobRecord cleared = service.update(objectModel.getJobId(), clearModelPin);
+        CronJobRecord cleared = service.update(customModel.getJobId(), clearModelPin);
         assertThat(cleared.getProvider()).isNull();
         assertThat(cleared.getModel()).isNull();
-        assertThat(cleared.getBaseUrl()).isNull();
 
         Map<String, Object> providerOnly = new LinkedHashMap<String, Object>();
         providerOnly.put("name", "provider-only");
@@ -2622,7 +2631,6 @@ public class DefaultCronSchedulerTest {
         body.put("prompt", "scheduled prompt");
         body.put("provider", "direct");
         body.put("model", "pinned-model");
-        body.put("base_url", "https://api.pinned.example/");
         CronJobRecord job = service.create("MEMORY:cron-room:cron-user", body);
         job.setNextRunAt(System.currentTimeMillis() - 1000L);
         env.cronJobRepository.update(job);
@@ -2640,7 +2648,7 @@ public class DefaultCronSchedulerTest {
 
         assertThat(gateway.provider).isEqualTo("direct");
         assertThat(gateway.model).isEqualTo("pinned-model");
-        assertThat(gateway.apiUrl).isEqualTo("https://api.pinned.example/v1/responses");
+        assertThat(gateway.apiUrl).isEqualTo("https://api.default.example/v1/responses");
         assertThat(
                         env.sessionRepository
                                 .getBoundSession("CRON:" + job.getJobId())
@@ -2659,6 +2667,7 @@ public class DefaultCronSchedulerTest {
         jobProvider.setBaseUrl("https://api.job.example");
         jobProvider.setApiKey("test-key");
         jobProvider.setDefaultModel("job-provider-default");
+        jobProvider.setModels(java.util.Arrays.asList("job-provider-default", "job-model"));
         jobProvider.setDialect("openai-responses");
         env.appConfig.getProviders().put("job-provider", jobProvider);
         AppConfig.ProviderConfig cronProvider = new AppConfig.ProviderConfig();
@@ -2666,6 +2675,8 @@ public class DefaultCronSchedulerTest {
         cronProvider.setBaseUrl("https://api.cron.example");
         cronProvider.setApiKey("test-key");
         cronProvider.setDefaultModel("cron-provider-default");
+        cronProvider.setModels(
+                java.util.Arrays.asList("cron-provider-default", "cron-default-model"));
         cronProvider.setDialect("openai-responses");
         env.appConfig.getProviders().put("cron-provider", cronProvider);
         env.appConfig.getScheduler().setDefaultProvider("cron-provider");
@@ -2699,16 +2710,7 @@ public class DefaultCronSchedulerTest {
         assertThat(gateway.provider).isEqualTo("cron-provider");
         assertThat(gateway.model).isEqualTo("cron-default-model");
 
-        CronJobRecord legacyHalfPin = job("cron-model-half-pin", "MEMORY:cron-half:user");
-        legacyHalfPin.setProvider("job-provider");
-        env.cronJobRepository.save(legacyHalfPin);
-
-        scheduler.runNow(legacyHalfPin.getJobId());
-
-        assertThat(gateway.provider).isEqualTo("cron-provider");
-        assertThat(gateway.model).isEqualTo("cron-default-model");
-
-        env.appConfig.getScheduler().setDefaultProvider("cron-provider");
+        env.appConfig.getScheduler().setDefaultProvider("");
         env.appConfig.getScheduler().setDefaultModel("");
         CronJobRecord profileMain = job("cron-model-profile", "MEMORY:cron-profile:user");
         env.cronJobRepository.save(profileMain);
@@ -2717,6 +2719,35 @@ public class DefaultCronSchedulerTest {
 
         assertThat(gateway.provider).isEqualTo("default");
         assertThat(gateway.model).isEqualTo("gpt-5.4");
+    }
+
+    /** 直接写入仓储的半组 Cron 模型绑定不得静默继承默认模型。 */
+    @Test
+    void shouldRejectPartialStoredCronModelBindingAtRuntime() throws Exception {
+        RecordingResolvedLlmGateway gateway = new RecordingResolvedLlmGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        env.appConfig.getScheduler().setDefaultProvider("default");
+        env.appConfig.getScheduler().setDefaultModel("gpt-5.4");
+        CronJobRecord invalid = job("cron-partial-model", "MEMORY:cron-partial:user");
+        invalid.setProvider("default");
+        env.cronJobRepository.save(invalid);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.conversationOrchestrator,
+                        env.deliveryService,
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService);
+
+        assertThatThrownBy(() -> scheduler.runNow(invalid.getJobId()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("requires both provider and model");
+        CronJobRecord failed = env.cronJobRepository.findById(invalid.getJobId());
+        assertThat(failed.getLastStatus()).isEqualTo("error");
+        assertThat(failed.getLastError()).contains("requires both provider and model");
     }
 
     @Test
@@ -3337,7 +3368,6 @@ public class DefaultCronSchedulerTest {
                         null,
                         env.dangerousCommandApprovalService,
                         env.agentRunControlService,
-                        env.agentProfileService,
                         env.agentRunRepository,
                         null,
                         null,
