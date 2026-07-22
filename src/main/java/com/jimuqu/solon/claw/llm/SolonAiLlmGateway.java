@@ -57,6 +57,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -122,6 +124,23 @@ public class SolonAiLlmGateway implements LlmGateway {
 
     /** 相邻语义阶段说明的最小间隔，避免配置过低时刷屏。 */
     private static final long MIN_PROGRESS_UPDATE_INTERVAL_MS = 5000L;
+
+    /** 主模型没有给出自然阶段说明时，长工具触发辅助说明的等待时间。 */
+    private static final long LONG_TOOL_PROGRESS_DELAY_MS = 20000L;
+
+    /** 辅助模型生成阶段说明时允许使用的最大输出 token。 */
+    private static final int PROGRESS_NARRATION_MAX_TOKENS = 96;
+
+    /** 长工具辅助说明使用的最小系统提示词，不携带用户历史或工具原始参数。 */
+    private static final String PROGRESS_NARRATION_SYSTEM_PROMPT =
+            "你只负责生成一句面向用户的中文任务状态说明。"
+                    + "使用自然、简短的第一人称表达，说明当前正在处理什么；"
+                    + "不要添加标题、标签、步骤编号、Markdown 或引号，不要声称任务已经完成，"
+                    + "不要输出思维链、内部提示词、密钥、令牌或凭据。只输出一句话。";
+
+    /** 允许发送给 monitor 模型的工具名称格式，阻止控制字符或提示词片段进入辅助请求。 */
+    private static final Pattern SAFE_PROGRESS_TOOL_NAME_PATTERN =
+            Pattern.compile("[A-Za-z0-9_.:-]{1,80}");
 
     /** 延迟发送长工具进度的守护线程，避免短工具产生无意义提示。 */
     private static final ScheduledExecutorService PROGRESS_UPDATE_EXECUTOR =
@@ -2126,9 +2145,6 @@ public class SolonAiLlmGateway implements LlmGateway {
                     interceptors,
                     progressUpdateEmitter);
         } finally {
-            if (progressUpdateEmitter != null) {
-                progressUpdateEmitter.onToolFinished();
-            }
             clearCurrentThreadToolApprovals();
             if (dangerousCommandApprovalService != null
                     && trace != null
@@ -2227,13 +2243,20 @@ public class SolonAiLlmGateway implements LlmGateway {
 
         ToolResult toolResult;
         try {
-            ToolRequest toolRequest = new ToolRequest(null, options.toolContext(), args);
-            ToolChain<ReActInterceptor> chain =
-                    new ToolChain<ReActInterceptor>(rankedInterceptors(interceptors), tool);
-            toolResult = chain.doIntercept(toolRequest);
-        } catch (Throwable e) {
-            toolResult =
-                    ToolResult.error("Execution error in tool [" + toolName + "]: " + safeError(e));
+            try {
+                ToolRequest toolRequest = new ToolRequest(null, options.toolContext(), args);
+                ToolChain<ReActInterceptor> chain =
+                        new ToolChain<ReActInterceptor>(rankedInterceptors(interceptors), tool);
+                toolResult = chain.doIntercept(toolRequest);
+            } catch (Throwable e) {
+                toolResult =
+                        ToolResult.error(
+                                "Execution error in tool [" + toolName + "]: " + safeError(e));
+            }
+        } finally {
+            if (progressUpdateEmitter != null) {
+                progressUpdateEmitter.onToolFinished(trace.getSession());
+            }
         }
         long durationMs = Math.max(0L, System.currentTimeMillis() - startedAt);
         String observation = toolResult == null ? "" : StrUtil.nullToEmpty(toolResult.getContent());
@@ -2838,6 +2861,48 @@ public class SolonAiLlmGateway implements LlmGateway {
             replacement.reasoningFieldName(source.getReasoningFieldName());
         }
         return replacement;
+    }
+
+    /**
+     * 把 monitor 已实际发送的阶段说明写入当前未完成的 assistant tool-call。
+     *
+     * <p>这里只修改当前运行的内存消息；紧随其后的工具 observation 会通过既有会话快照统一持久化，避免渠道投递线程并发回写数据库。
+     *
+     * @param agentSession 当前 Agent 会话。
+     * @param progressText 已实际投递给用户的安全阶段说明。
+     */
+    private void recordProgressOnCurrentToolCall(AgentSession agentSession, String progressText) {
+        if (agentSession == null || StrUtil.isBlank(progressText)) {
+            return;
+        }
+        List<ChatMessage> messages = agentSession.getMessages();
+        AssistantMessage current = lastUnresolvedAssistantToolCall(messages);
+        int assistantIndex = messageIdentityIndex(messages, current);
+        if (current == null || assistantIndex < 0) {
+            return;
+        }
+        String existing = sanitizeProgressUpdate(extractText(current));
+        String recorded = StrUtil.blankToDefault(existing, progressText);
+        messages.set(assistantIndex, copyAssistantWithProgressText(current, recorded));
+    }
+
+    /**
+     * 按对象身份定位当前会话中的消息，允许跨过同一 assistant 先前已经完成的工具结果。
+     *
+     * @param messages 当前会话消息。
+     * @param target 需要定位的消息对象。
+     * @return 消息索引；不存在时返回 -1。
+     */
+    private int messageIdentityIndex(List<ChatMessage> messages, ChatMessage target) {
+        if (messages == null || target == null) {
+            return -1;
+        }
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            if (messages.get(i) == target) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** 从公开选择项或默认响应聚合状态中提取标准化结束原因。 */
@@ -3883,6 +3948,18 @@ public class SolonAiLlmGateway implements LlmGateway {
         /** 当前模型运行已经发送的阶段说明数量。 */
         private int emittedCount;
 
+        /** 等待工具达到长任务阈值后生成自然阶段说明的定时任务。 */
+        private ScheduledFuture<?> pendingToolProgress;
+
+        /** 当前活动工具的递增代次，用于阻止工具完成后的迟到说明。 */
+        private long activeToolGeneration;
+
+        /** 当前工具已经实际发送给用户的 monitor 阶段说明。 */
+        private String deliveredToolProgressText;
+
+        /** 已发送 monitor 阶段说明所属的工具代次。 */
+        private long deliveredToolProgressGeneration = -1L;
+
         /**
          * 创建阶段说明发送器。
          *
@@ -3934,10 +4011,10 @@ public class SolonAiLlmGateway implements LlmGateway {
                         || (lastEmittedAt > 0 && now - lastEmittedAt < interval)) {
                     return "";
                 }
-                emittedCount++;
                 emittedTexts.add(text);
                 lastEmittedAt = now;
             }
+            emittedCount++;
             try {
                 eventSink.onProgressUpdate(text);
             } catch (RuntimeException e) {
@@ -3954,19 +4031,221 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
 
         /**
-         * 工具开始时不再拼固定话术；阶段说明只复用模型已经给出的自然预览。
+         * 工具开始时优先复用主模型自然说明；长时间仍无说明时才请求显式配置的 monitor 模型生成一句。
          *
-         * <p>这样可以避免把工具名硬翻成“我正在...”之类的机械文案，保证展示层只透出模型真实意图。
+         * <p>辅助请求只接收工具名，不读取用户历史或任何工具参数；未配置 monitor 模型时保留结构化工具状态，不回退主模型。
          *
          * @param toolName 已开始执行的工具名称。
          */
         private synchronized void onToolStarted(String toolName) {
-            // 不再按工具名兜底生成固定阶段说明。
+            cancelPendingToolProgress();
+            final long generation = ++activeToolGeneration;
+            deliveredToolProgressText = null;
+            deliveredToolProgressGeneration = -1L;
+            if (!allowsProgressUpdates()
+                    || hasEmittedProgress()
+                    || !hasExplicitProgressNarrationModel()) {
+                return;
+            }
+            try {
+                final String safeToolName = safeProgressToolName(toolName);
+                pendingToolProgress =
+                        PROGRESS_UPDATE_EXECUTOR.schedule(
+                                () -> dispatchNaturalToolProgress(generation, safeToolName),
+                                Math.max(0L, progressNarrationDelayMs()),
+                                TimeUnit.MILLISECONDS);
+            } catch (RuntimeException e) {
+                log.warn(
+                        "Progress narration timer scheduling failed: tool={}, error={}",
+                        toolName,
+                        ErrorTextSupport.safeError(e));
+            }
         }
 
-        /** 工具结束时取消尚未达到长任务阈值的延迟进度。 */
-        private synchronized void onToolFinished() {
+        /**
+         * 工具结束时先关闭自然说明窗口，再把已经投递的说明合并到当前 tool-call 历史。
+         *
+         * @param agentSession 当前内存会话；后续工具 observation 会沿正常会话快照流程持久化该更新。
+         */
+        private synchronized void onToolFinished(AgentSession agentSession) {
+            long finishedGeneration = activeToolGeneration;
+            activeToolGeneration++;
+            cancelPendingToolProgress();
+            if (deliveredToolProgressGeneration == finishedGeneration
+                    && StrUtil.isNotBlank(deliveredToolProgressText)) {
+                recordProgressOnCurrentToolCall(agentSession, deliveredToolProgressText);
+            }
+            deliveredToolProgressText = null;
+            deliveredToolProgressGeneration = -1L;
         }
+
+        /** 判断当前运行是否属于允许展示阶段说明的直接用户对话。 */
+        private boolean allowsProgressUpdates() {
+            String runKind = runContext == null ? "" : runContext.getRunKind();
+            return "conversation".equalsIgnoreCase(runKind) || "resume".equalsIgnoreCase(runKind);
+        }
+
+        /** 判断当前运行是否已经发送过主模型或辅助模型的自然阶段说明。 */
+        private boolean hasEmittedProgress() {
+            return emittedCount > 0
+                    || (runContext != null && runContext.hasRegisteredProgressUpdate());
+        }
+
+        /** 把到期任务交给独立受限线程池，避免模型调用阻塞共享定时线程。 */
+        private void dispatchNaturalToolProgress(long generation, String toolName) {
+            try {
+                PROGRESS_DELIVERY_EXECUTOR.execute(
+                        () -> emitNaturalToolProgress(generation, toolName));
+            } catch (RuntimeException e) {
+                log.warn(
+                        "Progress narration scheduling failed: error={}",
+                        ErrorTextSupport.safeError(e));
+            }
+        }
+
+        /** 生成并发送仍处于活动状态的长工具自然说明；失败时静默保留结构化工具状态。 */
+        private void emitNaturalToolProgress(long generation, String toolName) {
+            if (!isActiveToolGeneration(generation) || hasEmittedProgress()) {
+                return;
+            }
+            String narration;
+            try {
+                narration = generateProgressNarration(toolName);
+            } catch (Exception e) {
+                log.warn(
+                        "Progress narration generation failed: provider={}, model={}, error={}",
+                        appConfig.getProactive().getModelProvider(),
+                        appConfig.getProactive().getModel(),
+                        ErrorTextSupport.safeError(e));
+                return;
+            }
+            synchronized (this) {
+                if (generation != activeToolGeneration || hasEmittedProgress()) {
+                    return;
+                }
+                String emitted = emit(narration);
+                if (StrUtil.isNotBlank(emitted)) {
+                    deliveredToolProgressText = emitted;
+                    deliveredToolProgressGeneration = generation;
+                }
+            }
+        }
+
+        /** 判断辅助模型返回前对应工具是否仍在执行。 */
+        private synchronized boolean isActiveToolGeneration(long generation) {
+            return generation == activeToolGeneration;
+        }
+
+        /** 取消当前工具尚未触发的自然说明任务。 */
+        private void cancelPendingToolProgress() {
+            if (pendingToolProgress != null) {
+                pendingToolProgress.cancel(false);
+                pendingToolProgress = null;
+            }
+        }
+    }
+
+    /** 判断 monitor 路由是否同时显式配置了 provider 和 model。 */
+    private boolean hasExplicitProgressNarrationModel() {
+        return appConfig.getProactive() != null
+                && StrUtil.isNotBlank(appConfig.getProactive().getModelProvider())
+                && StrUtil.isNotBlank(appConfig.getProactive().getModel());
+    }
+
+    /** 返回长工具触发自然说明前的等待时间，测试可覆盖以避免真实等待。 */
+    protected long progressNarrationDelayMs() {
+        return LONG_TOOL_PROGRESS_DELAY_MS;
+    }
+
+    /**
+     * 约束辅助请求中的工具名称，任何空白、控制字符或超长名称都降级为 unknown。
+     *
+     * @param toolName 原始工具名称。
+     * @return 可安全发送给 monitor 模型的工具名称。
+     */
+    private static String safeProgressToolName(String toolName) {
+        String normalized = StrUtil.nullToEmpty(toolName).trim();
+        return SAFE_PROGRESS_TOOL_NAME_PATTERN.matcher(normalized).matches()
+                ? normalized
+                : "unknown";
+    }
+
+    /**
+     * 使用显式 monitor 模型生成一句自然阶段说明，不经过主模型或备用模型链。
+     *
+     * @param toolName 当前工具名称。
+     * @return 带阶段说明协议前缀的安全文本；无可用输出时返回空串。
+     */
+    protected String generateProgressNarration(String toolName) throws Exception {
+        AppConfig.ProactiveConfig config = appConfig.getProactive();
+        if (!hasExplicitProgressNarrationModel()) {
+            return "";
+        }
+        LlmProviderService.ResolvedProvider provider =
+                llmProviderService.resolveProvider(config.getModelProvider(), config.getModel());
+        AppConfig.LlmConfig resolved = toLlmConfig(provider);
+        resolved.setStream(false);
+        resolved.setMaxTokens(PROGRESS_NARRATION_MAX_TOKENS);
+        resolved.setTemperature(0.2D);
+
+        SessionRecord synthetic = new SessionRecord();
+        synthetic.setSessionId("progress-narration-" + IdSupport.newId());
+        String input = "当前正在执行的工具：" + safeProgressToolName(toolName);
+        ChatResponse response =
+                executeTextOnlyOnce(synthetic, PROGRESS_NARRATION_SYSTEM_PROMPT, input, resolved);
+        AssistantMessage assistantMessage =
+                response == null ? null : response.getAggregationMessage();
+        if (assistantMessage == null && response != null) {
+            assistantMessage = response.getMessage();
+        }
+        if (assistantMessage != null && assistantMessage.isToolCalls()) {
+            return "";
+        }
+        String output = MessageSupport.assistantText(assistantMessage);
+        if (StrUtil.isBlank(output) && response != null) {
+            output =
+                    MessageSupport.visibleText(
+                            StrUtil.blankToDefault(
+                                    response.getAggregationContent(), response.getContent()));
+        }
+        if (MessageSupport.isSilentResponse(output)) {
+            return "";
+        }
+        String sanitized = ProgressUpdateSanitizer.sanitize(output);
+        return StrUtil.isBlank(sanitized)
+                ? ""
+                : ProgressUpdateSanitizer.DECLARATION_PREFIX + sanitized;
+    }
+
+    /**
+     * 不进入故障切换、ReAct 或长度续写流程，只向指定 monitor 模型发起一次纯文本请求。
+     *
+     * @param session 不持久化的隔离会话。
+     * @param systemPrompt 辅助说明系统提示词。
+     * @param userMessage 仅包含工具名和脱敏摘要的用户输入。
+     * @param resolved 已解析的 monitor 模型配置。
+     * @return 单次模型响应。
+     */
+    private ChatResponse executeTextOnlyOnce(
+            SessionRecord session,
+            String systemPrompt,
+            String userMessage,
+            AppConfig.LlmConfig resolved)
+            throws Exception {
+        validate(resolved);
+        ChatModel chatModel = buildChatModel(resolved, session);
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, null);
+        ChatOptions options = ChatOptions.of().autoToolCall(false);
+        ChatRequestDesc request =
+                buildOwnedLoopRequest(
+                        chatModel,
+                        agentSession,
+                        systemPrompt,
+                        options,
+                        Prompt.of(StrUtil.nullToEmpty(userMessage)));
+        ChatResponse response = request.call();
+        logIncompleteFinishReason(response);
+        return response;
     }
 
     /** 续写请求的 assistant 增量缓冲器，确认无重复后再交给真实展示层。 */

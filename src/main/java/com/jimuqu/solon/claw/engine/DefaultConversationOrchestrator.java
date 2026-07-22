@@ -911,17 +911,22 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     /** 仅为用户直接对话追加阶段说明规则，后台运行保持原提示词。 */
     private static String appendProgressUpdateSystemNote(
             String systemPrompt, GatewayMessage message) {
-        if (message == null) {
-            return systemPrompt;
+        return isUserConversationProgress(message)
+                ? appendProgressUpdateSystemNote(systemPrompt)
+                : systemPrompt;
+    }
+
+    /** 判断消息是否为允许展示自然阶段说明和工具状态的用户直接对话。 */
+    private static boolean isUserConversationProgress(GatewayMessage message) {
+        if (message == null
+                || message.isHeartbeat()
+                || message.sourceKey().contains("PROFILE_TASK:")) {
+            return false;
         }
         String runKind = StrUtil.nullToEmpty(message.getRunKind()).trim();
-        boolean userConversation =
-                !message.isHeartbeat()
-                        && !message.sourceKey().contains("PROFILE_TASK:")
-                        && (StrUtil.isBlank(runKind)
-                                || "conversation".equalsIgnoreCase(runKind)
-                                || "resume".equalsIgnoreCase(runKind));
-        return userConversation ? appendProgressUpdateSystemNote(systemPrompt) : systemPrompt;
+        return StrUtil.isBlank(runKind)
+                || "conversation".equalsIgnoreCase(runKind)
+                || "resume".equalsIgnoreCase(runKind);
     }
 
     /**
@@ -1183,7 +1188,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      */
     private ConversationFeedbackSink feedbackSinkFor(GatewayMessage message) {
         if (message == null
-                || message.isHeartbeat()
+                || !isUserConversationProgress(message)
                 || message.getPlatform() == null
                 || message.getPlatform() == PlatformType.MEMORY) {
             return ConversationFeedbackSink.noop();

@@ -1380,17 +1380,22 @@ public class SolonAiOwnedReActLoopTest {
     void shouldEmitAndPersistSafeProgressForNonStreamingToolCall() throws Exception {
         AppConfig config = config();
         config.getLlm().setStream(false);
+        enableMonitorNarration(config);
         RecordingSessionRepository repository = new RecordingSessionRepository();
         FakeChatModel model =
                 new FakeChatModel(
                         config.getLlm().getModel(), FakeMode.NON_STREAM_MULTI_STEP_TOOL_PREAMBLE);
-        TestGateway gateway = new TestGateway(config, repository, model);
+        NarratingTestGateway gateway = new NarratingTestGateway(config, repository, model, 20L);
         SessionRecord session = session("owned-loop-non-stream-progress-session");
         RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
 
         FunctionToolDesc readFile = new FunctionToolDesc("read_file");
         readFile.description("Read file content.");
-        readFile.doHandle(args -> "authoritative content");
+        readFile.doHandle(
+                args -> {
+                    Thread.sleep(80L);
+                    return "authoritative content";
+                });
 
         LlmResult result =
                 invokeExecuteSingle(
@@ -1406,6 +1411,7 @@ public class SolonAiOwnedReActLoopTest {
                         conversationRunContext("run-non-stream-progress", session.getSessionId()));
 
         assertThat(feedbackSink.progressUpdates).containsExactly("正在读取第一部分");
+        assertThat(gateway.narrationCalls.get()).isZero();
         assertThat(result.getAssistantMessage().getContent()).isEqualTo("非流式完成");
         assertThat(MessageSupport.loadMessages(result.getNdjson()))
                 .anyMatch(
@@ -1441,9 +1447,9 @@ public class SolonAiOwnedReActLoopTest {
                         Collections.singletonList(readFile),
                         feedbackSink,
                         ConversationEventSink.noop(),
-                false,
-                config.getLlm(),
-                runContext);
+                        false,
+                        config.getLlm(),
+                        runContext);
 
         assertThat(feedbackSink.progressUpdates).isEmpty();
         assertThat(result.getAssistantMessage().getContent()).isEqualTo("非流式完成");
@@ -1455,6 +1461,7 @@ public class SolonAiOwnedReActLoopTest {
         for (String runKind : Arrays.asList("cron", "heartbeat")) {
             AppConfig config = config();
             config.getLlm().setStream(false);
+            enableMonitorNarration(config);
             RecordingSessionRepository repository = new RecordingSessionRepository();
             RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
             String sessionId = "owned-loop-" + runKind + "-progress-session";
@@ -1467,16 +1474,23 @@ public class SolonAiOwnedReActLoopTest {
             runContext.setRunKind(runKind);
             FunctionToolDesc readFile = new FunctionToolDesc("read_file");
             readFile.description("Read file content.");
-            readFile.doHandle(args -> "authoritative content");
+            readFile.doHandle(
+                    args -> {
+                        Thread.sleep(80L);
+                        return "authoritative content";
+                    });
+            NarratingTestGateway gateway =
+                    new NarratingTestGateway(
+                            config,
+                            repository,
+                            new FakeChatModel(
+                                    config.getLlm().getModel(),
+                                    FakeMode.NON_STREAM_MULTI_STEP_TOOL_PREAMBLE),
+                            20L);
 
             LlmResult result =
                     invokeExecuteSingle(
-                            new TestGateway(
-                                    config,
-                                    repository,
-                                    new FakeChatModel(
-                                            config.getLlm().getModel(),
-                                            FakeMode.NON_STREAM_MULTI_STEP_TOOL_PREAMBLE)),
+                            gateway,
                             session(sessionId),
                             "system",
                             "后台核对文件",
@@ -1488,15 +1502,17 @@ public class SolonAiOwnedReActLoopTest {
                             runContext);
 
             assertThat(feedbackSink.progressUpdates).as(runKind).isEmpty();
+            assertThat(gateway.narrationCalls.get()).as(runKind).isZero();
             assertThat(result.getAssistantMessage().getContent()).isEqualTo("非流式完成");
         }
     }
 
-    /** 没有模型自然说明时，单个长工具也不应再伪造阶段进度。 */
+    /** 主模型没有自然说明时，显式 monitor 模型必须为长工具生成自然兜底说明。 */
     @Test
-    void shouldNotEmitProgressWhileSingleLongToolIsRunning() throws Exception {
+    void shouldEmitNaturalProgressWhileSingleLongToolIsRunning() throws Exception {
         AppConfig config = config();
         config.getLlm().setStream(false);
+        enableMonitorNarration(config);
         AtomicBoolean toolFinished = new AtomicBoolean(false);
         AtomicBoolean progressBeforeFinish = new AtomicBoolean(false);
         CountDownLatch progressReceived = new CountDownLatch(1);
@@ -1513,30 +1529,229 @@ public class SolonAiOwnedReActLoopTest {
         readFile.description("Read file content slowly.");
         readFile.doHandle(
                 args -> {
-                    Thread.sleep(5300L);
+                    Thread.sleep(150L);
                     toolFinished.set(true);
                     return "authoritative content";
                 });
 
+        FakeChatModel model =
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.NON_STREAM_EMPTY_SINGLE_TOOL);
+        NarratingTestGateway gateway =
+                new NarratingTestGateway(config, new RecordingSessionRepository(), model, 20L);
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session("owned-loop-long-tool-progress-session"),
+                        "system",
+                        "请读取并核对大型文件",
+                        Collections.singletonList(readFile),
+                        feedbackSink,
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        conversationRunContext(
+                                "run-long-tool-progress", "owned-loop-long-tool-progress-session"));
+
+        assertThat(progressReceived.await(1, TimeUnit.SECONDS)).isTrue();
+        assertThat(progressBeforeFinish.get()).isTrue();
+        assertThat(gateway.generatedToolName).isEqualTo("read_file");
+        assertThat(gateway.narrationCalls.get()).isEqualTo(1);
+        assertThat(model.requestContents).hasSize(2);
+        assertThat(model.requestContents.get(1)).contains("我先继续核对这部分内容");
+        assertThat(MessageSupport.loadMessages(result.getNdjson()))
+                .anyMatch(
+                        message ->
+                                message instanceof AssistantMessage
+                                        && ((AssistantMessage) message).isToolCalls()
+                                        && "我先继续核对这部分内容".equals(message.getContent()));
+    }
+
+    /** 同一 assistant 的首个工具完成后，第二个长工具的进度仍须进入下一轮请求和持久化历史。 */
+    @Test
+    void shouldPersistNaturalProgressForSecondToolCallInSameAssistant() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(false);
+        enableMonitorNarration(config);
+        FakeChatModel model =
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.NON_STREAM_EMPTY_TWO_TOOL_CALLS);
+        NarratingTestGateway gateway =
+                new NarratingTestGateway(config, new RecordingSessionRepository(), model, 20L);
+        RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
+        FunctionToolDesc firstTool = new FunctionToolDesc("first_fast_tool");
+        firstTool.description("Complete the first check quickly.");
+        firstTool.doHandle(args -> "first completed");
+        FunctionToolDesc secondTool = new FunctionToolDesc("second_slow_tool");
+        secondTool.description("Complete the second check slowly.");
+        secondTool.doHandle(
+                args -> {
+                    Thread.sleep(120L);
+                    return "second completed";
+                });
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session("owned-loop-second-tool-progress-session"),
+                        "system",
+                        "请依次完成两项核对",
+                        Arrays.asList(firstTool, secondTool),
+                        feedbackSink,
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        conversationRunContext(
+                                "run-second-tool-progress",
+                                "owned-loop-second-tool-progress-session"));
+
+        assertThat(feedbackSink.progressUpdates).containsExactly("我先继续核对这部分内容");
+        assertThat(gateway.generatedToolName).isEqualTo("second_slow_tool");
+        assertThat(model.requestContents).hasSize(2);
+        assertThat(model.requestContents.get(1)).contains("我先继续核对这部分内容");
+        assertThat(MessageSupport.loadMessages(result.getNdjson()))
+                .anyMatch(
+                        message ->
+                                message instanceof AssistantMessage
+                                        && ((AssistantMessage) message).getToolCalls().size() == 2
+                                        && "我先继续核对这部分内容".equals(message.getContent()));
+    }
+
+    /** monitor 请求只能携带安全工具名，终端命令和自定义请求头凭据不得离开主模型边界。 */
+    @Test
+    void shouldExcludeToolArgumentsFromProgressNarrationRequest() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(false);
+        config.getLlm().setModelsDevRefreshEnabled(false);
+        enableMonitorNarration(config);
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("monitor-provider");
+        provider.setDialect("openai");
+        provider.setBaseUrl("https://api.openai.com/v1");
+        provider.setApiKey("sk-monitor-test-key");
+        provider.setDefaultModel("monitor-model");
+        provider.setModels(Collections.singletonList("monitor-model"));
+        config.getProviders().put("monitor-provider", provider);
+        FakeChatModel mainModel =
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.NON_STREAM_SENSITIVE_SHELL_TOOL);
+        FakeChatModel monitorModel = new FakeChatModel("monitor-model", FakeMode.HISTORY_FINAL);
+        DualModelNarrationTestGateway gateway =
+                new DualModelNarrationTestGateway(
+                        config, new RecordingSessionRepository(), mainModel, monitorModel, 10L);
+        RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
+        FunctionToolDesc executeShell = new FunctionToolDesc("execute_shell");
+        executeShell.description("Execute a test shell command.");
+        executeShell.doHandle(
+                args -> {
+                    Thread.sleep(120L);
+                    return "completed";
+                });
+
         invokeExecuteSingle(
-                new TestGateway(
-                        config,
-                        new RecordingSessionRepository(),
-                        new FakeChatModel(
-                                config.getLlm().getModel(), FakeMode.NON_STREAM_EMPTY_SINGLE_TOOL)),
-                session("owned-loop-long-tool-progress-session"),
+                gateway,
+                session("owned-loop-sensitive-progress-session"),
                 "system",
-                "请读取并核对大型文件",
-                Collections.singletonList(readFile),
+                "执行测试请求",
+                Collections.singletonList(executeShell),
                 feedbackSink,
                 ConversationEventSink.noop(),
                 false,
                 config.getLlm(),
                 conversationRunContext(
-                        "run-long-tool-progress", "owned-loop-long-tool-progress-session"));
+                        "run-sensitive-progress", "owned-loop-sensitive-progress-session"));
 
-        assertThat(progressReceived.await(1, TimeUnit.SECONDS)).isFalse();
-        assertThat(progressBeforeFinish.get()).isFalse();
+        assertThat(feedbackSink.progressUpdates).containsExactly("历史答复");
+        assertThat(monitorModel.calls).isEqualTo(1);
+        assertThat(monitorModel.requestContents).hasSize(1);
+        assertThat(monitorModel.requestContents.get(0))
+                .contains("当前正在执行的工具：execute_shell")
+                .noneMatch(
+                        content ->
+                                content.contains("plainRandomCredential1234567890")
+                                        || content.contains("X-API-Key")
+                                        || content.contains("curl -H"));
+    }
+
+    /** 辅助自然说明必须只调用显式 monitor 模型一次，不得退回主模型或备用模型。 */
+    @Test
+    void shouldUseOnlyExplicitMonitorModelForProgressNarration() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setModelsDevRefreshEnabled(false);
+        enableMonitorNarration(config);
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("monitor-provider");
+        provider.setDialect("openai");
+        provider.setBaseUrl("https://api.openai.com/v1");
+        provider.setApiKey("sk-monitor-test-key");
+        provider.setDefaultModel("monitor-model");
+        provider.setModels(Collections.singletonList("monitor-model"));
+        config.getProviders().put("monitor-provider", provider);
+        FakeChatModel model = new FakeChatModel("monitor-model", FakeMode.HISTORY_FINAL);
+        RoutingNarrationTestGateway gateway =
+                new RoutingNarrationTestGateway(config, new RecordingSessionRepository(), model);
+
+        String narration = gateway.narrate("read_file");
+
+        assertThat(narration).isEqualTo("【阶段说明】历史答复");
+        assertThat(model.calls).isEqualTo(1);
+        assertThat(gateway.resolvedNarrationConfig.getProvider()).isEqualTo("monitor-provider");
+        assertThat(gateway.resolvedNarrationConfig.getModel()).isEqualTo("monitor-model");
+        assertThat(gateway.resolvedNarrationConfig.isStream()).isFalse();
+        assertThat(gateway.resolvedNarrationConfig.getMaxTokens()).isEqualTo(96);
+        assertThat(gateway.capturedNarrationSession.getSourceKey()).isBlank();
+    }
+
+    /** monitor 返回长度截断时也只能保留首个响应，不得进入通用续写流程。 */
+    @Test
+    void shouldNotContinueLengthLimitedProgressNarration() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setModelsDevRefreshEnabled(false);
+        enableMonitorNarration(config);
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("monitor-provider");
+        provider.setDialect("openai");
+        provider.setBaseUrl("https://api.openai.com/v1");
+        provider.setApiKey("sk-monitor-test-key");
+        provider.setDefaultModel("monitor-model");
+        provider.setModels(Collections.singletonList("monitor-model"));
+        config.getProviders().put("monitor-provider", provider);
+        FakeChatModel model = new FakeChatModel("monitor-model", FakeMode.LENGTH_THEN_STOP);
+        RoutingNarrationTestGateway gateway =
+                new RoutingNarrationTestGateway(config, new RecordingSessionRepository(), model);
+
+        String narration = gateway.narrate("read_file");
+
+        assertThat(narration).isEqualTo("【阶段说明】第一段结尾");
+        assertThat(model.calls).isEqualTo(1);
+        assertThat(model.requestContents).hasSize(1);
+    }
+
+    /** monitor 即使返回工具调用也只请求一次，且不执行工具或展示伪阶段说明。 */
+    @Test
+    void shouldIgnoreToolCallReturnedByProgressNarrationModel() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setModelsDevRefreshEnabled(false);
+        enableMonitorNarration(config);
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("monitor-provider");
+        provider.setDialect("openai");
+        provider.setBaseUrl("https://api.openai.com/v1");
+        provider.setApiKey("sk-monitor-test-key");
+        provider.setDefaultModel("monitor-model");
+        provider.setModels(Collections.singletonList("monitor-model"));
+        config.getProviders().put("monitor-provider", provider);
+        FakeChatModel model =
+                new FakeChatModel("monitor-model", FakeMode.NATIVE_TOOL_WITHOUT_SESSION_APPEND);
+        RoutingNarrationTestGateway gateway =
+                new RoutingNarrationTestGateway(config, new RecordingSessionRepository(), model);
+
+        String narration = gateway.narrate("read_file");
+
+        assertThat(narration).isEmpty();
+        assertThat(model.calls).isEqualTo(1);
+        assertThat(model.requestContents).hasSize(1);
     }
 
     /** 快速单工具结束后不得出现越过完成边界的迟到进度。 */
@@ -1544,17 +1759,21 @@ public class SolonAiOwnedReActLoopTest {
     void shouldNotEmitDelayedProgressAfterFastToolFinishes() throws Exception {
         AppConfig config = config();
         config.getLlm().setStream(false);
+        enableMonitorNarration(config);
         RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
         FunctionToolDesc readFile = new FunctionToolDesc("read_file");
         readFile.description("Read file content.");
         readFile.doHandle(args -> "authoritative content");
 
-        invokeExecuteSingle(
-                new TestGateway(
+        NarratingTestGateway gateway =
+                new NarratingTestGateway(
                         config,
                         new RecordingSessionRepository(),
                         new FakeChatModel(
-                                config.getLlm().getModel(), FakeMode.NON_STREAM_EMPTY_SINGLE_TOOL)),
+                                config.getLlm().getModel(), FakeMode.NON_STREAM_EMPTY_SINGLE_TOOL),
+                        60L);
+        invokeExecuteSingle(
+                gateway,
                 session("owned-loop-fast-tool-progress-session"),
                 "system",
                 "请读取文件",
@@ -1563,9 +1782,105 @@ public class SolonAiOwnedReActLoopTest {
                 ConversationEventSink.noop(),
                 false,
                 config.getLlm(),
-                null);
+                conversationRunContext(
+                        "run-fast-tool-progress", "owned-loop-fast-tool-progress-session"));
 
-        Thread.sleep(5200L);
+        Thread.sleep(120L);
+        assertThat(feedbackSink.progressUpdates).isEmpty();
+        assertThat(gateway.narrationCalls.get()).isZero();
+    }
+
+    /** monitor 已开始生成但工具先结束时，迟到说明不得越过完成边界发送。 */
+    @Test
+    void shouldDropProgressNarrationReturnedAfterToolFinishes() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(false);
+        enableMonitorNarration(config);
+        RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
+        BlockingNarratingTestGateway gateway =
+                new BlockingNarratingTestGateway(
+                        config,
+                        new RecordingSessionRepository(),
+                        new FakeChatModel(
+                                config.getLlm().getModel(), FakeMode.NON_STREAM_EMPTY_SINGLE_TOOL),
+                        10L);
+        FunctionToolDesc readFile = new FunctionToolDesc("read_file");
+        readFile.description("Read file content after narration starts.");
+        readFile.doHandle(
+                args -> {
+                    assertThat(gateway.narrationStarted.await(1, TimeUnit.SECONDS)).isTrue();
+                    return "authoritative content";
+                });
+
+        invokeExecuteSingle(
+                gateway,
+                session("owned-loop-late-progress-session"),
+                "system",
+                "请读取并核对大型文件",
+                Collections.singletonList(readFile),
+                feedbackSink,
+                ConversationEventSink.noop(),
+                false,
+                config.getLlm(),
+                conversationRunContext("run-late-progress", "owned-loop-late-progress-session"));
+        gateway.releaseNarration.countDown();
+
+        assertThat(gateway.narrationFinished.await(1, TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(50L);
+        assertThat(gateway.narrationCalls.get()).isEqualTo(1);
+        assertThat(feedbackSink.progressUpdates).isEmpty();
+    }
+
+    /** 关闭进度窗口必须早于 observation 回调，避免完成反馈阻塞时插入迟到说明。 */
+    @Test
+    void shouldCloseProgressWindowBeforeToolObservation() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(false);
+        enableMonitorNarration(config);
+        BlockingNarratingTestGateway gateway =
+                new BlockingNarratingTestGateway(
+                        config,
+                        new RecordingSessionRepository(),
+                        new FakeChatModel(
+                                config.getLlm().getModel(), FakeMode.NON_STREAM_EMPTY_SINGLE_TOOL),
+                        10L);
+        RecordingFeedbackSink feedbackSink =
+                new RecordingFeedbackSink() {
+                    /** 在 observation 回调内释放 monitor，验证工具窗口此前已经关闭。 */
+                    @Override
+                    public void onToolFinished(String toolName, String result, long durationMs) {
+                        gateway.releaseNarration.countDown();
+                        try {
+                            assertThat(gateway.narrationFinished.await(1, TimeUnit.SECONDS))
+                                    .isTrue();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(e);
+                        }
+                    }
+                };
+        FunctionToolDesc readFile = new FunctionToolDesc("read_file");
+        readFile.description("Read file content after narration starts.");
+        readFile.doHandle(
+                args -> {
+                    assertThat(gateway.narrationStarted.await(1, TimeUnit.SECONDS)).isTrue();
+                    return "authoritative content";
+                });
+
+        invokeExecuteSingle(
+                gateway,
+                session("owned-loop-observation-boundary-session"),
+                "system",
+                "请读取并核对大型文件",
+                Collections.singletonList(readFile),
+                feedbackSink,
+                ConversationEventSink.noop(),
+                false,
+                config.getLlm(),
+                conversationRunContext(
+                        "run-observation-boundary", "owned-loop-observation-boundary-session"));
+
+        assertThat(gateway.narrationCalls.get()).isEqualTo(1);
         assertThat(feedbackSink.progressUpdates).isEmpty();
     }
 
@@ -1595,7 +1910,8 @@ public class SolonAiOwnedReActLoopTest {
                         ConversationEventSink.noop(),
                         false,
                         config.getLlm(),
-                        null);
+                        conversationRunContext(
+                                "run-fast-tool-progress", "owned-loop-fast-tool-progress-session"));
 
         assertThat(feedbackSink.progressUpdates).isEmpty();
         assertThat(MessageSupport.loadMessages(result.getNdjson()))
@@ -2017,6 +2333,12 @@ public class SolonAiOwnedReActLoopTest {
         return context;
     }
 
+    /** 为测试显式启用 monitor 模型路由，避免空配置触发主模型兜底。 */
+    private static void enableMonitorNarration(AppConfig config) {
+        config.getProactive().setModelProvider("monitor-provider");
+        config.getProactive().setModel("monitor-model");
+    }
+
     /**
      * 通过反射调用受保护的单次执行入口。
      *
@@ -2301,6 +2623,154 @@ public class SolonAiOwnedReActLoopTest {
         }
     }
 
+    /** 用可控延迟和确定性自然文本替代真实 monitor 模型的测试网关。 */
+    private static final class NarratingTestGateway extends TestGateway {
+        /** 测试使用的长工具触发延迟。 */
+        private final long delayMs;
+
+        /** 记录辅助自然说明的生成次数。 */
+        private final AtomicInteger narrationCalls = new AtomicInteger();
+
+        /** 最近一次传入辅助模型的工具名。 */
+        private volatile String generatedToolName;
+
+        /** 创建不访问外部模型的自然说明测试网关。 */
+        private NarratingTestGateway(
+                AppConfig appConfig,
+                SessionRepository sessionRepository,
+                ChatModel model,
+                long delayMs) {
+            super(appConfig, sessionRepository, model);
+            this.delayMs = delayMs;
+        }
+
+        /** 使用测试延迟代替生产环境二十秒阈值。 */
+        @Override
+        protected long progressNarrationDelayMs() {
+            return delayMs;
+        }
+
+        /** 返回确定性的自然说明，并记录传入的安全工具名称。 */
+        @Override
+        protected String generateProgressNarration(String toolName) {
+            narrationCalls.incrementAndGet();
+            generatedToolName = toolName;
+            return "【阶段说明】我先继续核对这部分内容";
+        }
+    }
+
+    /** 用锁存器控制辅助说明返回时机，复现工具结束后的迟到响应。 */
+    private static final class BlockingNarratingTestGateway extends TestGateway {
+        /** 测试使用的长工具触发延迟。 */
+        private final long delayMs;
+
+        /** 辅助说明已开始生成。 */
+        private final CountDownLatch narrationStarted = new CountDownLatch(1);
+
+        /** 允许辅助说明返回。 */
+        private final CountDownLatch releaseNarration = new CountDownLatch(1);
+
+        /** 辅助说明生成方法已经返回。 */
+        private final CountDownLatch narrationFinished = new CountDownLatch(1);
+
+        /** 记录辅助说明生成次数。 */
+        private final AtomicInteger narrationCalls = new AtomicInteger();
+
+        /** 创建可控制返回时机的辅助说明测试网关。 */
+        private BlockingNarratingTestGateway(
+                AppConfig appConfig,
+                SessionRepository sessionRepository,
+                ChatModel model,
+                long delayMs) {
+            super(appConfig, sessionRepository, model);
+            this.delayMs = delayMs;
+        }
+
+        /** 使用测试延迟代替生产环境二十秒阈值。 */
+        @Override
+        protected long progressNarrationDelayMs() {
+            return delayMs;
+        }
+
+        /** 等待测试释放后返回自然说明，以验证完成代次校验。 */
+        @Override
+        protected String generateProgressNarration(String toolName) throws Exception {
+            narrationCalls.incrementAndGet();
+            narrationStarted.countDown();
+            try {
+                releaseNarration.await(1, TimeUnit.SECONDS);
+                return "【阶段说明】我先继续核对这部分内容";
+            } finally {
+                narrationFinished.countDown();
+            }
+        }
+    }
+
+    /** 运行真实辅助说明路由、但用假 ChatModel 截获最终配置的测试网关。 */
+    private static final class RoutingNarrationTestGateway extends TestGateway {
+        /** 辅助说明调用最终使用的模型配置。 */
+        private AppConfig.LlmConfig resolvedNarrationConfig;
+
+        /** 辅助说明调用使用的隔离会话。 */
+        private SessionRecord capturedNarrationSession;
+
+        /** 创建仅截获模型配置的辅助说明测试网关。 */
+        private RoutingNarrationTestGateway(
+                AppConfig appConfig, SessionRepository sessionRepository, ChatModel model) {
+            super(appConfig, sessionRepository, model);
+        }
+
+        /** 暴露受保护的辅助说明入口给当前测试。 */
+        private String narrate(String toolName) throws Exception {
+            return generateProgressNarration(toolName);
+        }
+
+        /** 记录辅助说明最终解析到的 provider 与 model 后复用假模型。 */
+        @Override
+        protected ChatModel buildChatModel(AppConfig.LlmConfig resolved, SessionRecord session) {
+            resolvedNarrationConfig = resolved;
+            capturedNarrationSession = session;
+            return super.buildChatModel(resolved, session);
+        }
+    }
+
+    /** 分别提供主模型与 monitor 模型，用于验证辅助请求的数据边界。 */
+    private static final class DualModelNarrationTestGateway extends TestGateway {
+        /** 主对话模型。 */
+        private final ChatModel mainModel;
+
+        /** 辅助阶段说明模型。 */
+        private final ChatModel monitorModel;
+
+        /** 测试使用的长工具触发延迟。 */
+        private final long delayMs;
+
+        /** 创建双模型测试网关。 */
+        private DualModelNarrationTestGateway(
+                AppConfig appConfig,
+                SessionRepository sessionRepository,
+                ChatModel mainModel,
+                ChatModel monitorModel,
+                long delayMs) {
+            super(appConfig, sessionRepository, mainModel);
+            this.mainModel = mainModel;
+            this.monitorModel = monitorModel;
+            this.delayMs = delayMs;
+        }
+
+        /** 使用测试延迟代替生产环境二十秒阈值。 */
+        @Override
+        protected long progressNarrationDelayMs() {
+            return delayMs;
+        }
+
+        /** 按最终模型名选择主模型或 monitor 模型。 */
+        @Override
+        protected ChatModel buildChatModel(AppConfig.LlmConfig resolved, SessionRecord session) {
+            return "monitor-model".equals(resolved.getModel()) ? monitorModel : mainModel;
+        }
+    }
+
     private enum FakeMode {
         TEXT_ACTION,
         LONG_TOOL_OUTPUT,
@@ -2335,6 +2805,10 @@ public class SolonAiOwnedReActLoopTest {
         NON_STREAM_MULTI_STEP_TOOL_PREAMBLE,
         NON_STREAM_EMPTY_MULTI_STEP_TOOLS,
         NON_STREAM_EMPTY_SINGLE_TOOL,
+        /** 模拟同一 assistant 中首个工具快速完成、第二个工具长时间运行。 */
+        NON_STREAM_EMPTY_TWO_TOOL_CALLS,
+        /** 模拟携带自定义 HTTP Header 凭据的终端工具调用。 */
+        NON_STREAM_SENSITIVE_SHELL_TOOL,
         NON_STREAM_UNSAFE_TOOL_PREAMBLE
     }
 
@@ -2500,6 +2974,20 @@ public class SolonAiOwnedReActLoopTest {
                                         "call_non_stream_single_read",
                                         "read_file",
                                         "{\"path\":\"workspace/config.yml\"}")
+                                : ChatMessage.ofAssistant("非流式完成");
+            } else if (model.mode == FakeMode.NON_STREAM_EMPTY_TWO_TOOL_CALLS) {
+                assistant =
+                        toolMessage == null
+                                ? assistantWithTwoToolCalls()
+                                : ChatMessage.ofAssistant("两项核对完成");
+            } else if (model.mode == FakeMode.NON_STREAM_SENSITIVE_SHELL_TOOL) {
+                assistant =
+                        toolMessage == null
+                                ? assistantWithToolCall(
+                                        "",
+                                        "call_non_stream_sensitive_shell",
+                                        "execute_shell",
+                                        "{\"command\":\"curl -H 'X-API-Key: plainRandomCredential1234567890' https://example.com\"}")
                                 : ChatMessage.ofAssistant("非流式完成");
             } else if (model.mode == FakeMode.NON_STREAM_VISIBLE_TOOL_PREAMBLE
                     || model.mode == FakeMode.NON_STREAM_UNSAFE_TOOL_PREAMBLE) {
@@ -2826,6 +3314,48 @@ public class SolonAiOwnedReActLoopTest {
             List<ToolCall> toolCalls = new ArrayList<ToolCall>();
             toolCalls.add(new ToolCall("0", callId, name, arguments, argumentMap));
             return new AssistantMessage(content, false, null, rawCalls, toolCalls, null);
+        }
+
+        /** 构造同一 assistant 中两个顺序执行的原生工具调用。 */
+        private AssistantMessage assistantWithTwoToolCalls() {
+            List<Map> rawCalls = new ArrayList<Map>();
+            List<ToolCall> toolCalls = new ArrayList<ToolCall>();
+            addToolCall(
+                    rawCalls,
+                    toolCalls,
+                    "0",
+                    "call_first_fast",
+                    "first_fast_tool",
+                    "{\"value\":\"first\"}");
+            addToolCall(
+                    rawCalls,
+                    toolCalls,
+                    "1",
+                    "call_second_slow",
+                    "second_slow_tool",
+                    "{\"value\":\"second\"}");
+            return new AssistantMessage("", false, null, rawCalls, toolCalls, null);
+        }
+
+        /** 向原始协议结构和标准工具调用列表同时加入一个调用。 */
+        private void addToolCall(
+                List<Map> rawCalls,
+                List<ToolCall> toolCalls,
+                String index,
+                String callId,
+                String name,
+                String arguments) {
+            Map<String, Object> argumentMap = new LinkedHashMap<String, Object>();
+            argumentMap.put("value", index);
+            Map<String, Object> function = new LinkedHashMap<String, Object>();
+            function.put("name", name);
+            function.put("arguments", arguments);
+            Map<String, Object> rawCall = new LinkedHashMap<String, Object>();
+            rawCall.put("id", callId);
+            rawCall.put("type", "function");
+            rawCall.put("function", function);
+            rawCalls.add(rawCall);
+            toolCalls.add(new ToolCall(index, callId, name, arguments, argumentMap));
         }
     }
 

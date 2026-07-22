@@ -294,7 +294,7 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         request.setThreadId(message.getThreadId());
         request.setReplyToMessageId(message.getReplyToMessageId());
         request.setConversationSourceKey(message.sourceKey());
-        request.setRecordInConversation(true);
+        request.setRecordInConversation(false);
         return request;
     }
 

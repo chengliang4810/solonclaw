@@ -308,6 +308,33 @@ public class ProfileTaskCoordinator implements AutoCloseable {
 
     /** 将任务事件作为新一轮输入唤醒原分配智能体。 */
     void notifySource(ProfileTaskRecord task, String status, String result, String error) {
+        GatewayMessage message = sourceNotificationMessage(task, status, result, error);
+        try {
+            if ("default".equals(task.getSourceProfile())) {
+                defaultGatewayService.handle(message);
+            } else {
+                runtimeManager.route(task.getSourceProfile(), message);
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "Profile task source notification failed: taskId={}, sourceProfile={}, error={}",
+                    task.getTaskId(),
+                    task.getSourceProfile(),
+                    ErrorTextSupport.safeError(e));
+        }
+    }
+
+    /**
+     * 构造协作任务结果回流消息，并明确标记为后台委派完成事件。
+     *
+     * @param task 已结束的协作任务。
+     * @param status 最终任务状态。
+     * @param result 成功结果，可为空。
+     * @param error 失败原因，可为空。
+     * @return 交给来源 Profile 继续分析的内部消息。
+     */
+    static GatewayMessage sourceNotificationMessage(
+            ProfileTaskRecord task, String status, String result, String error) {
         String[] source = SourceKeySupport.split(task.getSourceKey());
         GatewayMessage message =
                 new GatewayMessage(
@@ -326,19 +353,8 @@ public class ProfileTaskCoordinator implements AutoCloseable {
         message.setThreadId(source[3].isEmpty() ? null : source[3]);
         message.setSourceKeyOverride(task.getSourceKey());
         message.setProfile(task.getSourceProfile());
-        try {
-            if ("default".equals(task.getSourceProfile())) {
-                defaultGatewayService.handle(message);
-            } else {
-                runtimeManager.route(task.getSourceProfile(), message);
-            }
-        } catch (Exception e) {
-            log.warn(
-                    "Profile task source notification failed: taskId={}, sourceProfile={}, error={}",
-                    task.getTaskId(),
-                    task.getSourceProfile(),
-                    ErrorTextSupport.safeError(e));
-        }
+        message.setRunKind(GatewayMessage.RUN_KIND_DELEGATION_COMPLETION);
+        return message;
     }
 
     /** 停止认领并中断当前 JVM 内任务。 */

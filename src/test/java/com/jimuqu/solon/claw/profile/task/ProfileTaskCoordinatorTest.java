@@ -3,6 +3,8 @@ package com.jimuqu.solon.claw.profile.task;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.ProfileTaskRecord;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -94,6 +96,26 @@ class ProfileTaskCoordinatorTest {
         assertThat(stored.getStatus()).isEqualTo("COMPLETED");
         assertThat(stored.getResult()).isEqualTo("completed result");
         assertThat(coordinator.statuses).containsExactly("COMPLETED");
+    }
+
+    /** 协作结果回流必须标记为后台完成事件，避免误创建用户对话阶段说明通道。 */
+    @Test
+    void shouldBuildBackgroundSourceNotification() {
+        ProfileTaskRecord task = task("callback");
+        task.setSourceKey("DINGTALK:chat-1:thread-1:user-1");
+
+        GatewayMessage message =
+                ProfileTaskCoordinator.sourceNotificationMessage(
+                        task, "COMPLETED", "finished", null);
+
+        assertThat(message.getPlatform()).isEqualTo(PlatformType.DINGTALK);
+        assertThat(message.getChatId()).isEqualTo("chat-1");
+        assertThat(message.getUserId()).isEqualTo("user-1");
+        assertThat(message.getThreadId()).isEqualTo("thread-1");
+        assertThat(message.getProfile()).isEqualTo("default");
+        assertThat(message.sourceKey()).isEqualTo(task.getSourceKey());
+        assertThat(message.getRunKind()).isEqualTo(GatewayMessage.RUN_KIND_DELEGATION_COMPLETION);
+        assertThat(message.getText()).contains("callback", "COMPLETED", "finished");
     }
 
     /** 调用异常必须提交失败状态，不得遗留 RUNNING。 */

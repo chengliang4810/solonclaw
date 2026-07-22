@@ -199,6 +199,15 @@ public class AgentRunContext {
     }
 
     /**
+     * 判断本轮是否已经登记过自然阶段说明，供长工具辅助说明避免重复发送。
+     *
+     * @return 已发送过至少一条阶段说明时返回 true。
+     */
+    public synchronized boolean hasRegisteredProgressUpdate() {
+        return progressUpdateCount > 0;
+    }
+
+    /**
      * 读取工具执行工作区目录。
      *
      * @return 返回本轮工具执行默认工作区目录。

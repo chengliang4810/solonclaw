@@ -52,6 +52,10 @@ public class ProgressUpdatePromptTest {
                 DefaultConversationOrchestrator.class.getDeclaredMethod(
                         "appendProgressUpdateSystemNote", String.class, GatewayMessage.class);
         method.setAccessible(true);
+        Method classifier =
+                DefaultConversationOrchestrator.class.getDeclaredMethod(
+                        "isUserConversationProgress", GatewayMessage.class);
+        classifier.setAccessible(true);
 
         GatewayMessage conversation =
                 new GatewayMessage(PlatformType.WEIXIN, "chat", "user", "hello");
@@ -68,6 +72,10 @@ public class ProgressUpdatePromptTest {
         assertThat((String) method.invoke(null, "base", cron)).isEqualTo("base");
         assertThat((String) method.invoke(null, "base", heartbeat)).isEqualTo("base");
         assertThat((String) method.invoke(null, "base", profileTask)).isEqualTo("base");
+        assertThat((Boolean) classifier.invoke(null, conversation)).isTrue();
+        assertThat((Boolean) classifier.invoke(null, cron)).isFalse();
+        assertThat((Boolean) classifier.invoke(null, heartbeat)).isFalse();
+        assertThat((Boolean) classifier.invoke(null, profileTask)).isFalse();
     }
 
     /** 消息渠道必须直接发送自然语言阶段说明，不得再拼接机械的进度标签。 */
@@ -101,5 +109,6 @@ public class ProgressUpdatePromptTest {
         assertThat(delivered.get()).isNotNull();
         assertThat(delivered.get().getText()).isEqualTo("我先确认当前版本和 GitHub 仓库信息。");
         assertThat(delivered.get().getText()).doesNotContain("【进度】");
+        assertThat(delivered.get().isRecordInConversation()).isFalse();
     }
 }
