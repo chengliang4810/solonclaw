@@ -24,12 +24,13 @@ import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** 对齐 Jimuqu 请求前消息序列修复，避免孤儿 tool 消息触发空响应循环。 */
 public class MessageSequenceRepairTest {
-    /** 静默判断仅识别字符串结尾的标记。 */
+    /** 静默判断识别整条回复开头、结尾或完全相等的标记。 */
     @Test
     void shouldRecognizeSilentResponsePrefixAndSuffix() {
-        assertThat(MessageSupport.isSilentResponse("[SILENT] 后续分析")).isFalse();
+        assertThat(MessageSupport.isSilentResponse("[SILENT]")).isTrue();
+        assertThat(MessageSupport.isSilentResponse("[SILENT] 后续分析")).isTrue();
         assertThat(MessageSupport.isSilentResponse("巡检正常\r\n\r\n[silent]\r\n")).isTrue();
-        assertThat(MessageSupport.isSilentResponse("巡检正常[SILENT]")).isFalse();
+        assertThat(MessageSupport.isSilentResponse("巡检正常[SILENT]")).isTrue();
         assertThat(MessageSupport.isSilentResponse("巡检异常\n[SILENT]\n仍需提醒")).isFalse();
         assertThat(MessageSupport.isSilentResponse(" ")).isFalse();
     }

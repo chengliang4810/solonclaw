@@ -50,7 +50,7 @@ public final class MessageSupport {
     private MessageSupport() {}
 
     /**
-     * 判断模型回复是否要求静默，仅识别最后一个非空行中的独立静默标记。
+     * 判断模型回复是否要求静默，识别位于整条回复开头或结尾的静默标记。
      *
      * @param content 模型回复内容。
      * @return 需要抑制投递时返回 true。
@@ -60,9 +60,15 @@ public final class MessageSupport {
             return false;
         }
         String normalized = content.replace("\r\n", "\n").replace('\r', '\n').trim();
-        int lineBreak = normalized.lastIndexOf('\n');
-        String lastLine = normalized.substring(lineBreak + 1).trim();
-        return SILENT_MARKER.equalsIgnoreCase(lastLine);
+        int markerLength = SILENT_MARKER.length();
+        return normalized.regionMatches(true, 0, SILENT_MARKER, 0, markerLength)
+                || (normalized.length() >= markerLength
+                        && normalized.regionMatches(
+                                true,
+                                normalized.length() - markerLength,
+                                SILENT_MARKER,
+                                0,
+                                markerLength));
     }
 
     /** 将 NDJSON 反序列化为消息列表。 */
