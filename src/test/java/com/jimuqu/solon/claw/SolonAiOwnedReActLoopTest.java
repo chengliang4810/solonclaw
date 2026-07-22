@@ -1415,9 +1415,9 @@ public class SolonAiOwnedReActLoopTest {
                                         && ((AssistantMessage) message).isToolCalls());
     }
 
-    /** 模型不给工具前正文时，第二个真实工具事件也必须生成确定性阶段进度。 */
+    /** 模型不给工具前正文时，不得再用固定话术伪造阶段进度。 */
     @Test
-    void shouldEmitDeterministicProgressForEmptyMultiStepToolCalls() throws Exception {
+    void shouldNotEmitDeterministicProgressForEmptyMultiStepToolCalls() throws Exception {
         AppConfig config = config();
         config.getLlm().setStream(false);
         RecordingSessionRepository repository = new RecordingSessionRepository();
@@ -1441,11 +1441,11 @@ public class SolonAiOwnedReActLoopTest {
                         Collections.singletonList(readFile),
                         feedbackSink,
                         ConversationEventSink.noop(),
-                        false,
-                        config.getLlm(),
-                        runContext);
+                false,
+                config.getLlm(),
+                runContext);
 
-        assertThat(feedbackSink.progressUpdates).containsExactly("我正在读取并核对资料");
+        assertThat(feedbackSink.progressUpdates).isEmpty();
         assertThat(result.getAssistantMessage().getContent()).isEqualTo("非流式完成");
     }
 
@@ -1492,9 +1492,9 @@ public class SolonAiOwnedReActLoopTest {
         }
     }
 
-    /** 单个工具持续超过五秒时，必须在工具结束前发送确定性进度。 */
+    /** 没有模型自然说明时，单个长工具也不应再伪造阶段进度。 */
     @Test
-    void shouldEmitProgressWhileSingleLongToolIsRunning() throws Exception {
+    void shouldNotEmitProgressWhileSingleLongToolIsRunning() throws Exception {
         AppConfig config = config();
         config.getLlm().setStream(false);
         AtomicBoolean toolFinished = new AtomicBoolean(false);
@@ -1535,8 +1535,8 @@ public class SolonAiOwnedReActLoopTest {
                 conversationRunContext(
                         "run-long-tool-progress", "owned-loop-long-tool-progress-session"));
 
-        assertThat(progressReceived.await(1, TimeUnit.SECONDS)).isTrue();
-        assertThat(progressBeforeFinish.get()).isTrue();
+        assertThat(progressReceived.await(1, TimeUnit.SECONDS)).isFalse();
+        assertThat(progressBeforeFinish.get()).isFalse();
     }
 
     /** 快速单工具结束后不得出现越过完成边界的迟到进度。 */

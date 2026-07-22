@@ -57,8 +57,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -3885,15 +3883,6 @@ public class SolonAiLlmGateway implements LlmGateway {
         /** 当前模型运行已经发送的阶段说明数量。 */
         private int emittedCount;
 
-        /** 当前运行已观察到的真实工具事件数量。 */
-        private int toolEventCount;
-
-        /** 等待工具达到长任务阈值后发送的进度任务。 */
-        private ScheduledFuture<?> pendingToolProgress;
-
-        /** 当前活动工具的递增代次，用于阻止完成边界后的迟到进度。 */
-        private long activeToolGeneration;
-
         /**
          * 创建阶段说明发送器。
          *
@@ -3965,99 +3954,19 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
 
         /**
-         * 根据真实工具生命周期生成阶段进度；第二个工具立即显示，首个长工具延迟显示。
+         * 工具开始时不再拼固定话术；阶段说明只复用模型已经给出的自然预览。
+         *
+         * <p>这样可以避免把工具名硬翻成“我正在...”之类的机械文案，保证展示层只透出模型真实意图。
          *
          * @param toolName 已开始执行的工具名称。
          */
         private synchronized void onToolStarted(String toolName) {
-            cancelPendingToolProgress();
-            toolEventCount++;
-            final long generation = ++activeToolGeneration;
-            final String text = deterministicToolProgress(toolName);
-            if (toolEventCount > 1 && StrUtil.isNotBlank(emit(text))) {
-                return;
-            }
-            pendingToolProgress =
-                    PROGRESS_UPDATE_EXECUTOR.schedule(
-                            () -> dispatchDelayedToolProgress(generation, text),
-                            MIN_PROGRESS_UPDATE_INTERVAL_MS,
-                            TimeUnit.MILLISECONDS);
+            // 不再按工具名兜底生成固定阶段说明。
         }
 
         /** 工具结束时取消尚未达到长任务阈值的延迟进度。 */
         private synchronized void onToolFinished() {
-            activeToolGeneration++;
-            cancelPendingToolProgress();
         }
-
-        /**
-         * 把到期任务交给独立投递线程，并在实际发送前再次确认工具仍处于活动状态。
-         *
-         * @param generation 工具启动时的代次。
-         * @param text 已完成安全分类的阶段说明。
-         */
-        private void dispatchDelayedToolProgress(long generation, String text) {
-            try {
-                PROGRESS_DELIVERY_EXECUTOR.execute(() -> emitDelayedToolProgress(generation, text));
-            } catch (RuntimeException e) {
-                log.warn(
-                        "Progress delivery scheduling failed: error={}",
-                        ErrorTextSupport.safeError(e));
-            }
-        }
-
-        /**
-         * 仅在对应工具仍活动时发送延迟进度，避免完成或失败后的迟到消息。
-         *
-         * @param generation 工具启动时的代次。
-         * @param text 已完成安全分类的阶段说明。
-         */
-        private synchronized void emitDelayedToolProgress(long generation, String text) {
-            if (generation == activeToolGeneration) {
-                emit(text);
-            }
-        }
-
-        /** 取消当前工具尚未发送的延迟进度任务。 */
-        private void cancelPendingToolProgress() {
-            if (pendingToolProgress != null) {
-                pendingToolProgress.cancel(false);
-                pendingToolProgress = null;
-            }
-        }
-    }
-
-    /**
-     * 把工具类型转换为不含参数、凭据和内部实现细节的用户可见阶段说明。
-     *
-     * @param toolName 工具名称。
-     * @return 带展示协议前缀的简短中文阶段说明。
-     */
-    private static String deterministicToolProgress(String toolName) {
-        String normalized = StrUtil.nullToEmpty(toolName).trim().toLowerCase(Locale.ROOT);
-        if (normalized.contains("search") || normalized.contains("fetch")) {
-            return "【阶段说明】我正在检索并核对信息";
-        }
-        if (normalized.contains("read") || normalized.contains("list")) {
-            return "【阶段说明】我正在读取并核对资料";
-        }
-        if (normalized.contains("write")
-                || normalized.contains("patch")
-                || normalized.contains("edit")) {
-            return "【阶段说明】我正在更新并检查内容";
-        }
-        if (normalized.contains("shell")
-                || normalized.contains("terminal")
-                || normalized.contains("execute")) {
-            return "【阶段说明】我正在执行并验证操作";
-        }
-        if (normalized.contains("delegate") || normalized.contains("profile")) {
-            return "【阶段说明】我正在分派并汇总任务";
-        }
-        if (normalized.contains("approval")) {
-            return "【阶段说明】我正在等待操作确认";
-        }
-        return "【阶段说明】我正在继续处理任务";
     }
 
     /** 续写请求的 assistant 增量缓冲器，确认无重复后再交给真实展示层。 */
