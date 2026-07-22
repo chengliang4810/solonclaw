@@ -2211,17 +2211,78 @@ public class ProfileManager {
                 || lower.equals("id_ed25519");
     }
 
-    /** 对导出或安装后的 config.yml 做完整文本脱敏。 */
+    /** 对导出或安装后的 config.yml 做结构化脱敏，并保持结果仍是合法 YAML。 */
     private void redactConfig(Path config) throws IOException {
         if (Files.isSymbolicLink(config) || !Files.isRegularFile(config)) {
             return;
         }
-        String sanitized = SecretRedactor.redact(readText(config), Integer.MAX_VALUE);
-        Files.write(
-                config,
-                sanitized.getBytes(StandardCharsets.UTF_8),
-                StandardOpenOption.TRUNCATE_EXISTING,
-                StandardOpenOption.WRITE);
+        LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setAllowDuplicateKeys(false);
+        Object parsed;
+        try {
+            parsed = new Yaml(new SafeConstructor(loaderOptions)).load(readText(config));
+        } catch (RuntimeException e) {
+            throw new IOException("Invalid Profile config: " + config, e);
+        }
+        DumperOptions dumperOptions = new DumperOptions();
+        dumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        dumperOptions.setPrettyFlow(true);
+        dumperOptions.setIndent(2);
+        writeAtomically(config, new Yaml(dumperOptions).dump(redactConfigValue("", parsed)));
+    }
+
+    /** 递归脱敏配置值，密钥字段整体替换，其余文本继续应用通用脱敏规则。 */
+    private Object redactConfigValue(String key, Object value) {
+        if (isSecretConfigKey(key)) {
+            return "***";
+        }
+        if (value instanceof Map) {
+            Map<Object, Object> redacted = new LinkedHashMap<Object, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                String childKey = String.valueOf(entry.getKey());
+                redacted.put(entry.getKey(), redactConfigValue(childKey, entry.getValue()));
+            }
+            return redacted;
+        }
+        if (value instanceof List) {
+            List<Object> redacted = new ArrayList<Object>();
+            for (Object item : (List<?>) value) {
+                redacted.add(redactConfigValue("", item));
+            }
+            return redacted;
+        }
+        return value instanceof String
+                ? SecretRedactor.redact((String) value, Integer.MAX_VALUE)
+                : value;
+    }
+
+    /** 判断配置键是否承载凭据，避免分发归档保留明文密钥。 */
+    private boolean isSecretConfigKey(String key) {
+        String normalized =
+                key == null
+                        ? ""
+                        : key.trim().toLowerCase(Locale.ROOT).replace("_", "").replace("-", "");
+        return normalized.endsWith("apikey")
+                || normalized.endsWith("apikeyvalue")
+                || normalized.endsWith("token")
+                || normalized.endsWith("tokenvalue")
+                || normalized.endsWith("secret")
+                || normalized.endsWith("secretkey")
+                || normalized.endsWith("secretaccesskey")
+                || normalized.endsWith("secretvalue")
+                || normalized.endsWith("secretinput")
+                || normalized.endsWith("password")
+                || normalized.endsWith("passwd")
+                || normalized.endsWith("credential")
+                || normalized.endsWith("credentialjson")
+                || normalized.endsWith("credentialdata")
+                || normalized.endsWith("credentialvalue")
+                || "credentials".equals(normalized)
+                || normalized.endsWith("privatekey")
+                || normalized.endsWith("privatekeypem")
+                || normalized.endsWith("keymaterial")
+                || "authorization".equals(normalized)
+                || normalized.endsWith("authorizationheader");
     }
 
     /**

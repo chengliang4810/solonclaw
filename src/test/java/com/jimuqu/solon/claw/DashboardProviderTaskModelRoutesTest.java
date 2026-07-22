@@ -215,6 +215,36 @@ class DashboardProviderTaskModelRoutesTest {
         }
     }
 
+    /** Provider 保存扫描命名 Profile 时必须接受带引号的脱敏占位符，不能再返回 500。 */
+    @Test
+    void shouldUpdateProviderWhenNamedProfileContainsQuotedRedactedSecret() throws Exception {
+        Path root = Files.createTempDirectory("solonclaw-provider-redacted-profile-");
+        try {
+            writeRootConfig(root);
+            Path profileHome = root.resolve("profiles/writer");
+            Files.createDirectories(profileHome);
+            Files.writeString(
+                    profileHome.resolve("config.yml"),
+                    "model:\n"
+                            + "  providerKey: default\n"
+                            + "  default: main-model\n"
+                            + "solonclaw:\n"
+                            + "  channels:\n"
+                            + "    feishu:\n"
+                            + "      appSecret: '***'\n");
+            AppConfig config = loadConfig(root);
+            DashboardProviderService service =
+                    new DashboardProviderService(config, null, new LlmProviderService(config));
+
+            service.updateProvider("fast", fastProviderWithoutCheapModel());
+
+            assertThat(loadConfig(root).getProviders().get("fast").getModels())
+                    .containsExactly("flash-model");
+        } finally {
+            FileUtil.del(root.toFile());
+        }
+    }
+
     /** Provider 更新不得删除现有 Cron 任务固定绑定的模型。 */
     @Test
     void shouldRejectRemovingModelReferencedByCronJob() throws Exception {

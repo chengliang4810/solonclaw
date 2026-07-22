@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -30,6 +31,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /** 验证 Profile 管理命令与独立工作区的完整用户可见行为。 */
 class ProfileManagerTest {
@@ -651,6 +655,74 @@ class ProfileManagerTest {
         assertThat(Files.readString(installed.resolve("MEMORY.md"))).contains("user memory");
         assertThat(hasStateDatabaseProbe(installed.resolve("data/state.db"))).isTrue();
         assertThat(runOk("default", "info", "ops").stdout).contains("Version: 2.0.0");
+    }
+
+    /** 分发配置脱敏后必须仍是合法 YAML，避免残留的 Provider 凭据阻断后续模型保存。 */
+    @Test
+    void keepsDistributionConfigValidAfterRedaction() throws Exception {
+        writeRootProviderModels("registered-model");
+        Path distribution = tempDir.resolve("redacted-distribution");
+        write(distribution.resolve("distribution.yaml"), "name: redacted\nversion: 1.0.0\n");
+        write(
+                distribution.resolve("config.yml"),
+                "providers:\n"
+                        + "  default:\n"
+                        + "    apiKey: Sk-Distribution-Secret-12345\n"
+                        + "model:\n"
+                        + "  providerKey: default\n"
+                        + "  default: registered-model\n"
+                        + "solonclaw:\n"
+                        + "  llm:\n"
+                        + "    contextWindowTokens: 8192\n"
+                        + "  terminal:\n"
+                        + "    credentialFiles:\n"
+                        + "      - credentials/oauth.json\n"
+                        + "  channels:\n"
+                        + "    feishu:\n"
+                        + "      appSecret: OpaqueValueChannelA1\n"
+                        + "custom:\n"
+                        + "  api-key: OpaqueValueApiA1\n"
+                        + "  secretKey: OpaqueValueSecretKeyA1\n"
+                        + "  tokenValue: OpaqueValueTokenA1\n"
+                        + "  credentialJson: OpaqueValueCredentialA1\n"
+                        + "  authorizationHeader: OpaqueValueAuthorizationA1\n"
+                        + "  privateKeyPem: OpaqueValuePrivateKeyA1\n"
+                        + "  maxTokens: 2048\n"
+                        + "  tokenUrl: https://example.com/oauth/token\n");
+
+        runOk("default", "install", "--name=redacted", "-y", distribution.toString());
+
+        String installed = Files.readString(manager.profileHome("redacted").resolve("config.yml"));
+        Object parsed = new Yaml(new SafeConstructor(new LoaderOptions())).load(installed);
+        assertThat(parsed).isInstanceOf(Map.class);
+        Map<?, ?> rootConfig = (Map<?, ?>) parsed;
+        Map<?, ?> solonclawConfig = (Map<?, ?>) rootConfig.get("solonclaw");
+        Map<?, ?> llmConfig = (Map<?, ?>) solonclawConfig.get("llm");
+        Map<?, ?> terminalConfig = (Map<?, ?>) solonclawConfig.get("terminal");
+        Map<?, ?> customConfig = (Map<?, ?>) rootConfig.get("custom");
+        assertThat(llmConfig.get("contextWindowTokens")).isEqualTo(8192);
+        assertThat(terminalConfig.get("credentialFiles"))
+                .isEqualTo(Collections.singletonList("credentials/oauth.json"));
+        assertThat(customConfig.get("maxTokens")).isEqualTo(2048);
+        assertThat(customConfig.get("tokenUrl")).isEqualTo("https://example.com/oauth/token");
+        assertThat(customConfig.get("api-key")).isEqualTo("***");
+        assertThat(customConfig.get("secretKey")).isEqualTo("***");
+        assertThat(customConfig.get("tokenValue")).isEqualTo("***");
+        assertThat(customConfig.get("credentialJson")).isEqualTo("***");
+        assertThat(customConfig.get("authorizationHeader")).isEqualTo("***");
+        assertThat(customConfig.get("privateKeyPem")).isEqualTo("***");
+        assertThat(installed)
+                .doesNotContain(
+                        "providers:",
+                        "Sk-Distribution-Secret-12345",
+                        "OpaqueValueChannelA1",
+                        "OpaqueValueApiA1",
+                        "OpaqueValueSecretKeyA1",
+                        "OpaqueValueTokenA1",
+                        "OpaqueValueCredentialA1",
+                        "OpaqueValueAuthorizationA1",
+                        "OpaqueValuePrivateKeyA1")
+                .contains("appSecret: '***'");
     }
 
     /** 分发安装必须在创建目标目录前拒绝未登记 Provider。 */
