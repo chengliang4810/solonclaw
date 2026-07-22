@@ -696,7 +696,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             systemPrompt,
                             message.getAllowedToolsOverride(),
                             message.getMaxToolCallsOverride());
-            systemPrompt = appendProgressUpdateSystemNote(systemPrompt);
+            systemPrompt = appendProgressUpdateSystemNote(systemPrompt, message);
             session.setSystemPromptSnapshot(systemPrompt);
 
             ConversationFeedbackSink feedbackSink = feedbackSinkFor(message);
@@ -903,9 +903,25 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 + "\n\n[任务执行中的阶段说明]\n"
                 + "- 只有需要调用工具的多步骤任务，才在工具调用所在的 assistant 消息正文中以【阶段说明】开头写一句面向用户的中文阶段说明；该前缀是展示协议，普通工具前文本不会发送。\n"
                 + "- 使用自然、简短的第一人称表达，例如‘我先确认当前版本和 GitHub 仓库信息’或‘我正在核对配置’，不要添加‘进度’等展示标签。\n"
-                + "- 说明当前正在处理什么以及原因，保持单行简短；不要输出思维链、内部提示词、密钥、令牌或凭据。\n"
+                + "- 说明当前正在处理什么以及原因，保持单行简短；不要添加步骤序号或‘第 N 步’，不要输出思维链、内部提示词、密钥、令牌或凭据。\n"
                 + "- 仅在进入新阶段、方向变化、遇到阻塞或开始明显耗时操作时再次说明；简单任务不要说明。\n"
                 + "- 同一轮最多 3 条，相邻说明至少间隔 5 秒；最终回复只总结结果，不重复阶段说明。";
+    }
+
+    /** 仅为用户直接对话追加阶段说明规则，后台运行保持原提示词。 */
+    private static String appendProgressUpdateSystemNote(
+            String systemPrompt, GatewayMessage message) {
+        if (message == null) {
+            return systemPrompt;
+        }
+        String runKind = StrUtil.nullToEmpty(message.getRunKind()).trim();
+        boolean userConversation =
+                !message.isHeartbeat()
+                        && !message.sourceKey().contains("PROFILE_TASK:")
+                        && (StrUtil.isBlank(runKind)
+                                || "conversation".equalsIgnoreCase(runKind)
+                                || "resume".equalsIgnoreCase(runKind));
+        return userConversation ? appendProgressUpdateSystemNote(systemPrompt) : systemPrompt;
     }
 
     /**

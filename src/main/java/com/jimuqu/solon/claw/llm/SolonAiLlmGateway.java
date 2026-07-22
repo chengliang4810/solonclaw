@@ -3921,6 +3921,10 @@ public class SolonAiLlmGateway implements LlmGateway {
                     && eventSink == ConversationEventSink.noop())) {
                 return "";
             }
+            String runKind = runContext == null ? "" : runContext.getRunKind();
+            if (!"conversation".equalsIgnoreCase(runKind) && !"resume".equalsIgnoreCase(runKind)) {
+                return "";
+            }
             String text = sanitizeProgressUpdate(rawText);
             if (StrUtil.isBlank(text)) {
                 return "";
@@ -3969,7 +3973,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             cancelPendingToolProgress();
             toolEventCount++;
             final long generation = ++activeToolGeneration;
-            final String text = deterministicToolProgress(toolName, toolEventCount);
+            final String text = deterministicToolProgress(toolName);
             if (toolEventCount > 1 && StrUtil.isNotBlank(emit(text))) {
                 return;
             }
@@ -4027,35 +4031,33 @@ public class SolonAiLlmGateway implements LlmGateway {
      * 把工具类型转换为不含参数、凭据和内部实现细节的用户可见阶段说明。
      *
      * @param toolName 工具名称。
-     * @param step 当前真实工具步骤序号。
      * @return 带展示协议前缀的简短中文阶段说明。
      */
-    private static String deterministicToolProgress(String toolName, int step) {
+    private static String deterministicToolProgress(String toolName) {
         String normalized = StrUtil.nullToEmpty(toolName).trim().toLowerCase(Locale.ROOT);
-        String suffix = step > 1 ? "（第 " + step + " 步）" : "";
         if (normalized.contains("search") || normalized.contains("fetch")) {
-            return "【阶段说明】我正在检索并核对信息" + suffix;
+            return "【阶段说明】我正在检索并核对信息";
         }
         if (normalized.contains("read") || normalized.contains("list")) {
-            return "【阶段说明】我正在读取并核对资料" + suffix;
+            return "【阶段说明】我正在读取并核对资料";
         }
         if (normalized.contains("write")
                 || normalized.contains("patch")
                 || normalized.contains("edit")) {
-            return "【阶段说明】我正在更新并检查内容" + suffix;
+            return "【阶段说明】我正在更新并检查内容";
         }
         if (normalized.contains("shell")
                 || normalized.contains("terminal")
                 || normalized.contains("execute")) {
-            return "【阶段说明】我正在执行并验证操作" + suffix;
+            return "【阶段说明】我正在执行并验证操作";
         }
         if (normalized.contains("delegate") || normalized.contains("profile")) {
-            return "【阶段说明】我正在分派并汇总任务" + suffix;
+            return "【阶段说明】我正在分派并汇总任务";
         }
         if (normalized.contains("approval")) {
-            return "【阶段说明】我正在等待操作确认" + suffix;
+            return "【阶段说明】我正在等待操作确认";
         }
-        return "【阶段说明】我正在继续处理任务" + suffix;
+        return "【阶段说明】我正在继续处理任务";
     }
 
     /** 续写请求的 assistant 增量缓冲器，确认无重复后再交给真实展示层。 */

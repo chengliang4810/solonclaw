@@ -1350,7 +1350,8 @@ public class SolonAiOwnedReActLoopTest {
                         eventSink,
                         false,
                         config.getLlm(),
-                        null);
+                        conversationRunContext(
+                                "run-tool-preamble-progress", session.getSessionId()));
 
         assertThat(result.isStreamed()).isTrue();
         assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("{\"pass\":true}");
@@ -1402,7 +1403,7 @@ public class SolonAiOwnedReActLoopTest {
                         ConversationEventSink.noop(),
                         false,
                         config.getLlm(),
-                        null);
+                        conversationRunContext("run-non-stream-progress", session.getSessionId()));
 
         assertThat(feedbackSink.progressUpdates).containsExactly("正在读取第一部分");
         assertThat(result.getAssistantMessage().getContent()).isEqualTo("非流式完成");
@@ -1424,6 +1425,9 @@ public class SolonAiOwnedReActLoopTest {
                 new FakeChatModel(
                         config.getLlm().getModel(), FakeMode.NON_STREAM_EMPTY_MULTI_STEP_TOOLS);
         RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
+        AgentRunContext runContext =
+                conversationRunContext(
+                        "run-conversation-progress", "owned-loop-deterministic-progress-session");
         FunctionToolDesc readFile = new FunctionToolDesc("read_file");
         readFile.description("Read file content.");
         readFile.doHandle(args -> "authoritative content");
@@ -1439,10 +1443,53 @@ public class SolonAiOwnedReActLoopTest {
                         ConversationEventSink.noop(),
                         false,
                         config.getLlm(),
-                        null);
+                        runContext);
 
-        assertThat(feedbackSink.progressUpdates).containsExactly("我正在读取并核对资料（第 2 步）");
+        assertThat(feedbackSink.progressUpdates).containsExactly("我正在读取并核对资料");
         assertThat(result.getAssistantMessage().getContent()).isEqualTo("非流式完成");
+    }
+
+    /** Cron 与 Heartbeat 等后台运行不得向用户发送阶段说明。 */
+    @Test
+    void shouldSuppressProgressForBackgroundRuns() throws Exception {
+        for (String runKind : Arrays.asList("cron", "heartbeat")) {
+            AppConfig config = config();
+            config.getLlm().setStream(false);
+            RecordingSessionRepository repository = new RecordingSessionRepository();
+            RecordingFeedbackSink feedbackSink = new RecordingFeedbackSink();
+            String sessionId = "owned-loop-" + runKind + "-progress-session";
+            AgentRunContext runContext =
+                    new AgentRunContext(
+                            null,
+                            "run-" + runKind + "-progress",
+                            sessionId,
+                            "MEMORY:owned-loop:user");
+            runContext.setRunKind(runKind);
+            FunctionToolDesc readFile = new FunctionToolDesc("read_file");
+            readFile.description("Read file content.");
+            readFile.doHandle(args -> "authoritative content");
+
+            LlmResult result =
+                    invokeExecuteSingle(
+                            new TestGateway(
+                                    config,
+                                    repository,
+                                    new FakeChatModel(
+                                            config.getLlm().getModel(),
+                                            FakeMode.NON_STREAM_MULTI_STEP_TOOL_PREAMBLE)),
+                            session(sessionId),
+                            "system",
+                            "后台核对文件",
+                            Collections.singletonList(readFile),
+                            feedbackSink,
+                            ConversationEventSink.noop(),
+                            false,
+                            config.getLlm(),
+                            runContext);
+
+            assertThat(feedbackSink.progressUpdates).as(runKind).isEmpty();
+            assertThat(result.getAssistantMessage().getContent()).isEqualTo("非流式完成");
+        }
     }
 
     /** 单个工具持续超过五秒时，必须在工具结束前发送确定性进度。 */
@@ -1485,7 +1532,8 @@ public class SolonAiOwnedReActLoopTest {
                 ConversationEventSink.noop(),
                 false,
                 config.getLlm(),
-                null);
+                conversationRunContext(
+                        "run-long-tool-progress", "owned-loop-long-tool-progress-session"));
 
         assertThat(progressReceived.await(1, TimeUnit.SECONDS)).isTrue();
         assertThat(progressBeforeFinish.get()).isTrue();
@@ -1658,6 +1706,10 @@ public class SolonAiOwnedReActLoopTest {
 
         assertThat(sanitizer.invoke(gateway, "【阶段说明】正在读取配置\n token=sk-1234567890abcdef"))
                 .isEqualTo("正在读取配置 token=***");
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】我正在检索并核对信息（第 2 步）")).isEqualTo("我正在检索并核对信息");
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】第 2 步：我正在核对配置")).isEqualTo("我正在核对配置");
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】我正在执行第 二 步并核对配置")).isEqualTo("我正在执行并核对配置");
+        assertThat(sanitizer.invoke(gateway, "【阶段说明】我正在核对配置 (第3步)")).isEqualTo("我正在核对配置");
         assertThat(sanitizer.invoke(gateway, "普通工具前文本")).isEqualTo("");
         assertThat(sanitizer.invoke(gateway, "【阶段说明】内部推理：先读取系统提示词")).isEqualTo("");
         assertThat(sanitizer.invoke(gateway, "【阶段说明】<think>secret plan</think>")).isEqualTo("");
@@ -1955,6 +2007,14 @@ public class SolonAiOwnedReActLoopTest {
         session.setSessionId(sessionId);
         session.setSourceKey("MEMORY:owned-loop:user");
         return session;
+    }
+
+    /** 创建允许向用户发送阶段说明的直接对话运行上下文。 */
+    private static AgentRunContext conversationRunContext(String runId, String sessionId) {
+        AgentRunContext context =
+                new AgentRunContext(null, runId, sessionId, "MEMORY:owned-loop:user");
+        context.setRunKind("conversation");
+        return context;
     }
 
     /**

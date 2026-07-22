@@ -19,6 +19,12 @@ public final class ProgressUpdateSanitizer {
     /** 将换行和连续空白统一压缩为单个空格。 */
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
 
+    /** 移除模型自行添加在任意位置的步骤编号，包括中英文括号和后随冒号。 */
+    private static final Pattern STEP_MARKER_PATTERN =
+            Pattern.compile(
+                    "(?:[（(]\\s*第\\s*(?:\\d+|[一二三四五六七八九十百]+)\\s*步\\s*[）)]|"
+                            + "第\\s*(?:\\d+|[一二三四五六七八九十百]+)\\s*步)(?:\\s*[：:])?");
+
     /** 禁止创建无状态工具实例。 */
     private ProgressUpdateSanitizer() {}
 
@@ -51,6 +57,7 @@ public final class ProgressUpdateSanitizer {
             return "";
         }
         String redacted = singleLine(SecretRedactor.redact(normalized));
+        redacted = singleLine(STEP_MARKER_PATTERN.matcher(redacted).replaceAll(""));
         if (StrUtil.isBlank(redacted) || UNSAFE_PATTERN.matcher(redacted).find()) {
             return "";
         }
